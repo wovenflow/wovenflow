@@ -1,0 +1,195 @@
+---
+name: subflow
+description: Build phase of DTDD (Doc-Test-Driven Development) — the subagent flow. Use when ready to implement code for a .spec.md whose tests already fail. Dispatches one implementer subagent per behavior, with spec-compliance and code-quality review per behavior. Subagents read the .spec.md by file path — never paste-text.
+---
+
+# Subflow (DTDD Build phase)
+
+Third of three phases in a Doc-Test-Driven Development cycle. The orchestrator wrote the spec (`designflow`) and the failing tests (`testflow`); `subflow` runs the build phase by dispatching one subagent per behavior, with two-stage review after each. The orchestrator coordinates; subagents implement.
+
+The name reads as "the subagent flow" — a subset of the wovenflow workflow that runs entirely through dispatched subagents.
+
+## How tests run (read this first)
+
+The test code in the `.spec.md` is **not directly runnable** — it lives inside markdown fences. The `testflow` skill's bundled extractor (`extract.mjs`) reads the `.spec.md` and writes derived `.test.ts` files into `out/spec-tests/` (or wherever the second arg points). Those derived files are what the test runner actually executes.
+
+### Standard path: pretest hook
+
+Wire the extractor as the project's `pretest` hook in `package.json`:
+
+```json
+"scripts": {
+  "pretest": "node <plugin-path>/skills/testflow/extract.mjs 'doc/specs/**/*.spec.md' out/spec-tests/",
+  "test": "<your test runner> out/spec-tests/*.test.ts"
+}
+```
+
+`pretest` is an npm lifecycle hook — it runs automatically before any invocation of `test`. CI, IDE Mocha integrations, and command-line `npm test` all trigger it. **Subagents do not invoke the extractor manually** when pretest is wired; `npm test` is enough.
+
+If `pretest` is **not** wired in the target project (e.g., a project adopting wovenflow for the first time), the orchestrator must wire it before dispatching subagents. The pre-condition check below catches this.
+
+### Bundled run scripts (this skill)
+
+For situations where the project's `npm test` doesn't apply — running tests directly from the plugin, iterating on one behavior, debugging — `subflow` ships two convenience scripts alongside this `SKILL.md`:
+
+| Script | Purpose | CLI |
+|---|---|---|
+| **`run-suite.mjs`** | Extract a `.spec.md` glob, run every behavior's test through `node:test`. | `node run-suite.mjs <glob-or-file> [<output-dir>]` |
+| **`run-behavior.mjs`** | Extract one `.spec.md`, run only one behavior's test (filtered by id). | `node run-behavior.mjs <spec-file> <behavior-id>` |
+
+Both wrap `testflow/extract.mjs` plus the project's runner (`node:test` by default; runner-specific behavior in the script's `--help`). Output dir defaults to a temp directory unless one is supplied (so the project tree stays clean during ad-hoc runs). Exit code is the runner's: zero on green, non-zero on red.
+
+Subagents use these to test their own implementation iteratively without re-running the full suite or modifying project scripts:
+
+- "Did B1's test pass after my change?" → `node <plugin>/skills/subflow/run-behavior.mjs <spec> B1`
+- "Did anything regress?" → `node <plugin>/skills/subflow/run-suite.mjs '<glob>'`
+
+## When to use
+
+After `testflow`. Pre-conditions to verify before dispatching:
+
+- The `.spec.md` is committed to a branch (subagents reference it by path)
+- `pretest` extraction is wired in `package.json` (so `npm test` extracts then runs the runner)
+- Running `npm test` once shows red — every behavior's test fails. That's the canonical TDD red moment; this skill turns it green.
+
+If any pre-condition isn't met, fix that first; do not dispatch implementers against a partial setup.
+
+## Why subagents
+
+The orchestrator owns the contract; subagents own implementation. Subagents work in isolated context — they're given the spec file path and a behavior identifier, not pasted task text — and they read the canonical source themselves. This:
+
+- Keeps the orchestrator's context clean for coordination
+- Gives each implementer a fresh, scoped focus on one behavior
+- Lets subagents see the *full* spec context (other behaviors, user stories, invariants) — pasted text would lose this
+- Eliminates drift risk — if the spec evolves between dispatch and re-try, the subagent re-reads the current truth
+- Makes commits and error references point to the canonical artifact (`B1` from `doc/specs/<feature>.spec.md`)
+
+## The unit of work is a behavior
+
+Each H3 behavior section (`### B1: ...`) in the spec is one task. One subagent implements one behavior. The behavior may touch many files — that's fine; the unit isn't files, it's the contract.
+
+If two behaviors share enough implementation that splitting them produces redundant work, dispatch them together (one subagent, two behaviors). Document the coupling in the dispatch prompt. Default is one-per-subagent unless coupling is obvious.
+
+## Subagent input pattern (canonical)
+
+Every subagent — implementer, spec-compliance reviewer, code-quality reviewer — gets these three inputs:
+
+| Input | Example |
+|---|---|
+| **Spec file (absolute path)** | `/home/will/bexoe/doc/specs/2026-05-04-feature.spec.md` |
+| **Behavior identifier** | `B1` (matches the H3 header in the spec) |
+| **Working directory** | `/home/will/bexoe/.claude/worktrees/agent-0` |
+
+Subagents do NOT receive paste-text of the behavior. They open the file and read it. This is the central design choice that makes the system honest:
+
+- The `.spec.md` is the source of truth. Subagents read truth.
+- If the spec is updated mid-cycle, the subagent reads the current version on retry.
+- Commits, error logs, and review comments reference the file path — git history points back to the contract.
+
+## The process (per behavior)
+
+```dot
+digraph build_per_behavior {
+  rankdir=TB;
+  "Dispatch implementer (./implementer-prompt.md)" [shape=box];
+  "Implementer reports" [shape=diamond];
+  "Provide context, redispatch" [shape=box];
+  "Implementer escalates? Pause." [shape=box];
+  "Implementer fixes spec gaps" [shape=box];
+  "Dispatch spec-compliance reviewer (./spec-compliance-prompt.md)" [shape=box];
+  "Spec compliance verdict" [shape=diamond];
+  "Dispatch code-quality reviewer (./code-quality-prompt.md)" [shape=box];
+  "Code quality verdict" [shape=diamond];
+  "Implementer fixes quality issues" [shape=box];
+  "Mark behavior complete" [shape=box style=filled fillcolor=lightgreen];
+
+  "Dispatch implementer (./implementer-prompt.md)" -> "Implementer reports";
+  "Implementer reports" -> "Provide context, redispatch" [label="NEEDS_CONTEXT"];
+  "Provide context, redispatch" -> "Dispatch implementer (./implementer-prompt.md)";
+  "Implementer reports" -> "Implementer escalates? Pause." [label="BLOCKED"];
+  "Implementer reports" -> "Dispatch spec-compliance reviewer (./spec-compliance-prompt.md)" [label="DONE / DONE_WITH_CONCERNS"];
+  "Dispatch spec-compliance reviewer (./spec-compliance-prompt.md)" -> "Spec compliance verdict";
+  "Spec compliance verdict" -> "Implementer fixes spec gaps" [label="NEEDS_FIX"];
+  "Implementer fixes spec gaps" -> "Dispatch spec-compliance reviewer (./spec-compliance-prompt.md)";
+  "Spec compliance verdict" -> "Dispatch code-quality reviewer (./code-quality-prompt.md)" [label="APPROVED"];
+  "Dispatch code-quality reviewer (./code-quality-prompt.md)" -> "Code quality verdict";
+  "Code quality verdict" -> "Implementer fixes quality issues" [label="Issues"];
+  "Implementer fixes quality issues" -> "Dispatch code-quality reviewer (./code-quality-prompt.md)";
+  "Code quality verdict" -> "Mark behavior complete" [label="Approved"];
+}
+```
+
+Spec compliance review runs before code quality review. Order matters: there's no point reviewing the cleanliness of code that doesn't satisfy the contract.
+
+## Implementer status reporting
+
+Implementers report exactly one of four statuses. Handle each:
+
+- **DONE.** Tests green, contract met, no concerns. Proceed to spec-compliance review.
+- **DONE_WITH_CONCERNS.** Tests green, but the implementer flags something (file getting large, pattern smells, a related behavior they noticed). Read the concerns; fold relevant ones into the next review pass. If concerns suggest a real bug or scope mismatch, address before reviewing.
+- **NEEDS_CONTEXT.** Implementer can't proceed without information that wasn't in the spec or codebase. Provide the missing context and re-dispatch the same subagent (don't start over).
+- **BLOCKED.** Fundamental issue — spec is wrong, conflicts with other behaviors, requires architectural change beyond this behavior's scope. **Pause the cycle**, read the report, decide: fix the spec (orchestrator returns to `testflow` or `designflow`), or escalate to user.
+
+Never ignore an escalation. If the implementer says they're stuck, something needs to change.
+
+## Reviewer cycle (one or both stages may need to run twice)
+
+Spec compliance reviewer returns one of:
+- **APPROVED.** Test passes, contract met, no scope creep, no regressions. Proceed.
+- **NEEDS_FIX.** Specific list of issues. Send to implementer to fix; re-dispatch reviewer to re-check.
+- **BLOCKED.** Reviewer believes the spec itself is wrong (e.g., test contradicts the If/When/Then prose). Pause, escalate to orchestrator.
+
+Code quality reviewer returns:
+- **APPROVED.** Behavior is complete.
+- **Issues** (Critical / Important / Minor). Critical and Important must be fixed before completion. Minor can be deferred to a follow-up issue.
+
+Re-review after each fix until both stages approve.
+
+## Model selection
+
+Match model to task complexity:
+
+- **Mechanical implementation** (one behavior, isolated file, clear contract) — fast/cheap model
+- **Integration** (multiple files, cross-behavior coordination) — standard model
+- **Architecture / debugging escalation** — most capable model
+
+Reviewers can usually run on the same tier as the implementer or one tier lower.
+
+## Prompt templates
+
+- `./implementer-prompt.md` — dispatch the implementer
+- `./spec-compliance-prompt.md` — dispatch the spec reviewer
+- `./code-quality-prompt.md` — dispatch the code-quality reviewer
+
+Each template specifies how to fill in the spec file path, behavior identifier, and working directory. Templates do not include paste-text of the behavior — file pointer only.
+
+## Red flags
+
+These mean STOP and reconsider:
+
+| Sign | What to do |
+|---|---|
+| Tempted to paste behavior text into the prompt | Don't. Use the file pointer. The spec is canonical. |
+| Implementer modifies the .spec.md to make tests pass | Reject. Spec is the contract. Re-dispatch with a clear "do not modify the spec" instruction. |
+| Reviewer says "tests pass but the contract isn't actually met" | The spec is wrong (under-specified test). Pause, escalate to orchestrator to revise the spec. |
+| Implementer adds code unrelated to the behavior | Spec compliance reviewer catches this. NEEDS_FIX with "remove out-of-scope additions." |
+| Two behaviors clearly share implementation but were dispatched separately | OK to combine future dispatches; complete the current ones independently. |
+| Subagent finishes "suspiciously fast" | Trust verification, not reports. Reviewer's job is to verify by reading code and running tests. |
+
+## Integration with other wovenflow skills
+
+- `wovenflow:designflow` — wrote the prose contract (Design phase)
+- `wovenflow:testflow` — wrote the failing tests (Test phase)
+- **`wovenflow:subflow`** (this skill) — make the failing tests pass (Build phase)
+
+After Phase 5 completes, exit DTDD; the workstream proceeds to verification (`/simplify` → `/pre-pr`), then ship.
+
+## Integration with superpowers
+
+- `superpowers:test-driven-development` — its Iron Law ("no production code without a failing test first") is structurally satisfied by Phase 4 (the orchestrator wrote the failing test). Subagents are AT the red moment when dispatched; their job is green.
+- `superpowers:requesting-code-review` — the code-quality reviewer template uses this framework.
+- `superpowers:dispatching-parallel-agents` — usable when behaviors are genuinely independent and can land in parallel branches. Default is sequential per-behavior; parallel is opt-in.
+
+## Why not just use superpowers:subagent-driven-development?
+
+That skill assumes plan files with paste-text task curation and prescribed file structure. DTDD's `.spec.md` is canonical, behaviors are read in place, and file structure is the implementer's judgment. Templates differ enough to fork — see this skill's prompt templates for the DTDD-native shape.
