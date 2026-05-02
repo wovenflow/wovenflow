@@ -1,6 +1,6 @@
 # wovenflow
 
-A Claude Code plugin for **Doc-Test-Driven Development (DTDD)** — literate-programming-flavored TDD where prose and tests are woven into a single `.spec.md` file per feature. The subagents implment one feature at a time acording to the spec and test to ensure intent is preserved and token churn is minimized during definition and execution. 
+A Claude Code plugin for **Doc-Test-Driven Development (DTDD)** — literate-programming-flavored TDD where prose and tests are woven into a single `.spec.md` file per feature. The subagents implment one feature at a time acording to the spec and test to ensure intent is preserved and token churn is minimized during definition and execution. There is a setup skill that will help you generate a full workflow that matches your project's needs and includes wovenflow at the core. 
 
 ## What it is
 
