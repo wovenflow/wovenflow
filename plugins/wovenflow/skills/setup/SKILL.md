@@ -21,16 +21,16 @@ A "Standard workstream" section in the project's `CLAUDE.md` describing the full
 
 | # | Phase | Job | Default in wovenflow |
 |---|---|---|---|
-| 1 | Claim | Pick up an issue or task; mark in-progress | `bex:claim`, `research-workflow:claim`, plain `gh issue` |
+| 1 | Claim | Pick up an issue or task; mark in-progress | `research-workflow:claim`, plain `gh issue` commands, or a project-local claim skill |
 | 2 | Clarify & challenge | Pressure-test the issue's premise; brainstorm | `gstack:office-hours`, `superpowers:brainstorming` |
 | 2.5 | (research only) Survey prior art | Surface real papers + prior systems before designing | `research-workflow:researchflow` |
 | 3 | Design | Write the prose `.spec.md` | **`wovenflow:designflow`** |
 | 4 | Test | Insert inline test blocks alongside each behavior | **`wovenflow:testflow`** |
 | 5 | Build | Subagents implement; tests turn green | **`wovenflow:subflow`** |
-| 6 | Verify | Cleanup + review | `gstack:simplify`, `bex:pre-pr`, `gstack:codex review`, `gstack:design-review`, `gstack:health`, `gstack:qa` |
-| 7 | Ship | PR / merge / deploy | `bex:pr`, `gstack:ship`, `gstack:land-and-deploy` |
+| 6 | Verify | Cleanup + review | `gstack:simplify`, `gstack:codex review`, `gstack:design-review`, `gstack:health`, `gstack:qa`, or a project-local pre-PR skill |
+| 7 | Ship | PR / merge / deploy | `gstack:ship`, `gstack:land-and-deploy`, or a project-local PR-creation skill |
 | 8 | Post-ship | Update docs, capture learnings | `gstack:document-release`, `gstack:retro`, `gstack:learn` |
-| 9 | Close out | Session hygiene | `bex:wrap-up`, `gstack:context-save`, `research-workflow:wrap-up` |
+| 9 | Close out | Session hygiene | `research-workflow:wrap-up`, `gstack:context-save`, or a project-local wrap-up skill |
 
 Phases 3, 4, 5 are owned by wovenflow itself. The rest are user's choice — this wizard helps make the choice.
 
@@ -122,7 +122,7 @@ After the file is written:
 
 1. Stage CLAUDE.md and any newly created `.claude/skills/<phase>/SKILL.md` files
 2. Commit with a clear message: `docs: setup wovenflow workflow (X phases)` or `docs: revise wovenflow workflow`
-3. If the project's land-path rule says non-product changes go to main directly (per Bexoe's pattern), push directly. Otherwise, create a feature branch / PR per the project's conventions.
+3. Honor the project's land-path rule. Some projects allow non-product changes to push directly to main; others require feature branch + PR for everything. Use whichever the project's CLAUDE.md (or local convention) specifies.
 
 ## Reconciling existing workflows
 
@@ -136,7 +136,7 @@ The skill is opinionated about *wovenflow's place in the cycle* (Phases 3-5) but
 
 ## Output template (canonical 9-phase shape)
 
-This is the structure the wizard produces. Adapted from Bexoe's CLAUDE.md (which was hand-written; this skill formalizes it):
+This is the canonical structure the wizard produces:
 
 ```markdown
 ## Standard workstream

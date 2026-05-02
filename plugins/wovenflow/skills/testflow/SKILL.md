@@ -46,7 +46,7 @@ Each behavior gets a `typescript`-fenced test block immediately after its `Then`
 The extractor copies typescript blocks unchanged. Any runner that accepts `test('name', fn)` syntax works:
 
 - **`node:test`** (Node 18+ built-in) — recommended for plugins; zero deps
-- **Mocha** (TDD interface) — Bexoe's existing extension test pattern
+- **Mocha** (TDD interface) — common in TypeScript projects with VS Code extension test setups
 - **Vitest**, **Jest** — supported via their respective `test` / `it` exports
 
 Pick whatever the project already uses; the extractor stays neutral.

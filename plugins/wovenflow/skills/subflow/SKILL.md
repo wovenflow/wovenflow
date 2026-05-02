@@ -76,9 +76,9 @@ Every subagent — implementer, spec-compliance reviewer, code-quality reviewer 
 
 | Input | Example |
 |---|---|
-| **Spec file (absolute path)** | `/home/will/bexoe/doc/specs/2026-05-04-feature.spec.md` |
+| **Spec file (absolute path)** | `/path/to/project/doc/specs/2026-05-04-feature.spec.md` |
 | **Behavior identifier** | `B1` (matches the H3 header in the spec) |
-| **Working directory** | `/home/will/bexoe/.claude/worktrees/agent-0` |
+| **Working directory** | `/path/to/project` |
 
 Subagents do NOT receive paste-text of the behavior. They open the file and read it. This is the central design choice that makes the system honest:
 

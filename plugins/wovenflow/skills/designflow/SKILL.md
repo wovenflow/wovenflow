@@ -38,7 +38,7 @@ No test code at this stage. No implementation. Just prose that captures the desi
 ## Where it lives
 
 - `doc/specs/YYYY-MM-DD-<feature>.spec.md` for top-level project specs
-- Or alongside the source it specs (e.g., `bexoe/extensions/foo/foo.spec.md`)
+- Or alongside the source it specs (e.g., `src/foo/foo.spec.md` or `extensions/foo/foo.spec.md`)
 
 ## When to use
 
