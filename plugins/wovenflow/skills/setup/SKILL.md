@@ -3,7 +3,7 @@ name: setup
 description: Interactive workflow setup for projects adopting wovenflow. Detects any existing workflow in CLAUDE.md, walks through each phase of the development cycle (claim → ... → close out) suggesting skills or helping craft custom ones, then writes the settled workflow back to CLAUDE.md. Run once at adoption, re-run to revise.
 ---
 
-# Docflow Setup
+# Wovenflow Setup
 
 Interactive workflow wizard. Configures a project's development cycle around wovenflow's three core skills (`designflow`, `testflow`, `subflow`) and helps the user pick or build companion skills for the surrounding phases.
 
@@ -21,18 +21,169 @@ A "Standard workstream" section in the project's `CLAUDE.md` describing the full
 
 | # | Phase | Job | Default in wovenflow |
 |---|---|---|---|
-| 1 | Claim | Pick up an issue or task; mark in-progress | `research-workflow:claim`, plain `gh issue` commands, or a project-local claim skill |
-| 2 | Clarify & challenge | Pressure-test the issue's premise; brainstorm | `gstack:office-hours`, `superpowers:brainstorming` |
-| 2.5 | (research only) Survey prior art | Surface real papers + prior systems before designing | `research-workflow:researchflow` |
+| 1 | Claim | Pick up an issue or task; mark in-progress | varies — see catalog |
+| 2 | Clarify & challenge | Pressure-test the issue's premise; brainstorm | `gstack:office-hours` |
+| 2.5 | *(research projects)* Survey prior art | Surface real papers + prior systems before designing | `research-workflow:researchflow` |
 | 3 | Design | Write the prose `.spec.md` | **`wovenflow:designflow`** |
 | 4 | Test | Insert inline test blocks alongside each behavior | **`wovenflow:testflow`** |
 | 5 | Build | Subagents implement; tests turn green | **`wovenflow:subflow`** |
-| 6 | Verify | Cleanup + review | `gstack:simplify`, `gstack:codex review`, `gstack:design-review`, `gstack:health`, `gstack:qa`, or a project-local pre-PR skill |
-| 7 | Ship | PR / merge / deploy | `gstack:ship`, `gstack:land-and-deploy`, or a project-local PR-creation skill |
-| 8 | Post-ship | Update docs, capture learnings | `gstack:document-release`, `gstack:retro`, `gstack:learn` |
-| 9 | Close out | Session hygiene | `research-workflow:wrap-up`, `gstack:context-save`, or a project-local wrap-up skill |
+| 6 | Verify | Cleanup + review | varies — see catalog |
+| 7 | Ship | PR / merge / deploy | varies — see catalog |
+| 8 | Post-ship | Update docs, capture learnings | `gstack:document-release` |
+| 9 | Close out | Session hygiene | varies — see catalog |
 
 Phases 3, 4, 5 are owned by wovenflow itself. The rest are user's choice — this wizard helps make the choice.
+
+## Skill catalog (per phase, with canonical URLs)
+
+Each option below is what the wizard surfaces in `AskUserQuestion` menus. URLs link to the canonical source for installation or documentation.
+
+### Phase 1 — Claim
+
+**Job:** Pick up an issue or task; mark in-progress.
+
+- [**`atlassian@claude-plugins-official`**](https://claude.com/plugins/atlassian) — Jira / Confluence / Compass integration via Atlassian's official MCP server
+- [**`linear@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Linear issue tracker integration (search the official directory for the Linear plugin entry)
+- [**`asana@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Asana task integration
+- [**`notion@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Notion docs/databases integration
+- [**`research-workflow:claim`**](https://github.com/anthropics/claude-plugins-official) — `tasks.md`-based claim for code-research projects (or local marketplace)
+- [**`gh issue` CLI**](https://cli.github.com/manual/gh_issue) — plain GitHub CLI, no plugin needed
+- [**TodoWrite**](https://docs.claude.com/en/docs/claude-code) — Claude Code built-in task surface for projects without an external tracker
+- [**Browse claudemarketplaces.com**](https://claudemarketplaces.com/) or [**buildwithclaude.com**](https://buildwithclaude.com/) — discover other claim / triage skills
+- **"Craft custom"** via [`skill-creator`](https://github.com/anthropics/claude-plugins-official) — scaffold a project-local claim skill
+
+### Phase 2 — Clarify and challenge
+
+**Job:** Pressure-test the issue's premise; brainstorm before locking design.
+
+- [**`gstack:office-hours`**](https://github.com/garrytan/gstack) — six forcing questions (demand reality, status quo, narrowest wedge, observation, future-fit). Default for most projects.
+- [**`superpowers:brainstorming`**](https://github.com/obra/superpowers) — exploratory requirements brainstorming for fuzzier problems
+- [**`great_cto`**](https://github.com/ComposioHQ/awesome-claude-plugins) — 7 SDLC subagents (tech-lead, senior-dev, qa-engineer, security-officer, devops, l3-support, project-auditor); useful when scope warrants architectural critique alongside ideation. Discover via the awesome-list.
+- [**`gstack:design-shotgun`**](https://github.com/garrytan/gstack) — UI-coded ideation: generate multiple design variants and compare
+- [**Browse marketplaces**](https://claudemarketplaces.com/) — other ideation / discovery skills
+- **"Craft custom"** via [`skill-creator`](https://github.com/anthropics/claude-plugins-official)
+
+### Phase 2.5 — Survey prior art *(research projects only)*
+
+**Job:** Surface 3-5 real papers + prior systems before designing.
+
+- [**`research-workflow:researchflow`**](https://github.com/anthropics/claude-plugins-official) — pre-design literature surface; lifts the "real papers, not vague references" pattern
+- **"Craft custom"** — for research projects with domain-specific discovery patterns
+
+Skip this phase entirely for non-research work.
+
+### Phase 3 — Design (Wovenflow core)
+
+**Job:** Write the prose `.spec.md` with user stories + if/when/then behaviors.
+
+- [**`wovenflow:designflow`**](https://github.com/wovenflow/wovenflow) — **default**. The canonical DTDD design phase.
+
+Override only if you're explicitly using a different methodology. If you override all of Phases 3-5, you're not using wovenflow — pick a different plugin.
+
+### Phase 4 — Test (Wovenflow core)
+
+**Job:** Insert inline test blocks alongside each behavior; bundled extractor produces derived `.test.ts` at pretest.
+
+- [**`wovenflow:testflow`**](https://github.com/wovenflow/wovenflow) — **default**.
+
+### Phase 5 — Build (Wovenflow core)
+
+**Job:** Dispatch implementer subagents per behavior; spec-compliance + code-quality review.
+
+- [**`wovenflow:subflow`**](https://github.com/wovenflow/wovenflow) — **default**. DTDD-native dispatcher; subagents read `.spec.md` by file path.
+- [**`superpowers:subagent-driven-development`**](https://github.com/obra/superpowers) — fallback for non-DTDD work (no `.spec.md`)
+
+### Phase 6 — Verify
+
+**Job:** Cleanup + review before shipping.
+
+- [**`gstack:simplify`**](https://github.com/garrytan/gstack) — code reuse / quality / efficiency pass
+- [**`gstack:codex review`**](https://github.com/garrytan/gstack) — independent diff review via OpenAI Codex CLI
+- [**`gstack:design-review`**](https://github.com/garrytan/gstack) — UI polish / visual audit (skip for non-UI changes)
+- [**`gstack:health`**](https://github.com/garrytan/gstack) — repo health / quality scorecard
+- [**`gstack:qa`**](https://github.com/garrytan/gstack) — exploratory QA against the running app
+- [**`test-writer-fixer`**](https://github.com/ComposioHQ/awesome-claude-plugins) — generate / repair unit tests for legacy code (community plugin; discover via awesome-list)
+- [**Browse Code Quality category**](https://buildwithclaude.com/) — discover debugger, security audit, performance, and other review-flavored skills
+- **Project-local pre-PR skill** — many projects benefit from a project-specific pre-PR gate (test coverage audit, screenshot capture, adversarial review). Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
+
+### Phase 7 — Ship
+
+**Job:** PR creation, merge, deploy.
+
+- [**`gstack:ship`**](https://github.com/garrytan/gstack) — canonical ship flow (test, review diff, version bump, commit, push, PR)
+- [**`gstack:land-and-deploy`**](https://github.com/garrytan/gstack) — picks up after `/ship` to merge + verify deploy
+- [**Browse Git & Version Control category**](https://buildwithclaude.com/) — `commit` (smart messages), `create-pr`, and other PR-automation skills
+- **Project-local PR-creation skill** — projects with mandatory review hooks (e.g., a Bexoe-style `/pr` wrapper) usually have their own. Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
+
+### Phase 8 — Post-ship
+
+**Job:** Update docs, capture learnings.
+
+- [**`gstack:document-release`**](https://github.com/garrytan/gstack) — sync docs with what shipped
+- [**`gstack:retro`**](https://github.com/garrytan/gstack) — periodic retro across recent shipped work
+- [**`gstack:learn`**](https://github.com/garrytan/gstack) — capture a single insight worth keeping
+- [**`claude-md-management:claude-md-improver`**](https://github.com/anthropics/claude-plugins-official) — audit + update `CLAUDE.md` to reflect the latest project state
+- [**Browse Documentation category**](https://buildwithclaude.com/) — auto-generators, changelog tooling, etc.
+
+### Phase 9 — Close out
+
+**Job:** Session hygiene; persist state for the next session.
+
+- [**`gstack:context-save`**](https://github.com/garrytan/gstack) — save thinking + state for the next session
+- [**`research-workflow:wrap-up`**](https://github.com/anthropics/claude-plugins-official) — research-coded close-out
+- **Project-local wrap-up skill** — projects with issue-state reconciliation, dangling-commit audits, etc., have their own. Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
+
+## Cross-cutting concerns
+
+These aren't phase-bound — they're project-level decisions the wizard asks about *after* the phase walk-through.
+
+- **MCP server building** — projects exposing internal tools via MCP. Discover via [awesome-claude-plugins](https://github.com/ComposioHQ/awesome-claude-plugins) (`mcp-builder` and similar).
+- **Hooks configuration** — pre-commit, session-start, pre-push automation. Configure via [`update-config` (Claude Code settings)](https://docs.claude.com/en/docs/claude-code) and `.claude/hooks/`.
+- **Memory management** — `~/.claude/projects/<slug>/memory/` feedback memories that shape orchestrator behavior across sessions. Pair with [`claude-md-management:revise-claude-md`](https://github.com/anthropics/claude-plugins-official) for keeping `CLAUDE.md` current.
+- **Skill authoring** — for crafting new project-local skills (or contributing back to a marketplace), use [`skill-creator:skill-creator`](https://github.com/anthropics/claude-plugins-official) or [`superpowers:writing-skills`](https://github.com/obra/superpowers).
+- **Backend architecture** — for greenfield architectural decisions, browse [Backend & Architecture category](https://buildwithclaude.com/) on the marketplace.
+- **Frontend / design system** — for projects with significant UI surface, [`gstack:design-consultation`](https://github.com/garrytan/gstack) creates a `DESIGN.md` source-of-truth; community plugins like `theme-factory` and `artifacts-builder` help with implementation.
+
+## Alternative cycles
+
+The 9 phases above are the **feature cycle**. Most mature projects have other distinct cycles. The wizard asks at the end: *"Configure additional cycles?"*
+
+### Bug fix cycle
+
+Same shape as the feature cycle, but tighter. Some projects add a triage step (Phase 0): classify, prioritize, decide hotfix vs. regular feature work.
+
+- Triage: project-local skill or [`gstack:investigate`](https://github.com/garrytan/gstack) for root-cause analysis before patching
+- Phases 1-9 follow the feature cycle, often with a smaller `.spec.md` (one or two behaviors)
+
+### Hotfix / incident response cycle
+
+Abbreviated for production emergencies. Skip Phase 2 (no time to brainstorm), often skip Phase 4 (write the test alongside the fix, not before — pragmatic violation of TDD when the ETA matters), pair with a postmortem cycle.
+
+- [`gstack:investigate`](https://github.com/garrytan/gstack) for root cause
+- [`gstack:careful`](https://github.com/garrytan/gstack) for high-stakes edits
+- After ship, run a postmortem (see below)
+
+### Refactor cycle
+
+Same shape as the feature cycle — but the `.spec.md` describes the *current* behavior we're preserving, and Phase 5's job is to make the implementation cleaner without breaking the spec. Tests pass before AND after.
+
+- All wovenflow Phases 3-5 apply unchanged
+- Phase 6 emphasizes regression testing
+
+### ADR (Architecture Decision Record) cycle
+
+For changes with architectural implications. Sits within Phase 2 or Phase 3 of the feature cycle but produces a durable artifact at `doc/adr/NNNN-*.md`.
+
+- Format reference: [adr.github.io](https://adr.github.io/) — Markdown templates, Y-statement, MADR
+- After the ADR is approved, the feature cycle proceeds normally with the ADR as ratified context
+
+### Postmortem cycle
+
+Triggered by incidents (paired with hotfix cycle). Distinct from `/retro`.
+
+- [`gstack:retro`](https://github.com/garrytan/gstack) is for periodic team retrospectives across recent work
+- Postmortems are incident-triggered: timeline, root cause, what went well, what didn't, action items
+- Often crafted as a project-local skill via [`skill-creator`](https://github.com/anthropics/claude-plugins-official)
 
 ## How the wizard runs (orchestrator behavior)
 
@@ -48,63 +199,79 @@ Before asking anything, read the project's `CLAUDE.md` (search the worktree root
 If found:
 1. Parse the section: identify each phase header (`### Phase N — <name>`) and the skill named at the top of that phase
 2. Note the current choices as the *defaults* for the wizard
-3. Tell the user: "Detected an existing 9-phase workflow in `CLAUDE.md`. I'll walk through each phase with the current choice as the default — accept to keep, override to change."
+3. Tell the user: "Detected an existing workflow in `CLAUDE.md`. I'll walk through each phase with the current choice as the default — accept to keep, override to change."
 
 If not found:
 1. Tell the user: "No existing workflow found in `CLAUDE.md`. I'll walk through each phase from scratch."
-2. Use wovenflow's recommended defaults
+2. Use wovenflow's recommended defaults (see Skill catalog above)
 
 ### Step 2 — Walk through each phase
 
-For each of the 9 phases (plus optional 2.5 if the project is research-coded), run an `AskUserQuestion`:
+For each of the 9 phases (plus optional 2.5 if research-coded), run an `AskUserQuestion`:
 
 Question text: `"For Phase N — <name> (<job>), which skill plays this role?"`
 
-Options (always include these slots; populate from the loaded skills list):
-1. **Recommended skill for this phase** (e.g., `gstack:office-hours` for Phase 2) — labeled `(Recommended)` if it's the wovenflow default
-2. **Other available skills** that could fit this phase (filter by name keywords / description match)
+Options come from the per-phase Skill catalog above. Always include:
+1. **Recommended skill for this phase** — labeled `(Recommended)` if it's the wovenflow default
+2. **Other available skills** populated from the loaded skills list and the catalog
 3. **"Use existing custom skill"** — if the project already has a `.claude/skills/<phase>/SKILL.md`, offer it
 4. **"Craft a new custom skill"** — walks through skill creation for this phase
-5. **"None / handle this phase manually"** — explicit no-skill option (fine for tiny phases)
+5. **"Browse marketplace"** — opens [claudemarketplaces.com](https://claudemarketplaces.com/) or [buildwithclaude.com](https://buildwithclaude.com/) in a separate dialog
+6. **"None / handle this phase manually"** — explicit no-skill option (fine for tiny phases)
 
 If the user picks an existing skill that isn't loaded:
 - Detect the missing plugin
 - Tell the user: "That skill ships in `<plugin>` which isn't enabled. Run `/plugin install <plugin>@<marketplace>` to install, or pick another."
 - Re-prompt
 
-For Phases 3, 4, 5: the wovenflow skills are the recommended default. The user CAN override (e.g., to use a different methodology), but that's the meaningful choice — flag it clearly: "You're overriding wovenflow's core skill for this phase. Are you sure?"
+For Phases 3, 4, 5: the wovenflow skills are the recommended default. The user CAN override (e.g., to use a different methodology), but flag it: "You're overriding wovenflow's core skill for this phase. Are you sure?"
 
 ### Step 3 — Craft custom skills (when chosen)
 
 If the user picks "craft a new custom skill" for any phase:
 
-1. Invoke `skill-creator:skill-creator` (or its current equivalent) to scaffold a new SKILL.md
+1. Invoke [`skill-creator:skill-creator`](https://github.com/anthropics/claude-plugins-official) (or `superpowers:writing-skills`) to scaffold a new SKILL.md
 2. Save it to `<repo>/.claude/skills/<phase-skill-name>/SKILL.md`
 3. Walk the user through:
    - **Name** of the skill (default: `<phase-name>` slugified)
    - **Description** (~25 words; what it does, when to invoke)
-   - **Body** — what the orchestrator should do when this skill fires. The wizard offers a template specific to the phase:
-     - Phase 1 (Claim) template: "Identify the task, mark it in-progress, post a marker..."
-     - Phase 2 template: "Walk through the [user's chosen] forcing questions..."
+   - **Body** — what the orchestrator should do when this skill fires. The wizard offers a phase-specific template:
+     - Phase 1 (Claim): "Identify the task, mark it in-progress, post a marker..."
+     - Phase 2: "Walk through the chosen forcing questions..."
      - Etc.
    - **Inputs** the skill expects
    - **Outputs** the skill produces
 4. Confirm with user; commit the new SKILL.md to the project's `.claude/skills/` directory
 
-### Step 4 — Synthesize the workflow
+### Step 4 — Walk through cross-cutting concerns
 
-After all 9 phases (plus 2.5 if applicable) have a chosen skill, build the `## Standard workstream` markdown section:
+After the 9 phases, ask about each cross-cutting concern (see "Cross-cutting concerns" above). For each:
+
+- "Does this project use MCP? Y/N → if yes, suggest mcp-builder or similar"
+- "Configure hooks? Y/N → use `update-config`"
+- "Seed memory feedback files? Y/N → walk through `claude-md-management`"
+- Etc.
+
+These don't affect the workflow doc — they're tracked separately (in `~/.claude/settings.json`, hooks files, memory dir).
+
+### Step 5 — Ask about alternative cycles
+
+Ask: *"Does this project have other cycles besides feature work? (bug fix, hotfix, refactor, ADR, postmortem)"* If yes, walk through each chosen cycle and configure its skills the same way (or note it as a documented variation in CLAUDE.md).
+
+### Step 6 — Synthesize the workflow
+
+After all phases (and optional alternative cycles) have chosen skills, build the `## Standard workstream` markdown section:
 
 - One sub-section per phase, with header `### Phase N — <name>`
 - Step-numbered bullets (sequential 1-N across all phases — no number reuse)
 - Mention the chosen skill prominently for each phase
 - Include the standard "If a step finds blockers, back up and fix" closing paragraph
-- Match the format already documented in this skill's example below
+- Match the format in the "Output template" below
 
-### Step 5 — Write to CLAUDE.md
+### Step 7 — Write to CLAUDE.md
 
 If the project already had a workflow section:
-1. Show a diff (old vs new) using your built-in diff display
+1. Show a diff (old vs new)
 2. Confirm with user: "Replace the existing workflow section?" (Yes / Show me again / Cancel)
 3. On Yes: replace in place, preserve everything else in CLAUDE.md
 
@@ -116,7 +283,7 @@ If no CLAUDE.md at all:
 1. Create CLAUDE.md with just the workflow section
 2. Suggest the user add other CLAUDE.md content (project description, code style, etc.) separately
 
-### Step 6 — Commit
+### Step 8 — Commit
 
 After the file is written:
 
@@ -126,9 +293,9 @@ After the file is written:
 
 ## Reconciling existing workflows
 
-If the project already has a workflow but it doesn't fit the 9-phase shape (e.g., a 6-phase research-workflow project, or a custom flow), reconcile gently:
+If the project already has a workflow but it doesn't fit the 9-phase shape (e.g., a 6-phase research project, or a custom flow), reconcile gently:
 
-1. Show the user the gap: "Your current workflow has Phases A, B, C. Docflow's recommended shape has Phases 1-9 mapped: ..."
+1. Show the user the gap: "Your current workflow has Phases A, B, C. Wovenflow's recommended shape has Phases 1-9 mapped: ..."
 2. Ask: "Adopt the 9-phase shape and re-map?" or "Keep your existing shape and just slot wovenflow's design/test/build into Phases X, Y, Z?"
 3. Honor the user's choice; don't force the 9-phase shape if they already have something coherent
 
@@ -177,5 +344,18 @@ The skill is idempotent: re-run it any time to revise the workflow. The detect-e
 
 - **Overriding wovenflow's core skills (Phases 3-5) without reason.** They're the methodology. If you're overriding all three, you're not really using wovenflow — start a different plugin.
 - **Skipping Step 1 (detect existing).** Always read the existing workflow first; otherwise you'll generate redundant or conflicting CLAUDE.md content.
-- **Writing custom skills inside the wovenflow plugin.** Project-local custom skills go in `<repo>/.claude/skills/`, not in the wovenflow plugin directory. Docflow skills are project-agnostic.
+- **Writing custom skills inside the wovenflow plugin.** Project-local custom skills go in `<repo>/.claude/skills/`, not in the wovenflow plugin directory. Wovenflow skills are project-agnostic.
 - **Forcing the 9-phase shape on a project that has a working 6-phase or 7-phase workflow.** Reconcile, don't bulldoze.
+- **Listing skills without verifying they exist.** Every option in the menu should resolve to a real, currently-loaded (or installable) skill. The catalog above is the verified set.
+
+## Marketplace discovery
+
+If the catalog above doesn't have what you need, browse:
+
+- [**claudemarketplaces.com**](https://claudemarketplaces.com/) — voted/commented community directory
+- [**buildwithclaude.com**](https://buildwithclaude.com/) — 500+ plugins/skills/hooks indexed by category
+- [**`anthropics/claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Anthropic-managed catalog
+- [**`ComposioHQ/awesome-claude-plugins`**](https://github.com/ComposioHQ/awesome-claude-plugins) — curated awesome-list
+- [**`travisvn/awesome-claude-skills`**](https://github.com/travisvn/awesome-claude-skills) — broader skills catalog (cross-IDE)
+- [**`garrytan/gstack`**](https://github.com/garrytan/gstack) — Garry Tan's full Claude Code stack (28 skills)
+- [**`obra/superpowers`**](https://github.com/obra/superpowers) — TDD, debugging, planning, collaboration discipline (upstream of `superpowers@claude-plugins-official`)
