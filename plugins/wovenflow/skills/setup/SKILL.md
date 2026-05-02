@@ -38,6 +38,32 @@ Phases 3, 4, 5 are owned by wovenflow itself. The rest are user's choice — thi
 
 Each option below is what the wizard surfaces in `AskUserQuestion` menus. URLs link to the canonical source for installation or documentation.
 
+### How to install
+
+Plugins use the standard Claude Code install pattern:
+
+```
+/plugin install <name>@<marketplace>
+```
+
+For marketplaces beyond the default `claude-plugins-official`, add the marketplace first:
+
+```
+/plugin marketplace add <url-or-path>
+```
+
+Marketplaces referenced in this catalog:
+
+| Marketplace | How to add |
+|---|---|
+| `claude-plugins-official` | default — no `marketplace add` needed |
+| `wovenflow` | `/plugin marketplace add https://github.com/wovenflow/wovenflow` |
+| `gstack` | install via [garrytan/gstack](https://github.com/garrytan/gstack) (npm-based installer) or via the [Ahacad/gstack](https://github.com/Ahacad/gstack) Claude Code plugin wrapper |
+| Community plugins (great_cto, test-writer-fixer, etc.) | discover via [awesome-claude-plugins](https://github.com/ComposioHQ/awesome-claude-plugins); each entry's repo README has its own marketplace-add and install commands |
+| Local / project-private marketplaces | `/plugin marketplace add /path/to/local/marketplace` (directory source) |
+
+For options below that don't link to a clean repo URL, the awesome-list discovery page acts as the canonical-install path: find the plugin entry, follow its README's install steps.
+
 ### Phase 1 — Claim
 
 **Job:** Pick up an issue or task; mark in-progress.
