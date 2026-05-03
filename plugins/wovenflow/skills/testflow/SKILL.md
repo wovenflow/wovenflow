@@ -191,6 +191,59 @@ Same pattern: invoke `extract.mjs --lang <lang>` before the test runner. For Rus
 
 The extractor itself is Node.js only (one extractor, all languages). Most dev environments already have Node available; if not, install it once.
 
+## Verify the wiring fires (do this once, after first setup)
+
+Before relying on the extractor for real work, verify it actually runs in your test pipeline. The wiring is the single most common source of silent failures: typo in a path, missing exec bit, wrong fence label, output dir not in the runner's discovery path. Catching this once at setup is much cheaper than discovering it three weeks later when a regression slips through.
+
+### One-time verification recipe
+
+1. Pick (or create) a `.spec.md` with at least one test fence in your project's language.
+2. Modify it deliberately — rename a test (e.g. `test('B1: x'` → `test('B1: x renamed'`), or add a new failing assertion. Save.
+3. Run the project's test command (`npm test`, `pytest`, `cargo test`, etc.).
+4. Confirm BOTH:
+   - **The extracted file changed.** Check `<output-dir>/<expected-filename>` — its mtime updated and its content reflects your edit.
+   - **The runner saw the change.** The test output should show the renamed test, or your new assertion firing (failing).
+
+If both: wiring is good. Revert the deliberate change and proceed.
+
+### Failure-mode debug
+
+If the extracted file *didn't* change → the extractor didn't run.
+
+- Did the pre-test hook actually fire? Inspect: `package.json` `pretest` script, `conftest.py`'s `pytest_configure`, `Makefile` target's prerequisite chain
+- Is the path to `extract.mjs` correct? Run it manually first to isolate: `node <plugin>/skills/testflow/extract.mjs <glob> <output-dir> [--lang LANG]`
+- Is `node` on `PATH` in the test environment? (CI environments often need explicit setup)
+- Did the wrong `--lang` get passed? An empty extraction (no matching fences) silently writes nothing
+
+If the file *did* change but the runner *didn't* see the new test → the runner isn't picking up the file.
+
+- Is the output directory in the runner's discovery path? pytest `testpaths`, mocha glob, jest `testMatch`, `cargo test` build dirs, etc.
+- Does the filename match the runner's discovery convention? Check the language table above — Python wants `test_<base>.py`; Rust wants `<base>_test.rs`; etc.
+- Is the output directory `.gitignore`d but NOT excluded from the runner's collection? (Common: gitignored *and* runner-ignored, so freshly extracted files get skipped.)
+
+### CI verification
+
+The same recipe applies in CI. The deliberate-change PR (above) should pass through CI showing the renamed test. If CI shows a stale test name or "0 tests collected" while your local run is fine, the CI pipeline is wired differently from local.
+
+For CI safety, consider a guardrail in your test job that asserts extraction produced files:
+
+```bash
+# example: fail loudly if the extractor produced no spec tests
+[ "$(ls -A out/spec-tests/ 2>/dev/null)" ] || { echo "extractor produced no files"; exit 1; }
+```
+
+That single line catches almost all wiring regressions in CI before they hide a stale test run.
+
+### Common silent-failure patterns
+
+| Symptom | Likely cause |
+|---|---|
+| Extractor runs, but no output files appear | All fences in the spec are non-matching languages — extractor silently skips. Confirm fence label matches `--lang` (or `--fence`). |
+| "0 tests collected" though tests exist | Output directory not in runner's discovery path |
+| `command not found: node` in pretest | Node missing in CI environment — install in CI or pin a version |
+| First run looks right; second run shows stale tests | Output directory was accidentally committed to git and is never refreshed. Add it to `.gitignore`. |
+| Output filenames look weird | `--name-template` placeholder mismatch. Use `{base}`, `{snake}`, `{pascal}` as documented in the language table |
+
 ## Rules
 
 - **Source of truth is the `.spec.md`.** Derived test files live in the output directory (gitignored), recreated every pretest.

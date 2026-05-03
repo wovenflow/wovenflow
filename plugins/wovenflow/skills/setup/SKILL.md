@@ -117,9 +117,9 @@ Override only if you're explicitly using a different methodology. If you overrid
 
 ### Phase 5 — Test (Wovenflow core)
 
-**Job:** Insert inline test blocks alongside each behavior; bundled extractor produces derived `.test.ts` at pretest.
+**Job:** Insert inline test blocks alongside each behavior; bundled extractor produces derived test files at pre-test time.
 
-- [**`wovenflow:testflow`**](https://github.com/wovenflow/wovenflow) — **default**.
+- [**`wovenflow:testflow`**](https://github.com/wovenflow/wovenflow) — **default**. After wiring the extractor into the project's pre-test hook (npm `pretest`, pytest `conftest.py`, Makefile target, etc.), follow `testflow`'s "Verify the wiring fires" recipe once: deliberately modify a spec test, run the pipeline, confirm the change reaches the test runner. Catches typos, missing exec bits, wrong fence labels, and output-dir-not-in-discovery-path before they hide regressions in real work.
 
 ### Phase 6 — Build (Wovenflow core)
 
