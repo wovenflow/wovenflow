@@ -17,7 +17,7 @@ The `setup` wizard performs the substitution before writing the file.
 | `claim-github.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a GitHub issue (Phase 1 of the workstream) |
 | `claim-tasks.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a task from a `tasks.md` file (Phase 1, alternative source) |
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker file (only when the user picks the `tasks.md` claim variant) |
-| `startup.md.tmpl` | `.claude/skills/startup/SKILL.md` | Session bootstrap: sync, instruction-diff, ADR scan, identify task |
+| `startup.md.tmpl` | `.claude/skills/startup/SKILL.md` | Session bootstrap: sync, instruction-diff, architecture refresh, identify task |
 | `wrap-up.md.tmpl` | `.claude/skills/wrap-up/SKILL.md` | Session close-out: dangling commits, status reconciliation, next-task suggestion |
 | `pre-pr.md.tmpl` | `.claude/skills/pre-pr/SKILL.md` | Verification gate: tests, coverage audit, UI walkthrough, adversarial review |
 
@@ -29,7 +29,7 @@ Common across multiple templates:
 |---|---|---|
 | `MAIN_BRANCH` | Default integration branch | `main` |
 | `INSTRUCTION_FILE` | The orchestrator-reading instruction file | `CLAUDE.md` |
-| `ADR_LOCATION` | Directory of architecture decision records, or empty | `doc/adr/` |
+| `ARCH_DOC` | Filename for architecture docs (single root + optional per-folder); empty to disable | `ARCHITECTURE.md` |
 | `TASK_SOURCE` | `github` or `tasks` | `github` |
 
 GitHub-specific:

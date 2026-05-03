@@ -66,9 +66,9 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 
 ### Session bootstrap *(per-session, runs before Phase 1)*
 
-**Job:** Sync the worktree with the integration branch, surface instruction-file changes, scan ADRs, identify the task to work on. Runs at the start of every session — not part of the 9-phase feature cycle.
+**Job:** Sync the worktree with the integration branch, surface instruction-file changes, refresh architecture context, identify the task to work on. Runs at the start of every session — not part of the 9-phase feature cycle.
 
-- [**`wovenflow:setup` startup template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `startup.md.tmpl` into `<repo>/.claude/skills/startup/SKILL.md`. Parameterized for main branch, instruction file, ADR location, and project-specific bootstrap commands.
+- [**`wovenflow:setup` startup template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `startup.md.tmpl` into `<repo>/.claude/skills/startup/SKILL.md`. Parameterized for main branch, instruction file, architecture-doc filename, and project-specific bootstrap commands.
 - [**`gstack:context-restore`**](https://github.com/garrytan/gstack) — pairs with `gstack:context-save` from Phase 9; restores prior session's thinking
 - [**Browse Session Lifecycle category**](https://buildwithclaude.com/) — other startup-flavored skills
 - **None** — fine for projects where each session can start cold without an explicit bootstrap
@@ -77,7 +77,7 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 
 **Job:** Pick up an issue or task; mark in-progress.
 
-- [**`wovenflow:setup` claim template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md` tracker, ships a starter table with id/status/priority/owner/notes) into `<repo>/.claude/skills/claim/SKILL.md`. Includes ADR cross-check, label or table management, and plan-comment posting.
+- [**`wovenflow:setup` claim template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md` tracker, ships a starter table with id/status/priority/owner/notes) into `<repo>/.claude/skills/claim/SKILL.md`. Includes architecture refresh, label or table management, and plan-comment posting.
 - [**`atlassian@claude-plugins-official`**](https://claude.com/plugins/atlassian) — Jira / Confluence / Compass integration via Atlassian's official MCP server
 - [**`linear@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Linear issue tracker integration (search the official directory for the Linear plugin entry)
 - [**`asana@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Asana task integration
@@ -180,7 +180,7 @@ For four universal patterns, wovenflow ships fill-in templates that materialize 
 | `claim-github.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in GitHub Issues |
 | `claim-tasks.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in a `tasks.md` file |
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker (only when `claim-tasks` is picked and the file doesn't already exist) |
-| `startup.md.tmpl` | `<repo>/.claude/skills/startup/SKILL.md` | Session bootstrap (pre-Phase 1) — sync, instruction diff, ADR scan, identify task |
+| `startup.md.tmpl` | `<repo>/.claude/skills/startup/SKILL.md` | Session bootstrap (pre-Phase 1) — sync, instruction diff, architecture refresh, identify task |
 | `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 9) — dangling-commit audit, status reconciliation, next-task suggestion |
 | `pre-pr.md.tmpl` | `<repo>/.claude/skills/pre-pr/SKILL.md` | Verification gate (Phase 6) — tests, coverage audit, UI walkthrough, adversarial review |
 
@@ -225,12 +225,17 @@ Same shape as the feature cycle — but the `.spec.md` describes the *current* b
 - All wovenflow Phases 3-5 apply unchanged
 - Phase 6 emphasizes regression testing
 
-### ADR (Architecture Decision Record) cycle
+### Architectural change cycle
 
-For changes with architectural implications. Sits within Phase 2 or Phase 3 of the feature cycle but produces a durable artifact at `doc/adr/NNNN-*.md`.
+For changes that affect the project's load-bearing architecture (data flow, layering, key abstractions, baseline dependencies). Sits within Phase 2 or Phase 3 of the feature cycle but produces an *update to the architecture doc* rather than a new file.
 
-- Format reference: [adr.github.io](https://adr.github.io/) — Markdown templates, Y-statement, MADR
-- After the ADR is approved, the feature cycle proceeds normally with the ADR as ratified context
+- Update `<repo>/ARCHITECTURE.md` (or the relevant per-folder doc) to reflect the new state
+- Capture the rationale in the commit message — git history carries the *why*; the doc carries current state
+- After the architecture doc reflects the new state, the feature cycle proceeds normally with the updated doc as ratified context
+
+Convention: matklad-style [`ARCHITECTURE.md`](https://matklad.github.io/2021/02/06/ARCHITECTURE.md.html) at root — short, hand-written, intentionally tedious. Names files/modules by name (not links — they go stale). Optional per-folder `ARCHITECTURE.md` for components with their own internal conventions.
+
+For projects that prefer plural append-only ADR files (`doc/adr/NNNN-*.md`, [adr.github.io](https://adr.github.io/) format), that pattern is still viable — common at cloud scale where the "decision history" matters as much as current state. The wovenflow templates default to single-doc, but you can adapt them.
 
 ### Postmortem cycle
 
@@ -301,7 +306,7 @@ If a template matches, follow 3b. Otherwise skip to 3c.
 #### 3b. Materialize a wovenflow template
 
 1. Ask the user for the variables the template needs (full reference: `plugins/wovenflow/skills/setup/templates/README.md`). Group sensibly into `AskUserQuestion` calls (1-4 questions per call). Common variables:
-   - **Project basics:** main branch (`main` / `master` / `trunk`), instruction file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`), ADR location (path or empty)
+   - **Project basics:** main branch (`main` / `master` / `trunk`), instruction file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`), architecture-doc filename (default `ARCHITECTURE.md`, empty to disable). Per-folder `ARCHITECTURE.md` files are optional — agents read them on-demand when working in those folders.
    - **For `claim`:** task source (`github` or `tasks`); for GitHub — agent label (optional), status labels (`ready`/`in-progress`/`in-review`); for `tasks.md` — file path, status values, priority values
    - **For `pre-pr`:** test command (e.g. `npm test`), UI testing tool (e.g. `Playwright`, or empty for non-UI), coverage command (or empty)
    - **For `startup`:** project-specific bootstrap command (or empty)
@@ -342,7 +347,7 @@ These don't affect the workflow doc — they're tracked separately (in `~/.claud
 
 ### Step 5 — Ask about alternative cycles
 
-Ask: *"Does this project have other cycles besides feature work? (bug fix, hotfix, refactor, ADR, postmortem)"* If yes, walk through each chosen cycle and configure its skills the same way (or note it as a documented variation in CLAUDE.md).
+Ask: *"Does this project have other cycles besides feature work? (bug fix, hotfix, refactor, architectural change, postmortem)"* If yes, walk through each chosen cycle and configure its skills the same way (or note it as a documented variation in CLAUDE.md).
 
 ### Step 6 — Synthesize the workflow
 

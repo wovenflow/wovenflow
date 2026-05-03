@@ -1,6 +1,6 @@
 ---
 name: claim
-description: Pick up a GitHub issue. Cross-checks ADRs, surfaces clarifying questions, marks the issue in-progress, and posts a public plan comment so other contributors and future-you know what's in flight.
+description: Pick up a GitHub issue. Refreshes architecture context, surfaces clarifying questions, marks the issue in-progress, and posts a public plan comment so other contributors and future-you know what's in flight.
 ---
 
 # Claim a GitHub issue
@@ -38,21 +38,22 @@ Note:
 
 If the issue body is sparse, pull in the linked design docs or specs before proceeding.
 
-{{IF ADR_LOCATION}}
-### 3. Cross-check architecture decisions
+{{IF ARCH_DOC}}
+### 3. Refresh architecture context
 
-ADRs override intuition. Read every Accepted ADR in `{{ADR_LOCATION}}` whose subject overlaps the issue.
+Read `{{ARCH_DOC}}` at the repo root if it exists. It captures the project's load-bearing architecture — what depends on what, key abstractions, baseline tech choices.
 
 ```
-ls {{ADR_LOCATION}}
+[ -f {{ARCH_DOC}} ] && cat {{ARCH_DOC}}
 ```
 
-For each ADR that touches this work:
-- Note its decision
-- Confirm the issue doesn't conflict
-- If it does, cite the ADR and ask the user before continuing
+If the issue touches specific subdirectories, also check for `{{ARCH_DOC}}` in those folders — they capture local conventions that augment or override the root.
 
-If unsure whether an ADR applies, read it. Skipping ADR cross-check is the most common cause of correct-per-issue / wrong-per-architecture PRs.
+```
+find . -name {{ARCH_DOC}} -not -path './.git/*' -not -path './node_modules/*'
+```
+
+If anything in the architecture conflicts with what the issue asks for, raise it before continuing. Architecture overrides intuition; if your instinct conflicts, follow the doc or surface the conflict.
 {{ENDIF}}
 
 ### 4. Ask clarifying questions
@@ -99,7 +100,7 @@ The issue is now claimed and `{{LABEL_IN_PROGRESS}}`. Continue with the project'
 ## Anti-patterns
 
 - **Claiming silently** — others can't see it; risk of duplicate work
-{{IF ADR_LOCATION}}- **Skipping the ADR cross-check** — produces PRs that satisfy the issue but violate architecture
+{{IF ARCH_DOC}}- **Skipping the architecture refresh** — produces PRs that satisfy the issue but violate architectural constraints
 {{ENDIF}}- **Claiming with unresolved ambiguity** — every guess will be wrong in at least one dimension
 - **No plan comment** — if your session crashes, future-you starts from zero
 - **Stale labels** — leave the issue in `{{LABEL_IN_PROGRESS}}` while you sleep on it; never forget to advance it to `{{LABEL_IN_REVIEW}}` when the PR opens

@@ -1,6 +1,6 @@
 ---
 name: claim
-description: Pick up a task from {{TASKS_FILE}}. Cross-checks ADRs, surfaces clarifying questions, and updates the table so other agents and future-you know what's in flight.
+description: Pick up a task from {{TASKS_FILE}}. Refreshes architecture context, surfaces clarifying questions, and updates the table so other agents and future-you know what's in flight.
 ---
 
 # Claim a task from `{{TASKS_FILE}}`
@@ -26,19 +26,18 @@ The row's columns describe the task. If the description is too short to act on, 
 
 If the row is missing a Notes link and the title alone is ambiguous, pause — ask the user to expand the task before claiming.
 
-{{IF ADR_LOCATION}}
-### 3. Cross-check architecture decisions
+{{IF ARCH_DOC}}
+### 3. Refresh architecture context
 
-ADRs override intuition. Read every Accepted ADR in `{{ADR_LOCATION}}` whose subject overlaps the task.
+Read `{{ARCH_DOC}}` at the repo root if it exists. It captures the project's load-bearing architecture — what depends on what, key abstractions, baseline tech choices.
 
 ```
-ls {{ADR_LOCATION}}
+[ -f {{ARCH_DOC}} ] && cat {{ARCH_DOC}}
 ```
 
-For each ADR that touches this work:
-- Note its decision
-- Confirm the task doesn't conflict
-- If it does, cite the ADR and ask the user before continuing
+If the task touches specific subdirectories, also check for `{{ARCH_DOC}}` in those folders — they capture local conventions that augment or override the root.
+
+If anything in the architecture conflicts with what the task asks for, raise it before continuing. Architecture overrides intuition.
 {{ENDIF}}
 
 ### 4. Ask clarifying questions
@@ -65,7 +64,7 @@ The task is now claimed and `{{STATUS_IN_PROGRESS}}`. Continue with the project'
 ## Anti-patterns
 
 - **Claiming without updating the table** — others can't see it; risk of duplicate work
-{{IF ADR_LOCATION}}- **Skipping the ADR cross-check** — produces work that satisfies the task but violates architecture
+{{IF ARCH_DOC}}- **Skipping the architecture refresh** — produces work that satisfies the task but violates architectural constraints
 {{ENDIF}}- **Claiming with unresolved ambiguity** — every guess will be wrong in at least one dimension
 - **Forgetting to commit the status change** — the project board (the table) diverges from reality
 - **Stale Owner field** — when you walk away, mark the task back to `{{STATUS_READY}}` or note the pause in Notes

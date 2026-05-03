@@ -1,6 +1,6 @@
 ---
 name: startup
-description: Begin a session. Sync with {{MAIN_BRANCH}}, surface any instruction-file changes, scan ADRs, and identify the next task. Run at the start of every work session.
+description: Begin a session. Sync with {{MAIN_BRANCH}}, surface any instruction-file changes, refresh architecture context, and identify the next task. Run at the start of every work session.
 ---
 
 # Session startup
@@ -41,16 +41,16 @@ Pay attention to:
 
 If nothing changed, note "No instruction updates."
 
-{{IF ADR_LOCATION}}
-### 3. Read the architecture decisions
+{{IF ARCH_DOC}}
+### 3. Refresh architecture context
 
-ADRs are the load-bearing architectural commitments — read every Accepted ADR at least once per session so suggestions align with them.
+Read `{{ARCH_DOC}}` at the repo root. It captures the project's current-state architecture — load-bearing constraints, key abstractions, what depends on what.
 
 ```
-ls {{ADR_LOCATION}}
+[ -f {{ARCH_DOC}} ] && cat {{ARCH_DOC}}
 ```
 
-If an ADR's decision affects the work you're about to do, cite it explicitly when proposing approaches. ADRs override intuition; if your instinct conflicts with an Accepted ADR, follow the ADR or raise the conflict with the user before diverging.
+Folder-level `{{ARCH_DOC}}` files (in subdirectories) are loaded on-demand as you work in those folders. If your instinct conflicts with the architecture, follow the doc or raise the conflict with the user before diverging.
 {{ENDIF}}
 
 {{IF INFRA_LAUNCH}}
@@ -106,5 +106,5 @@ Then continue with the project's standard workstream — typically Phase 2 (clar
 - **Skipping the sync** — operating on stale code wastes the entire session when a merge surfaces a fundamental change
 - **Auto-resolving merge conflicts** — they signal divergent assumptions; the user decides
 - **Skipping the instruction diff** — silently violating new rules is worse than asking
-{{IF ADR_LOCATION}}- **Skipping ADRs** — every session should at least skim the index; ADRs change behavior
+{{IF ARCH_DOC}}- **Skipping the architecture refresh** — orientation drift; suggestions will increasingly conflict with the project's actual shape
 {{ENDIF}}- **Re-claiming an already-in-progress task** — wastes the marker history; just refresh context

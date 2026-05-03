@@ -85,7 +85,7 @@ Identify the most natural follow-on, in priority order:
 2. The next-highest-priority `{{IF TASK_SOURCE_GITHUB}}{{LABEL_READY}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_READY}}{{ENDIF}}` task
 3. A previously-blocked task that may now be unblocked by other work
 
-Confirm the choice with the user using `AskUserQuestion`, then invoke the project's `claim` skill on it (e.g., `/claim <id>`). The full claim flow runs — {{IF ADR_LOCATION}}ADR cross-check, {{ENDIF}}clarifying questions, {{IF TASK_SOURCE_GITHUB}}label{{ENDIF}}{{IF TASK_SOURCE_TASKS}}status{{ENDIF}} update, plan comment.
+Confirm the choice with the user using `AskUserQuestion`, then invoke the project's `claim` skill on it (e.g., `/claim <id>`). The full claim flow runs — {{IF ARCH_DOC}}architecture refresh, {{ENDIF}}clarifying questions, {{IF TASK_SOURCE_GITHUB}}label{{ENDIF}}{{IF TASK_SOURCE_TASKS}}status{{ENDIF}} update, plan comment.
 
 **Why claim at wrap-up:** starting next session with a task already `{{IF TASK_SOURCE_GITHUB}}{{LABEL_IN_PROGRESS}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_IN_PROGRESS}}{{ENDIF}}` is simpler than starting cold. The next `startup` becomes "resume work on `<id>`" instead of "pick a task and decide."
 
@@ -97,4 +97,4 @@ If no clear next task exists, skip this step. Next session's `startup` will pick
 - **Stale status** — the task tracker diverges from reality; other contributors trust stale data
 - **No checkpoint** — future-you re-derives context from scratch, costing 10-30 minutes per session
 - **Auto-claiming without confirmation** — wrap-up should *propose* the next task and confirm with the user before invoking the claim skill; never silently take over a new task at session-end
-- **Skipping the claim flow when claiming** — if you do claim at wrap-up, run the project's full `claim` skill; don't shortcut the {{IF ADR_LOCATION}}ADR cross-check or {{ENDIF}}plan-comment steps
+- **Skipping the claim flow when claiming** — if you do claim at wrap-up, run the project's full `claim` skill; don't shortcut the {{IF ARCH_DOC}}architecture refresh or {{ENDIF}}plan-comment steps
