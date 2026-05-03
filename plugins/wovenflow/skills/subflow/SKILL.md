@@ -104,6 +104,27 @@ All behavior-implementer subagents run in parallel. Each gets its own git worktr
 - **Independent test runs.** Each worktree has its own `out/spec-tests/` (the pretest extractor writes there). Parallel `npm test` invocations don't share output.
 - **Conflicts surface late and explicitly.** If two behaviors did touch the same code, the merge step is where it shows up — caught by git, not by quietly stomping.
 
+### Shared dependency dirs (avoid re-installing per worktree)
+
+Fresh git worktrees start with an empty working tree — no `node_modules`, no `.venv`, no `vendor/bundle`. Re-installing per worktree is the dominant overhead for ecosystems without a content-addressed store (npm-classic, pip+venv, classic Cargo, classic Bundler).
+
+`worktree.mjs create` mitigates this by symlinking shared dependency directories from the repo root into each new worktree. By default it links `node_modules`. Override with the `WOVENFLOW_WORKTREE_LINKS` env var (colon-separated paths):
+
+```
+# Python project using a shared venv
+WOVENFLOW_WORKTREE_LINKS=".venv" node <plugin>/skills/subflow/worktree.mjs create B1
+
+# Node + extra cache
+WOVENFLOW_WORKTREE_LINKS="node_modules:.cache" node <plugin>/skills/subflow/worktree.mjs create B1
+
+# Disable entirely
+WOVENFLOW_WORKTREE_LINKS="" node <plugin>/skills/subflow/worktree.mjs create B1
+```
+
+Each path is symlinked only if it exists in the repo root. The symlinks are unlinked before `merge` and `cleanup`, so git's worktree removal never traverses into the shared target.
+
+**Caveat:** if a behavior installs a new dependency, it goes into the shared directory and other parallel subagents see it mid-flight. In practice this is rare (most behaviors don't add deps) and harmless (the new package is invisible until imported). If a project's behaviors *do* install deps in parallel, disable the symlink and accept per-worktree install cost — or use a content-addressed package manager (pnpm, uv, yarn-berry) where install-per-worktree is fast.
+
 ### Cleanup on failure
 
 If an implementer reports BLOCKED or a behavior is abandoned:
