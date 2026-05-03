@@ -1,0 +1,71 @@
+---
+name: claim
+description: Pick up a task from {{TASKS_FILE}}. Cross-checks ADRs, surfaces clarifying questions, and updates the table so other agents and future-you know what's in flight.
+---
+
+# Claim a task from `{{TASKS_FILE}}`
+
+First step of every work cycle. Use this to take ownership of a row in `{{TASKS_FILE}}`, surface any open questions, and update the table.
+
+## Inputs
+
+- A task id passed as argument (e.g. `/claim T-007`)
+- Or, if no id given: pick the highest-priority `{{STATUS_READY}}` row
+
+## Steps
+
+### 1. Read the task table
+
+Open `{{TASKS_FILE}}`. The header row defines the columns; each subsequent row is one task.
+
+If a task id was passed, find that row. Otherwise pick the next `{{STATUS_READY}}` row, sorted by priority (P0 first), then by id.
+
+### 2. Read the task details
+
+The row's columns describe the task. If the description is too short to act on, follow the link in the Notes column to the design doc, related issue, or one-line "why."
+
+If the row is missing a Notes link and the title alone is ambiguous, pause — ask the user to expand the task before claiming.
+
+{{IF ADR_LOCATION}}
+### 3. Cross-check architecture decisions
+
+ADRs override intuition. Read every Accepted ADR in `{{ADR_LOCATION}}` whose subject overlaps the task.
+
+```
+ls {{ADR_LOCATION}}
+```
+
+For each ADR that touches this work:
+- Note its decision
+- Confirm the task doesn't conflict
+- If it does, cite the ADR and ask the user before continuing
+{{ENDIF}}
+
+### 4. Ask clarifying questions
+
+If anything is ambiguous, ask before claiming. Use `AskUserQuestion` with structured options. Don't guess.
+
+### 5. Update the table
+
+Edit `{{TASKS_FILE}}`:
+- Set the row's **Status** column to `{{STATUS_IN_PROGRESS}}`
+- Set the **Owner** column to `@me` (or the agent's identifier)
+
+Commit:
+
+```
+git add {{TASKS_FILE}}
+git commit -m "chore(tasks): claim <id>"
+```
+
+### 6. Hand off to the next phase
+
+The task is now claimed and `{{STATUS_IN_PROGRESS}}`. Continue with the project's next phase — usually clarify-and-challenge (Phase 2) or design (Phase 3 — `wovenflow:designflow`).
+
+## Anti-patterns
+
+- **Claiming without updating the table** — others can't see it; risk of duplicate work
+{{IF ADR_LOCATION}}- **Skipping the ADR cross-check** — produces work that satisfies the task but violates architecture
+{{ENDIF}}- **Claiming with unresolved ambiguity** — every guess will be wrong in at least one dimension
+- **Forgetting to commit the status change** — the project board (the table) diverges from reality
+- **Stale Owner field** — when you walk away, mark the task back to `{{STATUS_READY}}` or note the pause in Notes

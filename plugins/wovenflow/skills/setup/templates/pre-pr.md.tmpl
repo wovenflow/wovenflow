@@ -1,0 +1,100 @@
+---
+name: pre-pr
+description: Verification gate before opening a PR. Runs tests, audits coverage of every acceptance criterion, drives the UI through each criterion, dispatches an adversarial reviewer, and walks the user through a re-test.
+---
+
+# Pre-PR verification
+
+Run this before opening a PR. It catches issues that would otherwise come back from a reviewer round-trip and confirms the change actually does what was asked. The bar is intentionally higher than "tests pass" — tests verify code correctness, not feature correctness.
+
+## Steps
+
+### 1. Run the test suite
+
+```
+{{TEST_CMD}}
+```
+
+All tests must pass. If any are skipped, justify each (skip-with-reason in the test, not silently in CI). Treat a skipped test as a failing test for this gate.
+
+### 2. Audit test coverage of the change
+
+For every acceptance criterion in the issue/task, answer:
+
+- **Is there a test that verifies this criterion?** Cite the test by `path:line`.
+- **If no test exists**, justify why ("manually verified per step 3", "untestable surface — third-party network call", etc.) or add one.
+
+This is "the test file IS the spec" applied at the PR boundary. If a future maintainer can't read the tests and understand what changed, coverage is insufficient.
+
+{{IF COVERAGE_CMD}}
+Optional sanity check:
+
+```
+{{COVERAGE_CMD}}
+```
+
+Coverage % alone isn't the goal — coverage of the *acceptance criteria* is. Use the report as a hint, not a target.
+{{ENDIF}}
+
+{{IF UI_TEST_TOOL}}
+### 3. Drive the UI through every acceptance criterion
+
+For each criterion, exercise the user-visible flow with `{{UI_TEST_TOOL}}` and capture screenshots of before/after states. Confirm the result matches the criterion.
+
+If you can't reach a state through `{{UI_TEST_TOOL}}`, that's a bug to fix — not a step to skip. "Couldn't test the UI but the code looks right" does not pass this gate.
+
+For non-UI changes (server-only, library code), say so explicitly and skip this step. Don't silently skip.
+{{ELSE}}
+### 3. Manual verification of every acceptance criterion
+
+For each criterion, exercise the change yourself and document what you saw — terminal output, screenshots, log lines, whatever evidence is appropriate. If the change is non-UI and tests cover everything, say so explicitly and reference the tests.
+{{ENDIF}}
+
+### 4. Self-review the diff
+
+```
+git diff origin/{{MAIN_BRANCH}}...HEAD
+```
+
+Check:
+
+- Code touched matches the issue/task scope; nothing unrelated added
+- No leftover debug prints, scratch comments, commented-out code
+- No accidentally-committed secrets, env files, or large binaries
+- No "while I was here" refactors that aren't the task
+
+If you find scope creep, decide: split into a follow-up PR, or revert the unrelated changes from this branch.
+
+### 5. Adversarial review subagent
+
+Dispatch a subagent (a cheap model is fine) with the explicit framing: *"Find issues. Do not approve a 'close enough' implementation."*
+
+Pass:
+- The issue/task description
+- The diff range (`origin/{{MAIN_BRANCH}}...HEAD`)
+- The acceptance criteria list
+
+The reviewer should return Strengths + Issues (Critical / Important / Minor). Address Critical and Important before continuing; Minor can be filed as follow-ups.
+
+### 6. Walk the user through a re-test
+
+For each acceptance criterion, walk the user through one verification step:
+
+1. State what you'll show
+2. Show it (paste output, screenshot, demo URL)
+3. Ask pass/fail before advancing
+
+The agent has already verified each criterion in step 3; this is a sanity check, not a fresh QA cycle. If the user says "fail" on any criterion, back up — don't open the PR with a known regression.
+
+### 7. Open the PR
+
+Only after every check above passes. Use the project's PR-creation flow.
+
+## Anti-patterns
+
+- **"Tests pass = ready to ship"** — tests verify code correctness, not feature correctness
+{{IF UI_TEST_TOOL}}- **Skipping the UI walkthrough on a UI change** — the most common failure mode this gate catches
+{{ENDIF}}- **Treating the adversarial subagent as a rubber stamp** — if it didn't find issues, prompt it harder
+- **Marking criteria "verified" without evidence** — you're trusting your memory; reviewers can't
+- **Opening the PR with known Critical or Important issues** — wastes the reviewer's time and yours
+- **Auto-resolving "close enough" mismatches** — escalate ambiguity; don't paper over it

@@ -1,0 +1,98 @@
+---
+name: startup
+description: Begin a session. Sync with {{MAIN_BRANCH}}, surface any instruction-file changes, scan ADRs, and identify the next task. Run at the start of every work session.
+---
+
+# Session startup
+
+Run this at the start of every work session. It ensures the environment is current, you've seen any rule updates, and you have a clear plan rooted in the task tracker.
+
+## Steps
+
+### 1. Sync branch with `{{MAIN_BRANCH}}`
+
+Pull first — before anything else. This ensures the rest of startup operates on fresh code.
+
+```
+git fetch origin {{MAIN_BRANCH}}
+git merge origin/{{MAIN_BRANCH}} --no-edit
+```
+
+If conflicts surface, stop and report them. Do not auto-resolve. The user decides.
+
+If new commits arrived, briefly note what changed:
+
+```
+git log --oneline ORIG_HEAD..HEAD
+```
+
+### 2. Check for updated instructions
+
+If `{{INSTRUCTION_FILE}}` (or any other top-level instruction file) changed since the last session, read the diff and summarize what's new:
+
+```
+git diff ORIG_HEAD..HEAD -- {{INSTRUCTION_FILE}}
+```
+
+Pay attention to:
+- New rules
+- Changed commands
+- New gotchas or anti-patterns
+
+If nothing changed, note "No instruction updates."
+
+{{IF ADR_LOCATION}}
+### 3. Read the architecture decisions
+
+ADRs are the load-bearing architectural commitments — read every Accepted ADR at least once per session so suggestions align with them.
+
+```
+ls {{ADR_LOCATION}}
+```
+
+If an ADR's decision affects the work you're about to do, cite it explicitly when proposing approaches. ADRs override intuition; if your instinct conflicts with an Accepted ADR, follow the ADR or raise the conflict with the user before diverging.
+{{ENDIF}}
+
+{{IF INFRA_LAUNCH}}
+### 4. Launch project infrastructure
+
+Run any project-specific bootstrap:
+
+```
+{{INFRA_LAUNCH}}
+```
+
+This should be idempotent — safe to call when already started. If it isn't, fix the script before continuing.
+{{ENDIF}}
+
+### 5. Identify the task to work on
+
+Use the project's `claim` skill (or invoke directly via `/claim <id>`):
+
+{{IF TASK_SOURCE_GITHUB}}
+- What this agent already owns: `gh issue list {{IF AGENT_LABEL}}--label {{AGENT_LABEL}} {{ENDIF}}--state open`
+- Available to pick up: `gh issue list --label {{LABEL_READY}} --state open`
+{{ENDIF}}{{IF TASK_SOURCE_TASKS}}
+- Open `{{TASKS_FILE}}` and look for the highest-priority `{{STATUS_READY}}` row
+- Or invoke `/claim` to auto-pick
+{{ENDIF}}
+
+If a task is already in-progress for this agent, confirm it's still the right target. Don't re-claim; just refresh context by reading the task and any plan comments.
+
+### 6. Report ready and begin
+
+Summarize the session state for the user:
+
+- Branch name and sync status
+- Any instruction changes they should know about
+- The task you're working on (id + title)
+
+Then continue with the project's standard workstream — typically Phase 2 (clarify-and-challenge) or Phase 3 (design — `wovenflow:designflow`).
+
+## Anti-patterns
+
+- **Skipping the sync** — operating on stale code wastes the entire session when a merge surfaces a fundamental change
+- **Auto-resolving merge conflicts** — they signal divergent assumptions; the user decides
+- **Skipping the instruction diff** — silently violating new rules is worse than asking
+{{IF ADR_LOCATION}}- **Skipping ADRs** — every session should at least skim the index; ADRs change behavior
+{{ENDIF}}- **Re-claiming an already-in-progress task** — wastes the marker history; just refresh context

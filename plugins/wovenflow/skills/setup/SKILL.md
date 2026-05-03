@@ -159,6 +159,23 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`research-workflow:wrap-up`**](https://github.com/anthropics/claude-plugins-official) — research-coded close-out
 - **Project-local wrap-up skill** — projects with issue-state reconciliation, dangling-commit audits, etc., have their own. Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
+## Wovenflow-shipped scaffold templates
+
+For four universal patterns, wovenflow ships fill-in templates that materialize into a project's `.claude/skills/<name>/SKILL.md`. These are the canonical "Craft custom" path for these phases — robust and parameterized, not bare-bones starting points.
+
+| Template | Materializes to | When to use |
+|---|---|---|
+| `claim-github.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in GitHub Issues |
+| `claim-tasks.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in a `tasks.md` file |
+| `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker (only when `claim-tasks` is picked and the file doesn't already exist) |
+| `startup.md.tmpl` | `<repo>/.claude/skills/startup/SKILL.md` | Session bootstrap (pre-Phase 1) — sync, instruction diff, ADR scan, identify task |
+| `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 9) — dangling-commit audit, status reconciliation, next-task suggestion |
+| `pre-pr.md.tmpl` | `<repo>/.claude/skills/pre-pr/SKILL.md` | Verification gate (Phase 6) — tests, coverage audit, UI walkthrough, adversarial review |
+
+All templates live at `plugins/wovenflow/skills/setup/templates/`. Variable reference and template syntax (substitution + conditional blocks) are documented in `templates/README.md`.
+
+The wizard's Step 3 (Craft custom skills) uses these templates when applicable; for phases without a wovenflow template, it falls back to `skill-creator:skill-creator`.
+
 ## Cross-cutting concerns
 
 These aren't phase-bound — they're project-level decisions the wizard asks about *after* the phase walk-through.
@@ -254,20 +271,51 @@ For Phases 3, 4, 5: the wovenflow skills are the recommended default. The user C
 
 ### Step 3 — Craft custom skills (when chosen)
 
-If the user picks "craft a new custom skill" for any phase:
+If the user picks "craft a new custom skill" for any phase, prefer a wovenflow-shipped template. Fall back to `skill-creator` only when no template applies.
 
-1. Invoke [`skill-creator:skill-creator`](https://github.com/anthropics/claude-plugins-official) (or `superpowers:writing-skills`) to scaffold a new SKILL.md
-2. Save it to `<repo>/.claude/skills/<phase-skill-name>/SKILL.md`
-3. Walk the user through:
-   - **Name** of the skill (default: `<phase-name>` slugified)
+#### 3a. Check for a wovenflow template
+
+Templates live at `plugins/wovenflow/skills/setup/templates/`. The mappings:
+
+| Phase | Template |
+|---|---|
+| Session bootstrap (pre-Phase 1) | `startup.md.tmpl` |
+| Phase 1 (Claim) | `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md`) |
+| Phase 6 (Verify) | `pre-pr.md.tmpl` |
+| Phase 9 (Close out) | `wrap-up.md.tmpl` |
+
+If a template matches, follow 3b. Otherwise skip to 3c.
+
+#### 3b. Materialize a wovenflow template
+
+1. Ask the user for the variables the template needs (full reference: `plugins/wovenflow/skills/setup/templates/README.md`). Group sensibly into `AskUserQuestion` calls (1-4 questions per call). Common variables:
+   - **Project basics:** main branch (`main` / `master` / `trunk`), instruction file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`), ADR location (path or empty)
+   - **For `claim`:** task source (`github` or `tasks`); for GitHub — agent label (optional), status labels (`ready`/`in-progress`/`in-review`); for `tasks.md` — file path, status values, priority values
+   - **For `pre-pr`:** test command (e.g. `npm test`), UI testing tool (e.g. `Playwright`, or empty for non-UI), coverage command (or empty)
+   - **For `startup`:** project-specific bootstrap command (or empty)
+
+2. Substitute placeholders:
+   - `{{VAR}}` → the user's answer
+   - `{{IF VAR}}...{{ENDIF}}` → keep block if `VAR` is non-empty, drop otherwise
+   - Renumber `### N. Title` step headers sequentially after IF blocks resolve so step numbering stays clean
+
+3. Show the materialized content to the user and confirm before writing.
+
+4. Write to `<repo>/.claude/skills/<name>/SKILL.md`.
+
+5. **Special case for `claim-tasks`:** if `<repo>/<TASKS_FILE>` doesn't exist, also materialize `tasks.md.tmpl` to that path with the same variables. The project starts with a usable task tracker.
+
+#### 3c. Fall back to skill-creator (no template available)
+
+For phases outside the wovenflow template set (Phase 2 clarify-and-challenge, custom phases, etc.):
+
+1. Invoke [`skill-creator:skill-creator`](https://github.com/anthropics/claude-plugins-official) (or `superpowers:writing-skills`) to scaffold a fresh SKILL.md
+2. Walk the user through:
+   - **Name** (default: `<phase-name>` slugified)
    - **Description** (~25 words; what it does, when to invoke)
-   - **Body** — what the orchestrator should do when this skill fires. The wizard offers a phase-specific template:
-     - Phase 1 (Claim): "Identify the task, mark it in-progress, post a marker..."
-     - Phase 2: "Walk through the chosen forcing questions..."
-     - Etc.
-   - **Inputs** the skill expects
-   - **Outputs** the skill produces
-4. Confirm with user; commit the new SKILL.md to the project's `.claude/skills/` directory
+   - **Body** — what the orchestrator should do when this skill fires
+   - **Inputs** and **outputs**
+3. Save to `<repo>/.claude/skills/<phase-skill-name>/SKILL.md`; confirm with user.
 
 ### Step 4 — Walk through cross-cutting concerns
 

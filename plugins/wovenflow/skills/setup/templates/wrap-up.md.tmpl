@@ -1,0 +1,95 @@
+---
+name: wrap-up
+description: Close out a work session. Audits dangling commits, reconciles task state, saves a checkpoint, and surfaces the next task.
+---
+
+# Session wrap-up
+
+End-of-session housekeeping. Use this when stepping away from a session that's reached a natural pause — work shipped, work blocked, or just done for the day.
+
+## Steps
+
+### 1. Audit dangling commits
+
+```
+git status
+git log @{u}..HEAD --oneline
+```
+
+If commits are local-only, decide:
+- **Push them** if they're complete work
+- **Reset / discard** if they're a half-thought-through detour
+- **Stash** if they're work-in-progress you'll resume next session
+
+Don't leave commits stranded; they invisibly accumulate and confuse future-you.
+
+### 2. Audit pushed-but-no-PR work
+
+```
+git log origin/{{MAIN_BRANCH}}..HEAD --oneline
+```
+
+If the branch is ahead of `{{MAIN_BRANCH}}` but no PR exists, you have unmerged work. Decide:
+- **Open the PR** — run the project's `pre-pr` skill first
+- **Continue next session** — note in the task tracker that work is paused
+
+### 3. Reconcile task state
+
+{{IF TASK_SOURCE_GITHUB}}
+For every issue you've been working on:
+
+```
+gh issue view <id>
+```
+
+Reconcile the status:
+- PR open: status should be `{{LABEL_IN_REVIEW}}`
+- Still working: status should be `{{LABEL_IN_PROGRESS}}`
+- PR merged: issue auto-closes; project board moves to Done automatically
+- Stepping away mid-work: leave a comment summarizing where you left off and any open questions
+
+```
+gh issue edit <id> --add-label <new-status> --remove-label <old-status>
+gh issue comment <id> --body "Pausing here. Next: ..."
+```
+{{ENDIF}}{{IF TASK_SOURCE_TASKS}}
+For every row in `{{TASKS_FILE}}` you own:
+
+- PR open: set Status to `{{STATUS_IN_REVIEW}}`
+- Still working: leave Status at `{{STATUS_IN_PROGRESS}}`
+- PR merged: set Status to `{{STATUS_DONE}}`
+- Stepping away mid-work: append a Notes update with where you left off
+
+```
+git add {{TASKS_FILE}}
+git commit -m "chore(tasks): reconcile status"
+```
+{{ENDIF}}
+
+### 4. Save a session checkpoint
+
+Write a short paragraph (3-5 sentences) covering:
+
+- What was done this session
+- What's still left on the task
+- What the next concrete step is
+- Any blockers or open questions
+
+Save it in whichever surface the project uses for session continuity — a comment on the task, a session-state file, or both.
+
+### 5. Suggest the next task
+
+Look at the task tracker and identify 2-3 candidates for next session, with one-line reasons each:
+
+- A task that depends on what just shipped
+- The next-highest-priority `{{IF TASK_SOURCE_GITHUB}}{{LABEL_READY}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_READY}}{{ENDIF}}` task
+- A previously-blocked task that may now be unblocked
+
+This isn't a binding pick — just a starting point so the next session's `startup` doesn't start from zero.
+
+## Anti-patterns
+
+- **Leaving commits unpushed** — work is invisible to others; risk of loss on disk failure
+- **Stale status** — the task tracker diverges from reality; other contributors trust stale data
+- **No checkpoint** — future-you re-derives context from scratch, costing 10-30 minutes per session
+- **Suggesting "everything" as the next task** — pick 2-3 specifically; "everything is next" is the same as "nothing is next"

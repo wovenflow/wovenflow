@@ -1,0 +1,49 @@
+# Tasks
+
+The source of truth for work in this project. Add new rows for new tasks; update Status and Owner as work moves.
+
+| ID    | Title                            | Status      | Priority | Owner | Notes |
+|-------|----------------------------------|-------------|----------|-------|-------|
+| T-001 | Example: define the first task   | {{STATUS_READY}}       | P1       |       | Replace this row with a real task |
+
+## Status values
+
+| Value | Meaning |
+|---|---|
+| `backlog` | Known but not yet ready to work — needs scoping or prerequisites |
+| `{{STATUS_READY}}` | Fully specified; safe to claim |
+| `{{STATUS_IN_PROGRESS}}` | Claimed by an owner; actively worked |
+| `{{STATUS_IN_REVIEW}}` | In PR / awaiting review |
+| `{{STATUS_DONE}}` | Landed |
+
+## Priority values
+
+| Value | Meaning |
+|---|---|
+| `P0` | Must ship next; everything else paused |
+| `P1` | Soon — current cycle |
+| `P2` | When convenient |
+| `P3` | Backlog; revisit when planning the next cycle |
+
+## Adding a task
+
+Add a new row to the table. Fill in:
+
+- **ID** — short unique identifier (e.g. `T-042`). Pick the next number after the highest existing id.
+- **Title** — one-line summary; readable in isolation
+- **Status** — start at `backlog` if it needs more scoping, `{{STATUS_READY}}` if it's actionable
+- **Priority** — best guess; can be revised
+- **Owner** — leave blank until claimed; the `claim` skill will set this
+- **Notes** — link to a design doc, related issue, or a one-line "why" / "how"
+
+## Workflow
+
+| Action | What to do |
+|---|---|
+| Claim a task | Run the `claim` skill (auto-picks the highest-priority `{{STATUS_READY}}` row) or `/claim <id>` |
+| Open a PR | Update Status to `{{STATUS_IN_REVIEW}}` |
+| PR merges | Update Status to `{{STATUS_DONE}}` |
+| Pause work mid-task | Update Notes with where you left off; leave Status at `{{STATUS_IN_PROGRESS}}` |
+| Abandon a task | Update Status to `backlog` and Owner to empty; add a Notes line explaining why |
+
+Keep the Notes column terse — it's a pointer, not a journal. Long context belongs in linked docs.

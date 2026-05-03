@@ -1,0 +1,105 @@
+---
+name: claim
+description: Pick up a GitHub issue. Cross-checks ADRs, surfaces clarifying questions, marks the issue in-progress, and posts a public plan comment so other contributors and future-you know what's in flight.
+---
+
+# Claim a GitHub issue
+
+First step of every work cycle. Use this to take ownership of a GitHub issue, surface any open questions, and post a plan comment so other agents and the user can see what you're about to do.
+
+## Inputs
+
+- An issue number passed as argument (e.g. `/claim 123`)
+- Or, if no number given: pick from currently `{{LABEL_READY}}` issues
+
+## Steps
+
+### 1. Identify the issue
+
+If an issue number was passed, use it. Otherwise:
+
+```
+gh issue list --label {{LABEL_READY}} --state open
+```
+
+If more than one is ready, ask the user which to claim using `AskUserQuestion` with structured options.
+
+### 2. Read the issue thoroughly
+
+```
+gh issue view <id> --comments
+```
+
+Note:
+- Acceptance criteria (explicit or implied)
+- Any prior agent's plan or attempted work
+- Linked issues / PRs
+- Stakeholders mentioned
+
+If the issue body is sparse, pull in the linked design docs or specs before proceeding.
+
+{{IF ADR_LOCATION}}
+### 3. Cross-check architecture decisions
+
+ADRs override intuition. Read every Accepted ADR in `{{ADR_LOCATION}}` whose subject overlaps the issue.
+
+```
+ls {{ADR_LOCATION}}
+```
+
+For each ADR that touches this work:
+- Note its decision
+- Confirm the issue doesn't conflict
+- If it does, cite the ADR and ask the user before continuing
+
+If unsure whether an ADR applies, read it. Skipping ADR cross-check is the most common cause of correct-per-issue / wrong-per-architecture PRs.
+{{ENDIF}}
+
+### 4. Ask clarifying questions
+
+If anything is ambiguous, ask before claiming. Use `AskUserQuestion` with structured options. Examples:
+
+- "The issue says 'fix the export'; should it apply to CSV only or all formats?"
+- "The acceptance criteria mention 'fast'; what's the target latency?"
+- "Two reasonable interpretations of step 3 exist: (a) ... (b) ... — which?"
+
+Don't claim with unresolved ambiguity. Guesses compound; questions get resolved cheaply now and expensively later.
+
+### 5. Apply labels and self-assign
+
+```
+gh issue edit <id> {{IF AGENT_LABEL}}--add-label {{AGENT_LABEL}} {{ENDIF}}--add-label {{LABEL_IN_PROGRESS}} --remove-label {{LABEL_READY}} --add-assignee @me
+```
+
+This signals to other agents and the project board that the issue is taken.
+
+### 6. Post a plan comment
+
+Draft a 3-5 bullet plan and post it as a comment. The comment survives session restarts and is visible to other agents.
+
+```
+gh issue comment <id> --body "$(cat <<'EOF'
+## Plan
+
+- Bullet 1: what you'll do first
+- Bullet 2: ...
+- Bullet 3: ...
+
+Will close: #<id>
+EOF
+)"
+```
+
+Keep the plan honest. If you're not sure how to approach something, say so in the comment.
+
+### 7. Hand off to the next phase
+
+The issue is now claimed and `{{LABEL_IN_PROGRESS}}`. Continue with the project's next phase — usually clarify-and-challenge (Phase 2) or design (Phase 3 — `wovenflow:designflow`).
+
+## Anti-patterns
+
+- **Claiming silently** — others can't see it; risk of duplicate work
+{{IF ADR_LOCATION}}- **Skipping the ADR cross-check** — produces PRs that satisfy the issue but violate architecture
+{{ENDIF}}- **Claiming with unresolved ambiguity** — every guess will be wrong in at least one dimension
+- **No plan comment** — if your session crashes, future-you starts from zero
+- **Stale labels** — leave the issue in `{{LABEL_IN_PROGRESS}}` while you sleep on it; never forget to advance it to `{{LABEL_IN_REVIEW}}` when the PR opens
