@@ -26,6 +26,7 @@ Four skills cover the cycle:
 ```sh
 /plugin marketplace add https://github.com/wovenflow/wovenflow
 /plugin install wovenflow@wovenflow
+/wovenflow:setup
 ```
 
 (Or as a directory source if you've cloned this repo: `/plugin marketplace add /path/to/wovenflow`.)
