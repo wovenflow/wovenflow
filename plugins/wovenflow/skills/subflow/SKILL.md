@@ -11,11 +11,13 @@ The name reads as "the subagent flow" — a subset of the wovenflow workflow tha
 
 ## How tests run (read this first)
 
-The test code in the `.spec.md` is **not directly runnable** — it lives inside markdown fences. The `testflow` skill's bundled extractor (`extract.mjs`) reads the `.spec.md` and writes derived `.test.ts` files into `out/spec-tests/` (or wherever the second arg points). Those derived files are what the test runner actually executes.
+The test code in the `.spec.md` is **not directly runnable** — it lives inside markdown fences. The `testflow` skill's bundled extractor (`extract.mjs`) reads the `.spec.md` and writes derived test files (`.test.ts`, `.py`, `_test.rs`, etc., per the `--lang` flag) into the project's spec-test output directory. Those derived files are what the test runner actually executes.
 
-### Standard path: pretest hook
+### Standard path: pre-test hook
 
-Wire the extractor as the project's `pretest` hook in `package.json`:
+The exact mechanism depends on the project's stack. The shape is the same in every case: the extractor runs **before** the test command, so derived test files are fresh.
+
+**TypeScript / JavaScript** (npm `pretest` lifecycle hook):
 
 ```json
 "scripts": {
@@ -24,11 +26,23 @@ Wire the extractor as the project's `pretest` hook in `package.json`:
 }
 ```
 
-`pretest` is an npm lifecycle hook — it runs automatically before any invocation of `test`. CI, IDE Mocha integrations, and command-line `npm test` all trigger it. **Subagents do not invoke the extractor manually** when pretest is wired; `npm test` is enough.
+**Python** (pytest `conftest.py` or Makefile target — see `wovenflow:testflow` for full options):
 
-If `pretest` is **not** wired in the target project (e.g., a project adopting wovenflow for the first time), the orchestrator must wire it before dispatching subagents. The pre-condition check below catches this.
+```python
+# conftest.py
+import subprocess
+def pytest_configure(config):
+    subprocess.run([
+        "node", "<plugin-path>/skills/testflow/extract.mjs",
+        "doc/specs/**/*.spec.md", "out/spec-tests/", "--lang", "python",
+    ], check=True)
+```
 
-### Bundled run scripts (this skill)
+**Other languages** (Rust / Go / Ruby): wire `extract.mjs --lang <lang>` into the project's pre-test step (cargo build script, go generate, Rake task, Makefile). See `wovenflow:testflow` for examples.
+
+Whatever the wiring, **subagents do not invoke the extractor manually** — running the project's test command is enough. If extraction isn't wired, the orchestrator must wire it before dispatching subagents.
+
+### Bundled run scripts (TypeScript / JavaScript only)
 
 For situations where the project's `npm test` doesn't apply — running tests directly from the plugin, iterating on one behavior, debugging — `subflow` ships two convenience scripts alongside this `SKILL.md`:
 
@@ -37,20 +51,15 @@ For situations where the project's `npm test` doesn't apply — running tests di
 | **`run-suite.mjs`** | Extract a `.spec.md` glob, run every behavior's test through `node:test`. | `node run-suite.mjs <glob-or-file> [<output-dir>]` |
 | **`run-behavior.mjs`** | Extract one `.spec.md`, run only one behavior's test (filtered by id). | `node run-behavior.mjs <spec-file> <behavior-id>` |
 
-Both wrap `testflow/extract.mjs` plus the project's runner (`node:test` by default; runner-specific behavior in the script's `--help`). Output dir defaults to a temp directory unless one is supplied (so the project tree stays clean during ad-hoc runs). Exit code is the runner's: zero on green, non-zero on red.
-
-Subagents use these to test their own implementation iteratively without re-running the full suite or modifying project scripts:
-
-- "Did B1's test pass after my change?" → `node <plugin>/skills/subflow/run-behavior.mjs <spec> B1`
-- "Did anything regress?" → `node <plugin>/skills/subflow/run-suite.mjs '<glob>'`
+These are TS/JS-specific (they wrap `node:test`). Python / Rust / Go / Ruby projects iterate via the language's native test runner directly — `pytest -k <pattern>`, `cargo test <name>`, etc.
 
 ## When to use
 
 After `testflow`. Pre-conditions to verify before dispatching:
 
 - The `.spec.md` is committed to a branch (subagents reference it by path)
-- `pretest` extraction is wired in `package.json` (so `npm test` extracts then runs the runner)
-- Running `npm test` once shows red — every behavior's test fails. That's the canonical TDD red moment; this skill turns it green.
+- Pre-test extraction is wired into the project (npm `pretest` script for TS/JS, `conftest.py` or Makefile target for Python, equivalent for other languages)
+- Running the project's test command once shows red — every behavior's test fails. That's the canonical TDD red moment; this skill turns it green.
 
 If any pre-condition isn't met, fix that first; do not dispatch implementers against a partial setup.
 
@@ -101,7 +110,7 @@ All behavior-implementer subagents run in parallel. Each gets its own git worktr
 
 - **No file collisions.** Each subagent edits files in its own working tree.
 - **No spec drift.** All worktrees branch from the same commit, so every subagent reads the same `.spec.md`.
-- **Independent test runs.** Each worktree has its own `out/spec-tests/` (the pretest extractor writes there). Parallel `npm test` invocations don't share output.
+- **Independent test runs.** Each worktree has its own spec-test output directory (the pre-test extractor writes there). Parallel test runs don't share output.
 - **Conflicts surface late and explicitly.** If two behaviors did touch the same code, the merge step is where it shows up — caught by git, not by quietly stomping.
 
 ### Shared dependency dirs (avoid re-installing per worktree)

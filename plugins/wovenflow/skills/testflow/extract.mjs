@@ -4,7 +4,52 @@ import { basename, join } from 'node:path';
 
 const FENCE = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*([^`\s]*)[ \t]*$/;
 
-function extractTypescriptBlocks(source) {
+// Map --lang to the fence label looked for in the markdown and the output
+// filename derived from the input basename (already stripped of trailing .md).
+// Add more languages here as they're needed.
+const LANGS = {
+	typescript: {
+		fence: 'typescript',
+		outputName: (base) => base + '.test.ts',
+	},
+	javascript: {
+		fence: 'javascript',
+		outputName: (base) => base + '.test.js',
+	},
+	python: {
+		// pytest's default discovery wants `test_*.py`. Dots inside basenames
+		// (e.g. feature.spec) confuse module-style import collection, so
+		// sanitize them to underscores.
+		fence: 'python',
+		outputName: (base) => 'test_' + base.replace(/\./g, '_') + '.py',
+	},
+	rust: {
+		fence: 'rust',
+		outputName: (base) => base.replace(/\./g, '_') + '_test.rs',
+	},
+	ruby: {
+		fence: 'ruby',
+		outputName: (base) => base.replace(/\./g, '_') + '_test.rb',
+	},
+	go: {
+		fence: 'go',
+		outputName: (base) => base.replace(/[.-]/g, '_') + '_test.go',
+	},
+};
+
+function parseArgs(argv) {
+	const positional = [];
+	const opts = { lang: 'typescript' };
+	for (let i = 0; i < argv.length; i++) {
+		const a = argv[i];
+		if (a === '--lang') opts.lang = argv[++i];
+		else if (a.startsWith('--lang=')) opts.lang = a.slice('--lang='.length);
+		else positional.push(a);
+	}
+	return { positional, opts };
+}
+
+function extractBlocks(source, fence) {
 	const lines = source.split('\n');
 	const blocks = [];
 	let i = 0;
@@ -20,7 +65,7 @@ function extractTypescriptBlocks(source) {
 			i++;
 		}
 		i++;
-		if (lang === 'typescript') blocks.push(body.join('\n'));
+		if (lang === fence) blocks.push(body.join('\n'));
 	}
 	return blocks;
 }
@@ -35,23 +80,31 @@ function resolveInputs(arg) {
 	}).sort();
 }
 
-function outputName(inputPath) {
-	const base = basename(inputPath);
-	return base.endsWith('.md') ? base.slice(0, -3) + '.test.ts' : base + '.test.ts';
+function stripMd(filename) {
+	return filename.endsWith('.md') ? filename.slice(0, -3) : filename;
 }
 
 function main(argv) {
-	const [input, outDir] = argv;
+	const { positional, opts } = parseArgs(argv);
+	const [input, outDir] = positional;
 	if (!input || !outDir) {
-		process.stderr.write('usage: extract.mjs <input-glob-or-file> <output-dir>\n');
+		process.stderr.write('usage: extract.mjs <input-glob-or-file> <output-dir> [--lang LANG]\n');
+		process.stderr.write('  supported languages: ' + Object.keys(LANGS).join(', ') + ' (default: typescript)\n');
+		process.exit(1);
+	}
+	const langSpec = LANGS[opts.lang];
+	if (!langSpec) {
+		process.stderr.write(`error: unsupported language "${opts.lang}"\n`);
+		process.stderr.write('  supported languages: ' + Object.keys(LANGS).join(', ') + '\n');
 		process.exit(1);
 	}
 	const files = resolveInputs(input);
 	mkdirSync(outDir, { recursive: true });
 	for (const file of files) {
-		const blocks = extractTypescriptBlocks(readFileSync(file, 'utf8'));
+		const blocks = extractBlocks(readFileSync(file, 'utf8'), langSpec.fence);
 		if (blocks.length === 0) continue;
-		writeFileSync(join(outDir, outputName(file)), blocks.join('\n\n'));
+		const base = stripMd(basename(file));
+		writeFileSync(join(outDir, langSpec.outputName(base)), blocks.join('\n\n'));
 	}
 }
 

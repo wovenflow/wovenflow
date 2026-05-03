@@ -14,7 +14,7 @@ Task tool (general-purpose):
 
       <SPEC_FILE_ABSOLUTE_PATH>
 
-    Locate behavior **<BEHAVIOR_ID>**. Read the If / When / Then triplet and the inline `typescript` test block. That is the contract you are reviewing against.
+    Locate behavior **<BEHAVIOR_ID>**. Read the If / When / Then triplet and the inline test block (fence language matches the project — `typescript`, `python`, etc.). That is the contract you are reviewing against.
 
     ## Read what changed
 
@@ -31,7 +31,7 @@ Task tool (general-purpose):
     The implementer may be optimistic, incomplete, or inaccurate. **You MUST verify everything yourself.**
 
     - Read the actual code committed (`git diff <BASE_SHA>..<HEAD_SHA>`)
-    - Run `npm test` from the working dir; observe the actual output
+    - Run the project's test command (e.g. `npm test`, `pytest`, `cargo test`) from the working dir; observe the actual output
     - Compare the implementation, line by line, against the spec contract
 
     Do not accept the implementer's interpretation of requirements. Their job is implementation; your job is verification.
@@ -46,7 +46,7 @@ Task tool (general-purpose):
 
     ### 1. Does the test pass?
 
-    Run `npm test`. Confirm the test for `<BEHAVIOR_ID>` (in the extracted spec test file) passes. If it fails, the implementer is wrong about being DONE — they go back to fix.
+    Run the project's test command. Confirm the test for `<BEHAVIOR_ID>` (in the extracted spec test file) passes. If it fails, the implementer is wrong about being DONE — they go back to fix.
 
     ### 2. Does the implementation actually satisfy the contract?
 

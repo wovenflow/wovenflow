@@ -17,7 +17,7 @@ Task tool (general-purpose):
     Locate behavior **<BEHAVIOR_ID>** (e.g., B1). Read:
 
     - Its If / When / Then triplet (the contract)
-    - Its inline `typescript` test block (the assertions you must satisfy)
+    - Its inline test block (the assertions you must satisfy — fence language matches the project, e.g. `typescript`, `python`, etc.)
     - The user stories at the top of the file (the why)
     - The other behaviors in the file (related context — they may share interfaces or invariants)
 
@@ -25,7 +25,7 @@ Task tool (general-purpose):
 
     ## Your job
 
-    Write production code in this project's source tree so the test for **<BEHAVIOR_ID>** passes when `npm test` runs (the pretest hook extracts the spec into runnable tests automatically — you don't run the extractor manually).
+    Write production code in this project's source tree so the test for **<BEHAVIOR_ID>** passes when the project's test command runs (e.g. `npm test`, `pytest`, `cargo test`). The project's pretest hook extracts the spec into runnable tests automatically — you don't run the extractor manually. If you can't tell what the test command is, check `package.json`, `Makefile`, `pyproject.toml`, `Cargo.toml`, or the project's CLAUDE.md / AGENTS.md.
 
     Constraints:
 
@@ -61,7 +61,7 @@ Task tool (general-purpose):
 
     Verify, then commit, then report.
 
-    1. Run `npm test`. The test for `<BEHAVIOR_ID>` must pass. Other tests must still pass (no regressions).
+    1. Run the project's test command (e.g. `npm test`, `pytest`, `cargo test`). The test for `<BEHAVIOR_ID>` must pass. Other tests must still pass (no regressions).
     2. Self-review: did you add code unrelated to `<BEHAVIOR_ID>`'s contract? Remove it.
     3. Commit. Reference the spec and behavior in the commit message:
 
