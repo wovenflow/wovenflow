@@ -15,24 +15,24 @@ Interactive workflow wizard. Configures a project's development cycle around wov
 
 ## Output
 
-A "Standard workstream" section in the project's `CLAUDE.md` describing the full 9-phase cycle, with a specific skill named for each phase. Re-running this skill detects the existing section and offers to update it.
+A "Standard workstream" section in the project's `CLAUDE.md` describing the full 10-phase cycle, with a specific skill named for each phase. Re-running this skill detects the existing section and offers to update it.
 
-## The 9 phases (canonical shape)
+## The 10 phases (canonical shape)
 
 | # | Phase | Job | Default in wovenflow |
 |---|---|---|---|
 | 1 | Claim | Pick up an issue or task; mark in-progress | varies — see catalog |
 | 2 | Clarify & challenge | Pressure-test the issue's premise; brainstorm | `gstack:office-hours` |
-| 2.5 | *(research projects)* Survey prior art | Surface real papers + prior systems before designing | `wovenflow:researchflow` |
-| 3 | Design | Write the prose `.spec.md` | **`wovenflow:designflow`** |
-| 4 | Test | Insert inline test blocks alongside each behavior | **`wovenflow:testflow`** |
-| 5 | Build | Subagents implement; tests turn green | **`wovenflow:subflow`** |
-| 6 | Verify | Cleanup + review | varies — see catalog |
-| 7 | Ship | PR / merge / deploy | varies — see catalog |
-| 8 | Post-ship | Update docs, capture learnings | `gstack:document-release` |
-| 9 | Close out | Session hygiene | varies — see catalog |
+| 3 | Survey outside context | Surface real references — papers, prior systems, design patterns, library options, conventions — before designing | `wovenflow:researchflow` |
+| 4 | Design | Write the prose `.spec.md` | **`wovenflow:designflow`** |
+| 5 | Test | Insert inline test blocks alongside each behavior | **`wovenflow:testflow`** |
+| 6 | Build | Subagents implement; tests turn green | **`wovenflow:subflow`** |
+| 7 | Verify | Cleanup + review | varies — see catalog |
+| 8 | Ship | PR / merge / deploy | varies — see catalog |
+| 9 | Post-ship | Update docs, capture learnings | `gstack:document-release` |
+| 10 | Close out | Session hygiene | varies — see catalog |
 
-Phases 3, 4, 5 are owned by wovenflow itself. The rest are user's choice — this wizard helps make the choice.
+Phase 3 is wovenflow's `researchflow`. Phases 4, 5, 6 are wovenflow's DTDD core (`designflow` / `testflow` / `subflow`). The rest are user's choice — this wizard helps make the choice.
 
 ## Skill catalog (per phase, with canonical URLs)
 
@@ -66,10 +66,10 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 
 ### Session bootstrap *(per-session, runs before Phase 1)*
 
-**Job:** Sync the worktree with the integration branch, surface instruction-file changes, refresh architecture context, identify the task to work on. Runs at the start of every session — not part of the 9-phase feature cycle.
+**Job:** Sync the worktree with the integration branch, surface instruction-file changes, refresh architecture context, identify the task to work on. Runs at the start of every session — not part of the 10-phase feature cycle.
 
 - [**`wovenflow:setup` startup template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `startup.md.tmpl` into `<repo>/.claude/skills/startup/SKILL.md`. Parameterized for main branch, instruction file, architecture-doc filename, and project-specific bootstrap commands.
-- [**`gstack:context-restore`**](https://github.com/garrytan/gstack) — pairs with `gstack:context-save` from Phase 9; restores prior session's thinking
+- [**`gstack:context-restore`**](https://github.com/garrytan/gstack) — pairs with `gstack:context-save` from Phase 10; restores prior session's thinking
 - [**Browse Session Lifecycle category**](https://buildwithclaude.com/) — other startup-flavored skills
 - **None** — fine for projects where each session can start cold without an explicit bootstrap
 
@@ -98,16 +98,16 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 - [**Browse marketplaces**](https://claudemarketplaces.com/) — other ideation / discovery skills
 - **"Craft custom"** via [`skill-creator`](https://github.com/anthropics/claude-plugins-official)
 
-### Phase 2.5 — Survey prior art *(research projects only)*
+### Phase 3 — Survey outside context
 
-**Job:** Surface 3-5 real papers + prior systems before designing.
+**Job:** Surface 3-5 concrete external references — academic papers, prior systems, established design patterns, library options, RFCs, ecosystem conventions — before designing. Generalized from the original research-only framing: applies to UI work (existing design patterns), architecture decisions (prior systems), library choice (concrete options), API design (RFCs / industry conventions), and academic research (papers + prior experimental systems).
 
-- [**`wovenflow:researchflow`**](https://github.com/wovenflow/wovenflow) — pre-design literature surface; lifts the "real papers, not vague references" pattern. Surfaces 3-5 real papers (title + URL + 2-line summary), 2-3 prior systems, and a "what's novel" section into `doc/research/<feature>.md` before `designflow` drafts the spec.
-- **"Craft custom"** — for research projects with domain-specific discovery patterns
+- [**`wovenflow:researchflow`**](https://github.com/wovenflow/wovenflow) — pre-design outside-context surface. Lifts the "real references with links, no vague gestures" pattern. Produces `doc/research/<feature>.md` with question, 3-5 references, similarities/differences, and what's novel before `designflow` drafts the spec.
+- **"Craft custom"** — for projects with domain-specific discovery patterns (e.g., a security-research project might pull in CVE databases; a data-science project might pull in benchmark datasets)
 
-Skip this phase entirely for non-research work.
+Skip this phase when the work is mechanical, the domain is well-understood, or external references would be noise.
 
-### Phase 3 — Design (Wovenflow core)
+### Phase 4 — Design (Wovenflow core)
 
 **Job:** Write the prose `.spec.md` with user stories + if/when/then behaviors.
 
@@ -115,20 +115,20 @@ Skip this phase entirely for non-research work.
 
 Override only if you're explicitly using a different methodology. If you override all of Phases 3-5, you're not using wovenflow — pick a different plugin.
 
-### Phase 4 — Test (Wovenflow core)
+### Phase 5 — Test (Wovenflow core)
 
 **Job:** Insert inline test blocks alongside each behavior; bundled extractor produces derived `.test.ts` at pretest.
 
 - [**`wovenflow:testflow`**](https://github.com/wovenflow/wovenflow) — **default**.
 
-### Phase 5 — Build (Wovenflow core)
+### Phase 6 — Build (Wovenflow core)
 
 **Job:** Dispatch implementer subagents per behavior; spec-compliance + code-quality review.
 
 - [**`wovenflow:subflow`**](https://github.com/wovenflow/wovenflow) — **default**. DTDD-native dispatcher; subagents read `.spec.md` by file path.
 - [**`superpowers:subagent-driven-development`**](https://github.com/obra/superpowers) — fallback for non-DTDD work (no `.spec.md`)
 
-### Phase 6 — Verify
+### Phase 7 — Verify
 
 **Job:** Cleanup + review before shipping.
 
@@ -142,7 +142,7 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`wovenflow:setup` pre-pr template (Recommended for project-local pre-PR)**](https://github.com/wovenflow/wovenflow) — wizard materializes `pre-pr.md.tmpl` into `<repo>/.claude/skills/pre-pr/SKILL.md`. Parameterized for test command, UI testing tool, and coverage command. Includes test coverage audit per acceptance criterion, UI walkthrough with screenshots, adversarial review subagent, and user re-test.
 - **Off-template pre-PR skill** — for projects whose verification gate doesn't fit the wovenflow template, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
-### Phase 7 — Ship
+### Phase 8 — Ship
 
 **Job:** PR creation, merge, deploy.
 
@@ -151,7 +151,7 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**Browse Git & Version Control category**](https://buildwithclaude.com/) — `commit` (smart messages), `create-pr`, and other PR-automation skills
 - **Project-local PR-creation skill** — projects with mandatory review hooks (e.g., a Bexoe-style `/pr` wrapper) usually have their own. Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
-### Phase 8 — Post-ship
+### Phase 9 — Post-ship
 
 **Job:** Update docs, capture learnings.
 
@@ -161,7 +161,7 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`claude-md-management:claude-md-improver`**](https://github.com/anthropics/claude-plugins-official) — audit + update `CLAUDE.md` to reflect the latest project state
 - [**Browse Documentation category**](https://buildwithclaude.com/) — auto-generators, changelog tooling, etc.
 
-### Phase 9 — Close out
+### Phase 10 — Close out
 
 **Job:** Session hygiene; persist state for the next session.
 
@@ -179,8 +179,8 @@ For four universal patterns, wovenflow ships fill-in templates that materialize 
 | `claim-tasks.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in a `tasks.md` file |
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker (only when `claim-tasks` is picked and the file doesn't already exist) |
 | `startup.md.tmpl` | `<repo>/.claude/skills/startup/SKILL.md` | Session bootstrap (pre-Phase 1) — sync, instruction diff, architecture refresh, identify task |
-| `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 9) — dangling-commit audit, status reconciliation, next-task suggestion |
-| `pre-pr.md.tmpl` | `<repo>/.claude/skills/pre-pr/SKILL.md` | Verification gate (Phase 6) — tests, coverage audit, UI walkthrough, adversarial review |
+| `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 10) — dangling-commit audit, status reconciliation, next-task suggestion |
+| `pre-pr.md.tmpl` | `<repo>/.claude/skills/pre-pr/SKILL.md` | Verification gate (Phase 7) — tests, coverage audit, UI walkthrough, adversarial review |
 
 All templates live at `plugins/wovenflow/skills/setup/templates/`. Variable reference and template syntax (substitution + conditional blocks) are documented in `templates/README.md`.
 
@@ -199,7 +199,7 @@ These aren't phase-bound — they're project-level decisions the wizard asks abo
 
 ## Alternative cycles
 
-The 9 phases above are the **feature cycle**. Most mature projects have other distinct cycles. The wizard asks at the end: *"Configure additional cycles?"*
+The 10 phases above are the **feature cycle**. Most mature projects have other distinct cycles. The wizard asks at the end: *"Configure additional cycles?"*
 
 ### Bug fix cycle
 
@@ -210,7 +210,7 @@ Same shape as the feature cycle, but tighter. Some projects add a triage step (P
 
 ### Hotfix / incident response cycle
 
-Abbreviated for production emergencies. Skip Phase 2 (no time to brainstorm), often skip Phase 4 (write the test alongside the fix, not before — pragmatic violation of TDD when the ETA matters), pair with a postmortem cycle.
+Abbreviated for production emergencies. Skip Phase 2 (no time to brainstorm), often skip Phase 5 (write the test alongside the fix, not before — pragmatic violation of TDD when the ETA matters), pair with a postmortem cycle.
 
 - [`gstack:investigate`](https://github.com/garrytan/gstack) for root cause
 - [`gstack:careful`](https://github.com/garrytan/gstack) for high-stakes edits
@@ -218,14 +218,14 @@ Abbreviated for production emergencies. Skip Phase 2 (no time to brainstorm), of
 
 ### Refactor cycle
 
-Same shape as the feature cycle — but the `.spec.md` describes the *current* behavior we're preserving, and Phase 5's job is to make the implementation cleaner without breaking the spec. Tests pass before AND after.
+Same shape as the feature cycle — but the `.spec.md` describes the *current* behavior we're preserving, and Phase 6's job is to make the implementation cleaner without breaking the spec. Tests pass before AND after.
 
 - All wovenflow Phases 3-5 apply unchanged
-- Phase 6 emphasizes regression testing
+- Phase 7 emphasizes regression testing
 
 ### Architectural change cycle
 
-For changes that affect the project's load-bearing architecture (data flow, layering, key abstractions, baseline dependencies). Sits within Phase 2 or Phase 3 of the feature cycle but produces an *update to the architecture doc* rather than a new file.
+For changes that affect the project's load-bearing architecture (data flow, layering, key abstractions, baseline dependencies). Sits within Phase 2 or Phase 4 of the feature cycle but produces an *update to the architecture doc* rather than a new file.
 
 - Update `<repo>/ARCHITECTURE.md` (or the relevant per-folder doc) to reflect the new state
 - Capture the rationale in the commit message — git history carries the *why*; the doc carries current state
@@ -265,7 +265,7 @@ If not found:
 
 ### Step 2 — Walk through each phase
 
-For each of the 9 phases (plus optional 2.5 if research-coded), run an `AskUserQuestion`:
+For each of the 10 phases (plus optional 2.5 if research-coded), run an `AskUserQuestion`:
 
 Question text: `"For Phase N — <name> (<job>), which skill plays this role?"`
 
@@ -282,7 +282,7 @@ If the user picks an existing skill that isn't loaded:
 - Tell the user: "That skill ships in `<plugin>` which isn't enabled. Run `/plugin install <plugin>@<marketplace>` to install, or pick another."
 - Re-prompt
 
-For Phases 3, 4, 5: the wovenflow skills are the recommended default. The user CAN override (e.g., to use a different methodology), but flag it: "You're overriding wovenflow's core skill for this phase. Are you sure?"
+For Phases 4, 5, 6 (the DTDD core: design / test / build): the wovenflow skills are the recommended default. The user CAN override (e.g., to use a different methodology), but flag it: "You're overriding wovenflow's core skill for this phase. Are you sure?"
 
 ### Step 3 — Craft custom skills (when chosen)
 
@@ -296,8 +296,8 @@ Templates live at `plugins/wovenflow/skills/setup/templates/`. The mappings:
 |---|---|
 | Session bootstrap (pre-Phase 1) | `startup.md.tmpl` |
 | Phase 1 (Claim) | `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md`) |
-| Phase 6 (Verify) | `pre-pr.md.tmpl` |
-| Phase 9 (Close out) | `wrap-up.md.tmpl` |
+| Phase 7 (Verify) | `pre-pr.md.tmpl` |
+| Phase 10 (Close out) | `wrap-up.md.tmpl` |
 
 If a template matches, follow 3b. Otherwise skip to 3c.
 
@@ -334,7 +334,7 @@ For phases outside the wovenflow template set (Phase 2 clarify-and-challenge, cu
 
 ### Step 4 — Walk through cross-cutting concerns
 
-After the 9 phases, ask about each cross-cutting concern (see "Cross-cutting concerns" above). For each:
+After the 10 phases, ask about each cross-cutting concern (see "Cross-cutting concerns" above). For each:
 
 - "Does this project use MCP? Y/N → if yes, suggest mcp-builder or similar"
 - "Configure hooks? Y/N → use `update-config`"
@@ -382,22 +382,22 @@ After the file is written:
 
 ## Reconciling existing workflows
 
-If the project already has a workflow but it doesn't fit the 9-phase shape (e.g., a 6-phase research project, or a custom flow), reconcile gently:
+If the project already has a workflow but it doesn't fit the 10-phase shape (e.g., a 6-phase research project, or a custom flow), reconcile gently:
 
 1. Show the user the gap: "Your current workflow has Phases A, B, C. Wovenflow's recommended shape has Phases 1-9 mapped: ..."
-2. Ask: "Adopt the 9-phase shape and re-map?" or "Keep your existing shape and just slot wovenflow's design/test/build into Phases X, Y, Z?"
-3. Honor the user's choice; don't force the 9-phase shape if they already have something coherent
+2. Ask: "Adopt the 10-phase shape and re-map?" or "Keep your existing shape and just slot wovenflow's design/test/build into Phases X, Y, Z?"
+3. Honor the user's choice; don't force the 10-phase shape if they already have something coherent
 
 The skill is opinionated about *wovenflow's place in the cycle* (Phases 3-5) but neutral about the surrounding phase count.
 
-## Output template (canonical 9-phase shape)
+## Output template (canonical 10-phase shape)
 
 This is the canonical structure the wizard produces:
 
 ```markdown
 ## Standard workstream
 
-A typical work cycle starts from <claim source — e.g., GitHub issues, tasks.md, etc.>. The phases below interleave wovenflow (Phases 3-5; the DTDD core) with companion skills for surrounding work.
+A typical work cycle starts from <claim source — e.g., GitHub issues, tasks.md, etc.>. The phases below interleave wovenflow (Phase 3 outside-context survey; Phases 4-6 the DTDD core) with companion skills for surrounding work.
 
 ### Phase 1 — Claim
 
@@ -408,21 +408,25 @@ A typical work cycle starts from <claim source — e.g., GitHub issues, tasks.md
 2. **<chosen skill>** — <what it does>
 3. <optional secondary skill>
 
-### Phase 3 — Design
+### Phase 3 — Survey outside context
+
+4. **`wovenflow:researchflow`** — surface 3-5 concrete external references (papers, prior systems, design patterns, library options, conventions) into `doc/research/<feature>.md` before drafting the spec. Skip when work is mechanical or external context is noise.
+
+### Phase 4 — Design
 
 4. **`wovenflow:designflow`** — write the `.spec.md` with user stories + if/when/then behaviors. Save to `doc/specs/YYYY-MM-DD-<feature>.spec.md`.
 
-### Phase 4 — Test
+### Phase 5 — Test
 
 5. **`wovenflow:testflow`** — insert inline `test('...', () => {})` blocks alongside each behavior. The bundled extractor produces derived `.test.ts` at pretest time.
 
-### Phase 5 — Build
+### Phase 6 — Build
 
 6. **`wovenflow:subflow`** — dispatch implementer subagents per behavior; spec-compliance + code-quality review per behavior.
 
-[... etc through Phase 9 ...]
+[... etc through Phase 10 ...]
 
-If a step finds blockers, back up and fix before continuing. The workstream is a happy path, not a forced march — skip phases that don't apply, but don't skip Phase 1 (Claim), Phase 6 (Verify), or Phase 9 (Close out).
+If a step finds blockers, back up and fix before continuing. The workstream is a happy path, not a forced march — skip phases that don't apply, but don't skip Phase 1 (Claim), Phase 7 (Verify), or Phase 10 (Close out).
 ```
 
 ## Re-running the wizard
@@ -434,7 +438,7 @@ The skill is idempotent: re-run it any time to revise the workflow. The detect-e
 - **Overriding wovenflow's core skills (Phases 3-5) without reason.** They're the methodology. If you're overriding all three, you're not really using wovenflow — start a different plugin.
 - **Skipping Step 1 (detect existing).** Always read the existing workflow first; otherwise you'll generate redundant or conflicting CLAUDE.md content.
 - **Writing custom skills inside the wovenflow plugin.** Project-local custom skills go in `<repo>/.claude/skills/`, not in the wovenflow plugin directory. Wovenflow skills are project-agnostic.
-- **Forcing the 9-phase shape on a project that has a working 6-phase or 7-phase workflow.** Reconcile, don't bulldoze.
+- **Forcing the 10-phase shape on a project that has a working 6-phase or 7-phase workflow.** Reconcile, don't bulldoze.
 - **Listing skills without verifying they exist.** Every option in the menu should resolve to a real, currently-loaded (or installable) skill. The catalog above is the verified set.
 
 ## Marketplace discovery

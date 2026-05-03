@@ -257,11 +257,11 @@ These mean STOP and reconsider:
 - `wovenflow:testflow` — wrote the failing tests (Test phase)
 - **`wovenflow:subflow`** (this skill) — make the failing tests pass (Build phase)
 
-After Phase 5 completes, exit DTDD; the workstream proceeds to verification (`/simplify` → `/pre-pr`), then ship.
+After Phase 6 completes, exit DTDD; the workstream proceeds to verification (`/simplify` → `/pre-pr`), then ship.
 
 ## Integration with superpowers
 
-- `superpowers:test-driven-development` — its Iron Law ("no production code without a failing test first") is structurally satisfied by Phase 4 (the orchestrator wrote the failing test). Subagents are AT the red moment when dispatched; their job is green.
+- `superpowers:test-driven-development` — its Iron Law ("no production code without a failing test first") is structurally satisfied by Phase 5 (the orchestrator wrote the failing test). Subagents are AT the red moment when dispatched; their job is green.
 - `superpowers:requesting-code-review` — the code-quality reviewer template uses this framework.
 - `superpowers:dispatching-parallel-agents` — wovenflow's parallel dispatch is built-in (see "Parallel dispatch (default)" above). Consult the superpowers skill for orchestrator dispatch patterns not specific to DTDD.
 
