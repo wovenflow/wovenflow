@@ -23,7 +23,7 @@ A "Standard workstream" section in the project's `CLAUDE.md` describing the full
 |---|---|---|---|
 | 1 | Claim | Pick up an issue or task; mark in-progress | varies — see catalog |
 | 2 | Clarify & challenge | Pressure-test the issue's premise; brainstorm | `gstack:office-hours` |
-| 2.5 | *(research projects)* Survey prior art | Surface real papers + prior systems before designing | `research-workflow:researchflow` |
+| 2.5 | *(research projects)* Survey prior art | Surface real papers + prior systems before designing | `wovenflow:researchflow` |
 | 3 | Design | Write the prose `.spec.md` | **`wovenflow:designflow`** |
 | 4 | Test | Insert inline test blocks alongside each behavior | **`wovenflow:testflow`** |
 | 5 | Build | Subagents implement; tests turn green | **`wovenflow:subflow`** |
@@ -82,7 +82,6 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 - [**`linear@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Linear issue tracker integration (search the official directory for the Linear plugin entry)
 - [**`asana@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Asana task integration
 - [**`notion@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Notion docs/databases integration
-- [**`research-workflow:claim`**](https://github.com/anthropics/claude-plugins-official) — `tasks.md`-based claim for code-research projects (or local marketplace)
 - [**`gh issue` CLI**](https://cli.github.com/manual/gh_issue) — plain GitHub CLI, no plugin needed
 - [**TodoWrite**](https://docs.claude.com/en/docs/claude-code) — Claude Code built-in task surface for projects without an external tracker
 - [**Browse claudemarketplaces.com**](https://claudemarketplaces.com/) or [**buildwithclaude.com**](https://buildwithclaude.com/) — discover other claim / triage skills
@@ -103,7 +102,7 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 
 **Job:** Surface 3-5 real papers + prior systems before designing.
 
-- [**`research-workflow:researchflow`**](https://github.com/anthropics/claude-plugins-official) — pre-design literature surface; lifts the "real papers, not vague references" pattern
+- [**`wovenflow:researchflow`**](https://github.com/wovenflow/wovenflow) — pre-design literature surface; lifts the "real papers, not vague references" pattern. Surfaces 3-5 real papers (title + URL + 2-line summary), 2-3 prior systems, and a "what's novel" section into `doc/research/<feature>.md` before `designflow` drafts the spec.
 - **"Craft custom"** — for research projects with domain-specific discovery patterns
 
 Skip this phase entirely for non-research work.
@@ -167,7 +166,6 @@ Override only if you're explicitly using a different methodology. If you overrid
 **Job:** Session hygiene; persist state for the next session.
 
 - [**`gstack:context-save`**](https://github.com/garrytan/gstack) — save thinking + state for the next session
-- [**`research-workflow:wrap-up`**](https://github.com/anthropics/claude-plugins-official) — research-coded close-out
 - [**`wovenflow:setup` wrap-up template (Recommended for project-local wrap-up)**](https://github.com/wovenflow/wovenflow) — wizard materializes `wrap-up.md.tmpl` into `<repo>/.claude/skills/wrap-up/SKILL.md`. Audits dangling commits, reconciles task status (GitHub or `tasks.md`), saves a session checkpoint, and surfaces 2-3 candidate next tasks.
 - **Off-template wrap-up skill** — for projects whose close-out doesn't fit the wovenflow template, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
