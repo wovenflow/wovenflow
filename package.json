@@ -1,0 +1,13 @@
+{
+  "name": "wovenflow",
+  "version": "0.1.10",
+  "private": true,
+  "description": "Wovenflow plugin self-tests. Dogfoods the testflow extractor: tests live in tests/*.spec.md as JavaScript fences, extracted to out/spec-tests/ by extract.mjs at pretest, then run with node --test.",
+  "scripts": {
+    "pretest": "node plugins/wovenflow/skills/testflow/extract.mjs 'tests/*.spec.md' out/spec-tests/ --lang javascript && { [ \"$(ls -A out/spec-tests/ 2>/dev/null)\" ] || { echo 'extractor produced no files'; exit 1; }; }",
+    "test": "node --test out/spec-tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
