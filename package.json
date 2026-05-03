@@ -8,6 +8,6 @@
     "test": "node --test out/spec-tests/*.test.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }
