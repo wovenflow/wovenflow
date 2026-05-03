@@ -40,6 +40,8 @@ Task tool (general-purpose):
 
       <REPO_WORKING_DIR>
 
+    In parallel mode, this is the implementer's per-behavior worktree (on branch `wovenflow/<behavior-id>`). Run tests and read the diff from inside this directory.
+
     ## Three checks
 
     ### 1. Does the test pass?

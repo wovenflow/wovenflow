@@ -70,6 +70,58 @@ Each H3 behavior section (`### B1: ...`) in the spec is one task. One subagent i
 
 If two behaviors share enough implementation that splitting them produces redundant work, dispatch them together (one subagent, two behaviors). Document the coupling in the dispatch prompt. Default is one-per-subagent unless coupling is obvious.
 
+## Parallel dispatch (default)
+
+All behavior-implementer subagents run in parallel. Each gets its own git worktree, branched from the same starting commit. They never compete for files, never see each other's half-built code, and commit to independent branches that the orchestrator merges back when reviews approve.
+
+### The mechanism
+
+1. **Orchestrator creates one worktree per behavior** before dispatch, using the bundled helper:
+   ```
+   node <plugin>/skills/subflow/worktree.mjs create B1
+   # prints: /path/to/repo/.wovenflow/worktrees/B1
+   ```
+   Each worktree is on a branch named `wovenflow/<behavior-id>` (lowercased), branched from the orchestrator's HEAD.
+
+2. **Orchestrator dispatches all implementers in one message** — multiple Task tool calls in a single response. Each subagent receives its worktree path as its working directory. They run concurrently in isolation.
+
+3. **Each subagent**: reads the spec (frozen at the shared starting commit), implements the behavior, runs tests until green, commits on its worktree's branch, reports status.
+
+4. **Reviewers run in the same worktree.** Spec-compliance and code-quality reviewers get the same working_dir; they review only that subagent's branch.
+
+5. **Merge-back is sequential and orchestrator-driven.** After each behavior's reviews approve:
+   ```
+   node <plugin>/skills/subflow/worktree.mjs merge B1 <orchestrator-branch>
+   ```
+   This merges `wovenflow/b1` into the orchestrator's branch with `--no-ff`, removes the worktree, and deletes the branch.
+
+6. **On merge conflict**: behaviors were coupled. The orchestrator pauses, inspects the conflict, and either resolves manually (if trivial) or re-dispatches the conflicting behavior in a fresh worktree branched from the post-merge state.
+
+### Why this works
+
+- **No file collisions.** Each subagent edits files in its own working tree.
+- **No spec drift.** All worktrees branch from the same commit, so every subagent reads the same `.spec.md`.
+- **Independent test runs.** Each worktree has its own `out/spec-tests/` (the pretest extractor writes there). Parallel `npm test` invocations don't share output.
+- **Conflicts surface late and explicitly.** If two behaviors did touch the same code, the merge step is where it shows up — caught by git, not by quietly stomping.
+
+### Cleanup on failure
+
+If an implementer reports BLOCKED or a behavior is abandoned:
+```
+node <plugin>/skills/subflow/worktree.mjs cleanup B<N>
+```
+This force-removes the worktree and deletes its branch. The orchestrator's main worktree is unaffected.
+
+### When to fall back to sequential
+
+Switch to sequential single-tree dispatch only when:
+
+- Most behaviors clearly modify the same surface (e.g., all behaviors edit one file, or rely on a shared scaffold that one behavior must build first).
+- Worktrees aren't viable (rare — bare repos, certain CI environments).
+- Debugging one behavior in isolation, where parallel output would be noise.
+
+In sequential mode, dispatch one subagent at a time in the orchestrator's main working directory and skip the worktree helper.
+
 ## Subagent input pattern (canonical)
 
 Every subagent — implementer, spec-compliance reviewer, code-quality reviewer — gets these three inputs:
@@ -78,7 +130,7 @@ Every subagent — implementer, spec-compliance reviewer, code-quality reviewer 
 |---|---|
 | **Spec file (absolute path)** | `/path/to/project/doc/specs/2026-05-04-feature.spec.md` |
 | **Behavior identifier** | `B1` (matches the H3 header in the spec) |
-| **Working directory** | `/path/to/project` |
+| **Working directory** | `/path/to/project/.wovenflow/worktrees/B1` (per-behavior worktree in parallel mode; the project root in sequential mode) |
 
 Subagents do NOT receive paste-text of the behavior. They open the file and read it. This is the central design choice that makes the system honest:
 
@@ -87,6 +139,8 @@ Subagents do NOT receive paste-text of the behavior. They open the file and read
 - Commits, error logs, and review comments reference the file path — git history points back to the contract.
 
 ## The process (per behavior)
+
+The diagram below shows the lifecycle of *one* behavior's subagent and its reviewers. In parallel mode, every behavior runs through this lifecycle concurrently in its own worktree; the orchestrator coordinates merges after each one approves.
 
 ```dot
 digraph build_per_behavior {
@@ -188,7 +242,7 @@ After Phase 5 completes, exit DTDD; the workstream proceeds to verification (`/s
 
 - `superpowers:test-driven-development` — its Iron Law ("no production code without a failing test first") is structurally satisfied by Phase 4 (the orchestrator wrote the failing test). Subagents are AT the red moment when dispatched; their job is green.
 - `superpowers:requesting-code-review` — the code-quality reviewer template uses this framework.
-- `superpowers:dispatching-parallel-agents` — usable when behaviors are genuinely independent and can land in parallel branches. Default is sequential per-behavior; parallel is opt-in.
+- `superpowers:dispatching-parallel-agents` — wovenflow's parallel dispatch is built-in (see "Parallel dispatch (default)" above). Consult the superpowers skill for orchestrator dispatch patterns not specific to DTDD.
 
 ## Why not just use superpowers:subagent-driven-development?
 

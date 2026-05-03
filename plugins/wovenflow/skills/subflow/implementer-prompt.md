@@ -45,6 +45,8 @@ Task tool (general-purpose):
 
       <REPO_WORKING_DIR>
 
+    In parallel mode, this is a per-behavior git worktree on its own branch (`wovenflow/<behavior-id>`). Treat it as a normal repo: edit, run tests, and `git commit` from inside this directory. Your commits go on the current branch automatically. Do NOT try to switch branches or merge — the orchestrator handles merge-back after reviews approve.
+
     ## Before you begin — ask clarifying questions
 
     If anything is unclear, ask. Examples:
