@@ -1,19 +1,21 @@
 ---
 name: researchflow
-description: Pre-design phase. Searches the web (and other sources) for outside verification — real papers, prior systems, design patterns, library options, established conventions — and produces an outside-context document that becomes input to wovenflow:designflow. Runs before Phase 4 (Design) when external context should inform the design.
+description: Pre-design phase. Bridges the gap between the agent's training cutoff and current reality — searches the web for real papers, prior systems, design patterns, current library versions, current API shapes, RFCs, ecosystem conventions — and produces an outside-context document that becomes input to wovenflow:designflow. Runs before Phase 4 (Design) so the spec reflects what's true now, not what the model knew at training time.
 ---
 
 # Researchflow (pre-design outside-context phase)
 
-The design phase rarely starts cold — for any non-trivial decision, something already exists in the world that's worth grounding the design in. `researchflow` is the explicit phase that surfaces that outside context before the orchestrator drafts a `.spec.md`.
+The agent's knowledge has a training cutoff. For any decision touching libraries, APIs, papers, design patterns, or domain practice, what the agent "knows" may be months or years stale. Library versions advance, APIs deprecate, new RFCs ratify, design conventions evolve, papers get superseded. `researchflow` is the explicit phase that bridges the cutoff-to-current-day gap with web search before the spec gets written.
+
+The design phase rarely starts cold — for any non-trivial decision, something already exists in the world that's worth grounding the design in. The skill surfaces that outside context before the orchestrator drafts a `.spec.md`.
 
 "Research" reads colloquially. The skill applies to:
 
 - **Academic research projects** — relevant papers, prior experimental systems
 - **UI / UX work** — established design patterns, comparable products, accessibility conventions
 - **Architecture decisions** — prior systems solving the same problem, well-known trade-offs
-- **Library or framework selection** — concrete options with their tradeoffs and adoption signals
-- **API or protocol design** — RFCs, industry conventions, similar systems' interfaces
+- **Library or framework selection** — concrete options with their tradeoffs and adoption signals; *current* version, recent breaking changes, deprecation notices
+- **API or protocol design** — RFCs, industry conventions, similar systems' interfaces; *current* API shape (endpoints, signatures) per official docs
 - **Naming and ergonomics** — how the ecosystem names things; what users expect
 
 The shape is the same in every case: surface 3-5 concrete external references with links, identify what's similar/different, hand off to design.
@@ -68,7 +70,24 @@ When the references in step 2 were mostly papers / patterns / specs, also enumer
 
 Skip this step when step 2 already produced concrete systems.
 
-### 4. Identify similarities and differences
+### 4. Check dependency currency (when third-party touchpoints exist)
+
+For any library, framework, or API the design will rely on, verify the *current* state. The agent's training data is months-to-years stale on these specifically — versions advance, APIs deprecate, breaking changes ship.
+
+For each dependency:
+
+- **Current stable version** (per official package registry or GitHub releases)
+- **Last release date** (signal of activity / abandonment)
+- **Recent breaking changes** (scan changelog for the last 1-2 major versions)
+- **Active deprecation warnings** (anything marked deprecated; planned removals)
+
+Sources: official changelogs, release notes, `npm view <pkg>`, `pip index versions <pkg>`, `cargo info <pkg>`, GitHub Releases pages — **not** blog summaries or third-party tutorials (those lag the source-of-truth).
+
+If a library or API has changed materially since the agent's training cutoff, capture that explicitly in the prior-art doc. The design must target the *current* shape, not the agent's recollection. A spec that compiles against last year's API is a spec that ships broken.
+
+Skip this step when the design is pure-internal (no third-party touchpoints).
+
+### 5. Identify similarities and differences
 
 For each major reference, name how this work relates:
 
@@ -80,11 +99,11 @@ Then a short paragraph: what's novel about this work, if anything?
 - Not "we're doing it better" — name the specific novelty (mechanism, scale, domain, integration)
 - If nothing is specifically novel, that's important information: this work may be replication / consolidation / engineering rather than research, which changes the shape of what `designflow` writes
 
-### 5. Save the document
+### 6. Save the document
 
 `doc/research/<feature>.md` (or wherever the project's research artifacts live). Commit it.
 
-### 6. Hand off to designflow
+### 7. Hand off to designflow
 
 The next phase (`wovenflow:designflow`) reads this document as context when drafting the `.spec.md`. Behaviors in the spec should reflect what the references teach — don't re-derive what's known; address the actual gaps.
 
@@ -109,6 +128,11 @@ The next phase (`wovenflow:designflow`) reads this document as context when draf
 - **<name>** — [link](<url>). <one-line takeaway>. *Doesn't:* <one-line gap>.
 - **<name>** — …
 
+## Dependency currency (when third-party touchpoints exist)
+
+- **<library/API name>** — current stable: `<version>` (released `<date>`). Recent breaking changes: <one line, or "none in last 2 majors">. Deprecations: <one line, or "none active">. Source: [link to official changelog/release notes].
+- **<library/API name>** — …
+
 ## Similarities and differences
 
 - **Similar to <ref>:** <how>
@@ -132,6 +156,7 @@ The next phase (`wovenflow:designflow`) reads this document as context when draf
 
 - **Listing references you haven't actually checked.** Name + URL is the floor; the 2-line summary must reflect what the reference actually says, not a guess from the title.
 - **Vague gestures.** "There's research on this," "common pattern," "industry standard" — without a link, these are noise. Surface concrete items or say nothing.
+- **Trusting the agent's recollection of library versions or API shapes.** That recollection is, by construction, at the training cutoff. Always verify against an official source for any dependency the design will touch.
 - **Treating researchflow as a literature review or full design audit.** It's a *targeted* outside-context survey for this specific decision. 3-5 references is the budget — don't sprawl.
 - **Running this for mechanical work.** Renaming a variable, fixing a typo, applying a known pattern in a known place — no outside context needed. Use this when the design choice genuinely depends on what others have tried.
 - **Skipping when there's "nothing novel."** "No one has done exactly this" almost always means there's adjacent prior art — methods, tools, formulations. List those.
