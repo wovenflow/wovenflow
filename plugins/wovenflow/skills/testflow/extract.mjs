@@ -4,49 +4,91 @@ import { basename, join } from 'node:path';
 
 const FENCE = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*([^`\s]*)[ \t]*$/;
 
-// Map --lang to the fence label looked for in the markdown and the output
-// filename derived from the input basename (already stripped of trailing .md).
-// Add more languages here as they're needed.
+// `base` is the input filename minus `.md`. `snake` and `pascal` are
+// transformations that match each language's idiomatic test-file convention.
+const snake = (b) => b.replace(/[.\-\s]+/g, '_');
+const pascal = (b) => b.split(/[._\-\s]+/).filter(Boolean).map(p => p[0].toUpperCase() + p.slice(1)).join('');
+
+// Curated defaults for common languages. The fence label matches the markdown
+// fence; the outputName produces the file the language's standard test
+// runner discovers automatically. For anything not in this table, use
+// --fence LABEL --name-template PATTERN to override.
 const LANGS = {
-	typescript: {
-		fence: 'typescript',
-		outputName: (base) => base + '.test.ts',
-	},
-	javascript: {
-		fence: 'javascript',
-		outputName: (base) => base + '.test.js',
-	},
-	python: {
-		// pytest's default discovery wants `test_*.py`. Dots inside basenames
-		// (e.g. feature.spec) confuse module-style import collection, so
-		// sanitize them to underscores.
-		fence: 'python',
-		outputName: (base) => 'test_' + base.replace(/\./g, '_') + '.py',
-	},
-	rust: {
-		fence: 'rust',
-		outputName: (base) => base.replace(/\./g, '_') + '_test.rs',
-	},
-	ruby: {
-		fence: 'ruby',
-		outputName: (base) => base.replace(/\./g, '_') + '_test.rb',
-	},
-	go: {
-		fence: 'go',
-		outputName: (base) => base.replace(/[.-]/g, '_') + '_test.go',
-	},
+	typescript: { fence: 'typescript', outputName: (b) => `${b}.test.ts` },
+	javascript: { fence: 'javascript', outputName: (b) => `${b}.test.js` },
+	python:     { fence: 'python',     outputName: (b) => `test_${snake(b)}.py` },
+	rust:       { fence: 'rust',       outputName: (b) => `${snake(b)}_test.rs` },
+	ruby:       { fence: 'ruby',       outputName: (b) => `${snake(b)}_test.rb` },
+	go:         { fence: 'go',         outputName: (b) => `${snake(b)}_test.go` },
+	java:       { fence: 'java',       outputName: (b) => `${pascal(b)}Test.java` },
+	kotlin:     { fence: 'kotlin',     outputName: (b) => `${pascal(b)}Test.kt` },
+	scala:      { fence: 'scala',      outputName: (b) => `${pascal(b)}Test.scala` },
+	swift:      { fence: 'swift',      outputName: (b) => `${pascal(b)}Tests.swift` },
+	csharp:     { fence: 'csharp',     outputName: (b) => `${pascal(b)}Tests.cs` },
+	fsharp:     { fence: 'fsharp',     outputName: (b) => `${pascal(b)}Tests.fs` },
+	cpp:        { fence: 'cpp',        outputName: (b) => `${snake(b)}_test.cpp` },
+	c:          { fence: 'c',          outputName: (b) => `test_${snake(b)}.c` },
+	php:        { fence: 'php',        outputName: (b) => `${pascal(b)}Test.php` },
+	dart:       { fence: 'dart',       outputName: (b) => `${snake(b)}_test.dart` },
+	elixir:     { fence: 'elixir',     outputName: (b) => `${snake(b)}_test.exs` },
+	erlang:     { fence: 'erlang',     outputName: (b) => `${snake(b)}_tests.erl` },
+	clojure:    { fence: 'clojure',    outputName: (b) => `${snake(b)}_test.clj` },
+	haskell:    { fence: 'haskell',    outputName: (b) => `${pascal(b)}Spec.hs` },
+	ocaml:      { fence: 'ocaml',      outputName: (b) => `${snake(b)}_test.ml` },
+	julia:      { fence: 'julia',      outputName: (b) => `${snake(b)}_test.jl` },
+	lua:        { fence: 'lua',        outputName: (b) => `${snake(b)}_spec.lua` },
+	bash:       { fence: 'bash',       outputName: (b) => `test_${snake(b)}.sh` },
+	shell:      { fence: 'sh',         outputName: (b) => `test_${snake(b)}.sh` },
+	r:          { fence: 'r',          outputName: (b) => `test-${b}.R` },
+	sql:        { fence: 'sql',        outputName: (b) => `${b}.test.sql` },
+	graphql:    { fence: 'graphql',    outputName: (b) => `${b}.test.graphql` },
 };
+
+function applyTemplate(template, base) {
+	return template
+		.replace(/\{base\}/g, base)
+		.replace(/\{snake\}/g, snake(base))
+		.replace(/\{pascal\}/g, pascal(base));
+}
 
 function parseArgs(argv) {
 	const positional = [];
-	const opts = { lang: 'typescript' };
+	const opts = { lang: null, fence: null, nameTemplate: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--lang') opts.lang = argv[++i];
 		else if (a.startsWith('--lang=')) opts.lang = a.slice('--lang='.length);
+		else if (a === '--fence') opts.fence = argv[++i];
+		else if (a.startsWith('--fence=')) opts.fence = a.slice('--fence='.length);
+		else if (a === '--name-template') opts.nameTemplate = argv[++i];
+		else if (a.startsWith('--name-template=')) opts.nameTemplate = a.slice('--name-template='.length);
 		else positional.push(a);
 	}
 	return { positional, opts };
+}
+
+function resolveLang(opts) {
+	// Explicit overrides win (allow custom DSLs / unsupported languages).
+	if (opts.fence || opts.nameTemplate) {
+		if (!opts.fence || !opts.nameTemplate) {
+			process.stderr.write('error: --fence and --name-template must be set together (or use --lang)\n');
+			process.exit(1);
+		}
+		return {
+			fence: opts.fence,
+			outputName: (base) => applyTemplate(opts.nameTemplate, base),
+		};
+	}
+	const langKey = opts.lang ?? 'typescript';
+	const langSpec = LANGS[langKey];
+	if (!langSpec) {
+		process.stderr.write(`error: unsupported language "${langKey}"\n`);
+		process.stderr.write('  built-in languages: ' + Object.keys(LANGS).sort().join(', ') + '\n');
+		process.stderr.write('  for anything else, use: --fence LABEL --name-template PATTERN\n');
+		process.stderr.write('  template placeholders: {base}, {snake}, {pascal}\n');
+		process.exit(1);
+	}
+	return langSpec;
 }
 
 function extractBlocks(source, fence) {
@@ -88,16 +130,13 @@ function main(argv) {
 	const { positional, opts } = parseArgs(argv);
 	const [input, outDir] = positional;
 	if (!input || !outDir) {
-		process.stderr.write('usage: extract.mjs <input-glob-or-file> <output-dir> [--lang LANG]\n');
-		process.stderr.write('  supported languages: ' + Object.keys(LANGS).join(', ') + ' (default: typescript)\n');
+		process.stderr.write('usage: extract.mjs <input-glob-or-file> <output-dir> [--lang LANG | --fence LABEL --name-template PATTERN]\n');
+		process.stderr.write('  built-in languages: ' + Object.keys(LANGS).sort().join(', ') + '\n');
+		process.stderr.write('  default: --lang typescript\n');
+		process.stderr.write('  custom: --fence LABEL --name-template PATTERN  (placeholders: {base}, {snake}, {pascal})\n');
 		process.exit(1);
 	}
-	const langSpec = LANGS[opts.lang];
-	if (!langSpec) {
-		process.stderr.write(`error: unsupported language "${opts.lang}"\n`);
-		process.stderr.write('  supported languages: ' + Object.keys(LANGS).join(', ') + '\n');
-		process.exit(1);
-	}
+	const langSpec = resolveLang(opts);
 	const files = resolveInputs(input);
 	mkdirSync(outDir, { recursive: true });
 	for (const file of files) {

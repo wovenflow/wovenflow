@@ -1,6 +1,6 @@
 ---
 name: testflow
-description: Test phase of DTDD (Doc-Test-Driven Development). Use after designflow. Inserts inline test blocks alongside each if/when/then behavior in a .spec.md. Bundled extractor produces derived test files at pretest time. Multi-language: typescript, javascript, python, rust, ruby, go.
+description: Test phase of DTDD (Doc-Test-Driven Development). Use after designflow. Inserts inline test blocks alongside each behavior in a .spec.md. Bundled extractor produces derived test files at pre-test time for 28+ built-in languages, with --fence + --name-template override for any other language or DSL.
 ---
 
 # Testflow (DTDD Test phase)
@@ -52,24 +52,78 @@ The shape is the same in every supported language; only the fence label and the 
 
 The extractor copies blocks unchanged for whichever language the project uses. Pick the test runner the project already has — the extractor stays neutral within each language.
 
-| `--lang` | Fence label | Output filename pattern | Common runners |
+### Built-in languages (28)
+
+| `--lang` | Fence label | Output filename | Common runners |
 |---|---|---|---|
-| `typescript` (default) | ```` ```typescript ```` | `<base>.test.ts` | `node:test`, Mocha, Vitest, Jest |
+| `typescript` *(default)* | ```` ```typescript ```` | `<base>.test.ts` | `node:test`, Mocha, Vitest, Jest |
 | `javascript` | ```` ```javascript ```` | `<base>.test.js` | same as TS |
-| `python` | ```` ```python ```` | `test_<base>.py` (dots sanitized to `_` for pytest module compatibility) | pytest, unittest |
+| `python` | ```` ```python ```` | `test_<base>.py` *(dots sanitized to `_`)* | pytest, unittest |
+| `java` | ```` ```java ```` | `<Base>Test.java` *(PascalCase)* | JUnit |
+| `kotlin` | ```` ```kotlin ```` | `<Base>Test.kt` | JUnit, Kotest |
+| `scala` | ```` ```scala ```` | `<Base>Test.scala` | ScalaTest |
+| `swift` | ```` ```swift ```` | `<Base>Tests.swift` | XCTest |
+| `csharp` | ```` ```csharp ```` | `<Base>Tests.cs` | xUnit, NUnit, MSTest |
+| `fsharp` | ```` ```fsharp ```` | `<Base>Tests.fs` | xUnit, FsCheck |
+| `cpp` | ```` ```cpp ```` | `<base>_test.cpp` | Google Test, Catch2 |
+| `c` | ```` ```c ```` | `test_<base>.c` | Unity, CMocka |
+| `php` | ```` ```php ```` | `<Base>Test.php` | PHPUnit |
 | `rust` | ```` ```rust ```` | `<base>_test.rs` | `cargo test` |
 | `ruby` | ```` ```ruby ```` | `<base>_test.rb` | RSpec, Minitest |
 | `go` | ```` ```go ```` | `<base>_test.go` | `go test` |
+| `dart` | ```` ```dart ```` | `<base>_test.dart` | `dart test` (Flutter) |
+| `elixir` | ```` ```elixir ```` | `<base>_test.exs` | ExUnit |
+| `erlang` | ```` ```erlang ```` | `<base>_tests.erl` | EUnit |
+| `clojure` | ```` ```clojure ```` | `<base>_test.clj` | clojure.test |
+| `haskell` | ```` ```haskell ```` | `<Base>Spec.hs` | HSpec |
+| `ocaml` | ```` ```ocaml ```` | `<base>_test.ml` | Alcotest, OUnit |
+| `julia` | ```` ```julia ```` | `<base>_test.jl` | `Test` stdlib |
+| `lua` | ```` ```lua ```` | `<base>_spec.lua` | busted |
+| `bash` | ```` ```bash ```` | `test_<base>.sh` | bats |
+| `shell` | ```` ```sh ```` | `test_<base>.sh` | bats |
+| `r` | ```` ```r ```` | `test-<base>.R` | testthat |
+| `sql` | ```` ```sql ```` | `<base>.test.sql` | varies |
+| `graphql` | ```` ```graphql ```` | `<base>.test.graphql` | varies |
+
+`<base>` is the input filename minus `.md`. For PascalCase entries, dots/dashes/underscores in the basename are split into words and capitalized (`feature.spec.md` → `FeatureSpec`). For snake_case entries, dots/dashes are sanitized to `_` so the output is a valid module identifier.
+
+### When the language isn't built in
+
+Use `--fence LABEL` (the markdown fence label) and `--name-template PATTERN` (the output filename pattern) to support any language or DSL the model encounters:
+
+```bash
+# Custom DSL fenced with ```mydsl
+node extract.mjs 'doc/specs/**/*.spec.md' out/spec-tests/ \
+  --fence mydsl --name-template 'test_{snake}.mydsl'
+
+# Crystal language (not in built-ins)
+node extract.mjs 'doc/specs/**/*.spec.md' out/spec-tests/ \
+  --fence crystal --name-template '{snake}_spec.cr'
+
+# Solidity smart-contract tests
+node extract.mjs 'doc/specs/**/*.spec.md' out/spec-tests/ \
+  --fence solidity --name-template '{pascal}.t.sol'
+```
+
+Template placeholders:
+
+| Placeholder | Transform | Example for `feature.spec` |
+|---|---|---|
+| `{base}` | raw basename minus `.md` | `feature.spec` |
+| `{snake}` | dots/dashes/spaces → `_` | `feature_spec` |
+| `{pascal}` | split + capitalize each word | `FeatureSpec` |
+
+If the project uses an unsupported language, the orchestrator (or model) should pick `--fence` matching the markdown fence label the spec author used, and `--name-template` matching whatever filename convention the language's standard test runner expects.
 
 ## Bundled extractor
 
 `extract.mjs` lives next to this `SKILL.md`. CLI:
 
 ```
-node extract.mjs <input-glob-or-file> <output-dir> [--lang LANG]
+node extract.mjs <input-glob-or-file> <output-dir> [--lang LANG | --fence LABEL --name-template PATTERN]
 ```
 
-The default `--lang` is `typescript` (backward-compatible with pre-multi-language wovenflow).
+The default `--lang` is `typescript` (backward-compatible with pre-multi-language wovenflow). For built-in languages, `--lang` is the only flag you need. For unsupported languages or DSLs, set `--fence` and `--name-template` together (see the table above).
 
 ### Wiring it in — TypeScript / JavaScript
 
