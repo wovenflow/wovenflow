@@ -1,11 +1,11 @@
 ---
-name: pre-pr
-description: Verification gate before opening a PR. Runs tests, audits coverage of every acceptance criterion, drives the UI through each criterion, dispatches an adversarial reviewer, and walks the user through a re-test.
+name: verify
+description: Verification gate before declaring a feature ready to ship. Runs tests, audits coverage of every acceptance criterion, drives the UI (or the change surface) through each criterion, dispatches an adversarial reviewer, and walks the user through a re-test. Independent of how the project ships — applies whether you'll open a PR (`ship-pr`) or push direct (`ship-direct`).
 ---
 
-# Pre-PR verification
+# Verify
 
-Run this before opening a PR. It catches issues that would otherwise come back from a reviewer round-trip and confirms the change actually does what was asked. The bar is intentionally higher than "tests pass" — tests verify code correctness, not feature correctness.
+Run this before shipping. It catches issues that would otherwise come back from a reviewer round-trip (or, on solo / no-PR projects, that no one would catch at all) and confirms the change actually does what was asked. The bar is intentionally higher than "tests pass" — tests verify code correctness, not feature correctness.
 
 ## Steps
 
@@ -24,7 +24,7 @@ For every acceptance criterion in the issue/task, answer:
 - **Is there a test that verifies this criterion?** Cite the test by `path:line`.
 - **If no test exists**, justify why ("manually verified per step 3", "untestable surface — third-party network call", etc.) or add one.
 
-This is "the test file IS the spec" applied at the PR boundary. If a future maintainer can't read the tests and understand what changed, coverage is insufficient.
+This is "the test file IS the spec" applied at the verification boundary. If a future maintainer can't read the tests and understand what changed, coverage is insufficient.
 
 {{IF COVERAGE_CMD}}
 Optional sanity check:
@@ -63,7 +63,7 @@ Check:
 - No accidentally-committed secrets, env files, or large binaries
 - No "while I was here" refactors that aren't the task
 
-If you find scope creep, decide: split into a follow-up PR, or revert the unrelated changes from this branch.
+If you find scope creep, decide: split into a follow-up commit/PR, or revert the unrelated changes from this branch.
 
 ### 5. Adversarial review subagent
 
@@ -84,17 +84,17 @@ For each acceptance criterion, walk the user through one verification step:
 2. Show it (paste output, screenshot, demo URL)
 3. Ask pass/fail before advancing
 
-The agent has already verified each criterion in step 3; this is a sanity check, not a fresh QA cycle. If the user says "fail" on any criterion, back up — don't open the PR with a known regression.
+The agent has already verified each criterion in step 3; this is a sanity check, not a fresh QA cycle. If the user says "fail" on any criterion, back up — don't ship with a known regression.
 
-### 7. Open the PR
+### 7. Hand off to ship
 
-Only after every check above passes. Use the project's PR-creation flow.
+Only after every check above passes. Continue with Phase 8 (Ship — `ship-pr` for PR-based projects, `ship-direct` for solo / no-PR projects).
 
 ## Anti-patterns
 
 - **"Tests pass = ready to ship"** — tests verify code correctness, not feature correctness
 {{IF UI_TEST_TOOL}}- **Skipping the UI walkthrough on a UI change** — the most common failure mode this gate catches
 {{ENDIF}}- **Treating the adversarial subagent as a rubber stamp** — if it didn't find issues, prompt it harder
-- **Marking criteria "verified" without evidence** — you're trusting your memory; reviewers can't
-- **Opening the PR with known Critical or Important issues** — wastes the reviewer's time and yours
+- **Marking criteria "verified" without evidence** — you're trusting your memory; reviewers (or future-you) can't
+- **Shipping with known Critical or Important issues** — wastes everyone's time, including your own
 - **Auto-resolving "close enough" mismatches** — escalate ambiguity; don't paper over it

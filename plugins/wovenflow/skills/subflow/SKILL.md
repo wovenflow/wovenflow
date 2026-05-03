@@ -266,7 +266,7 @@ These mean STOP and reconsider:
 - `wovenflow:testflow` — wrote the failing tests (Test phase)
 - **`wovenflow:subflow`** (this skill) — make the failing tests pass (Build phase)
 
-After Phase 6 completes, exit DTDD; the workstream proceeds to verification (`/simplify` → `/pre-pr`), then ship.
+After Phase 6 completes, exit DTDD; the workstream proceeds to verification (`/verify`) and then ship (`/ship-pr` for PR-based projects or `/ship-direct` for solo / no-PR projects).
 
 ## Integration with superpowers
 

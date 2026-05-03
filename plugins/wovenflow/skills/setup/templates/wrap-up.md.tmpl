@@ -30,7 +30,7 @@ git log origin/{{MAIN_BRANCH}}..HEAD --oneline
 ```
 
 If the branch is ahead of `{{MAIN_BRANCH}}` but no PR exists, you have unmerged work. Decide:
-- **Open the PR** — run the project's `pre-pr` skill first
+- **Ship it** — run the project's `verify` skill first, then `ship-pr` (or `ship-direct`)
 - **Continue next session** — note in the task tracker that work is paused
 
 ### 3. Reconcile task state

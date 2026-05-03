@@ -139,17 +139,19 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`gstack:qa`**](https://github.com/garrytan/gstack) — exploratory QA against the running app
 - [**`test-writer-fixer`**](https://github.com/ComposioHQ/awesome-claude-plugins) — generate / repair unit tests for legacy code (community plugin; discover via awesome-list)
 - [**Browse Code Quality category**](https://buildwithclaude.com/) — discover debugger, security audit, performance, and other review-flavored skills
-- [**`wovenflow:setup` pre-pr template (Recommended for project-local pre-PR)**](https://github.com/wovenflow/wovenflow) — wizard materializes `pre-pr.md.tmpl` into `<repo>/.claude/skills/pre-pr/SKILL.md`. Parameterized for test command, UI testing tool, and coverage command. Includes test coverage audit per acceptance criterion, UI walkthrough with screenshots, adversarial review subagent, and user re-test.
-- **Off-template pre-PR skill** — for projects whose verification gate doesn't fit the wovenflow template, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
+- [**`wovenflow:setup` verify template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `verify.md.tmpl` into `<repo>/.claude/skills/verify/SKILL.md`. Parameterized for test command, UI testing tool, and coverage command. Independent of how the project ships — pairs with `ship-pr` (PR-based) or `ship-direct` (solo / no-PR). Includes test coverage audit per acceptance criterion, UI/manual walkthrough with evidence, adversarial review subagent, and user re-test.
+- **Off-template verification skill** — for projects whose verification gate doesn't fit the wovenflow template, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
 ### Phase 8 — Ship
 
-**Job:** PR creation, merge, deploy.
+**Job:** Land the verified work — via PR review or direct push.
 
-- [**`gstack:ship`**](https://github.com/garrytan/gstack) — canonical ship flow (test, review diff, version bump, commit, push, PR)
+- [**`wovenflow:setup` ship-pr template (Recommended for PR-based projects)**](https://github.com/wovenflow/wovenflow) — wizard materializes `ship-pr.md.tmpl` into `<repo>/.claude/skills/ship/SKILL.md`. Pushes the branch, opens a PR with title + body derived from the issue/task, marks the task in-review, hands off to CI and reviewers.
+- [**`wovenflow:setup` ship-direct template (Recommended for solo / non-GitHub projects)**](https://github.com/wovenflow/wovenflow) — wizard materializes `ship-direct.md.tmpl` into `<repo>/.claude/skills/ship/SKILL.md`. Confirms scope with the user (the human-review step PRs would force), pushes to `{{MAIN_BRANCH}}`, marks the task done. For solo work, research projects, internal tooling, anywhere PR ceremony is overhead-not-value.
+- [**`gstack:ship`**](https://github.com/garrytan/gstack) — gstack's canonical ship flow (test, review diff, version bump, commit, push, PR)
 - [**`gstack:land-and-deploy`**](https://github.com/garrytan/gstack) — picks up after `/ship` to merge + verify deploy
 - [**Browse Git & Version Control category**](https://buildwithclaude.com/) — `commit` (smart messages), `create-pr`, and other PR-automation skills
-- **Project-local PR-creation skill** — projects with mandatory review hooks (e.g., a Bexoe-style `/pr` wrapper) usually have their own. Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
+- **Off-template ship skill** — for projects with mandatory review hooks (e.g., a Bexoe-style `/pr` wrapper) or unusual deploy gates, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
 ### Phase 9 — Post-ship
 
@@ -171,7 +173,7 @@ Override only if you're explicitly using a different methodology. If you overrid
 
 ## Wovenflow-shipped scaffold templates
 
-For four universal patterns, wovenflow ships fill-in templates that materialize into a project's `.claude/skills/<name>/SKILL.md`. These are the canonical "Craft custom" path for these phases — robust and parameterized, not bare-bones starting points.
+For the universal patterns of the cycle, wovenflow ships fill-in templates that materialize into a project's `.claude/skills/<name>/SKILL.md`. These are the canonical "Craft custom" path for these phases — robust and parameterized, not bare-bones starting points.
 
 | Template | Materializes to | When to use |
 |---|---|---|
@@ -179,8 +181,10 @@ For four universal patterns, wovenflow ships fill-in templates that materialize 
 | `claim-tasks.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in a `tasks.md` file |
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker (only when `claim-tasks` is picked and the file doesn't already exist) |
 | `startup.md.tmpl` | `<repo>/.claude/skills/startup/SKILL.md` | Session bootstrap (pre-Phase 1) — sync, instruction diff, architecture refresh, identify task |
-| `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 10) — dangling-commit audit, status reconciliation, next-task suggestion |
-| `pre-pr.md.tmpl` | `<repo>/.claude/skills/pre-pr/SKILL.md` | Verification gate (Phase 7) — tests, coverage audit, UI walkthrough, adversarial review |
+| `verify.md.tmpl` | `<repo>/.claude/skills/verify/SKILL.md` | Verification gate (Phase 7) — tests, coverage audit, UI/manual walkthrough, adversarial review |
+| `ship-pr.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship via pull request (Phase 8) — push, `gh pr create`, mark task in-review |
+| `ship-direct.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship without PR (Phase 8) — confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub projects. |
+| `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 10) — dangling-commit audit, status reconciliation, next-task claim |
 
 All templates live at `plugins/wovenflow/skills/setup/templates/`. Variable reference and template syntax (substitution + conditional blocks) are documented in `templates/README.md`.
 
@@ -296,7 +300,8 @@ Templates live at `plugins/wovenflow/skills/setup/templates/`. The mappings:
 |---|---|
 | Session bootstrap (pre-Phase 1) | `startup.md.tmpl` |
 | Phase 1 (Claim) | `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md`) |
-| Phase 7 (Verify) | `pre-pr.md.tmpl` |
+| Phase 7 (Verify) | `verify.md.tmpl` |
+| Phase 8 (Ship) | `ship-pr.md.tmpl` (PR-based) or `ship-direct.md.tmpl` (solo / no-PR) |
 | Phase 10 (Close out) | `wrap-up.md.tmpl` |
 
 If a template matches, follow 3b. Otherwise skip to 3c.
@@ -306,7 +311,8 @@ If a template matches, follow 3b. Otherwise skip to 3c.
 1. Ask the user for the variables the template needs (full reference: `plugins/wovenflow/skills/setup/templates/README.md`). Group sensibly into `AskUserQuestion` calls (1-4 questions per call). Common variables:
    - **Project basics:** main branch (`main` / `master` / `trunk`), instruction file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`), architecture-doc filename (default `ARCHITECTURE.md`, empty to disable). Per-folder `ARCHITECTURE.md` files are optional — agents read them on-demand when working in those folders.
    - **For `claim`:** task source (`github` or `tasks`); for GitHub — agent label (optional), status labels (`ready`/`in-progress`/`in-review`); for `tasks.md` — file path, status values, priority values
-   - **For `pre-pr`:** test command (e.g. `npm test`), UI testing tool (e.g. `Playwright`, or empty for non-UI), coverage command (or empty)
+   - **For `verify`:** test command (e.g. `npm test`, `pytest`, `cargo test`), UI testing tool (e.g. `Playwright`, or empty for non-UI), coverage command (or empty)
+   - **For `ship`:** ship mode (`pr` or `direct`); pick `ship-pr` for projects shipping through PR review, `ship-direct` for solo / non-GitHub / no-PR projects
    - **For `startup`:** project-specific bootstrap command (or empty)
 
 2. Substitute placeholders:

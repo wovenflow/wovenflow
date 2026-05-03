@@ -1,0 +1,93 @@
+---
+name: ship-direct
+description: Ship by direct push to {{MAIN_BRANCH}} — no PR, no review gate. For solo work, research projects, or repos where PR ceremony is overhead-not-value. The discipline that PR review enforces externally must be enforced by `verify` + user confirmation here.
+---
+
+# Ship direct (no PR)
+
+Phase 8 of the workstream for projects that don't use pull-request review. Used by solo developers, research projects, internal tooling repos, and any context where PR ceremony adds overhead without adding value.
+
+The previous phase (`verify`) must have completed cleanly. Without a reviewer to catch issues, the verification gate is the *only* check between code and main.
+
+## When this applies
+
+- Solo work in a private repo
+- Research projects with no team review process
+- Internal tooling shipped to one's own infrastructure
+- Any repo that ships via direct commit + push to `{{MAIN_BRANCH}}`
+
+If the project does (or should) use PRs — multiple committers, public surface, regulatory review — use `ship-pr` instead.
+
+## Steps
+
+### 1. Confirm `verify` passed
+
+Without a reviewer, this is the only check. Re-run if there's any doubt.
+
+### 2. Confirm scope and commit history
+
+```
+git status
+git log @{u}..HEAD --oneline
+git diff @{u}..HEAD
+```
+
+Check:
+- Working tree clean (no leftover uncommitted edits)
+- Commits are atomic and have descriptive messages
+- The diff matches the task scope; nothing unrelated
+
+Git history is the only change record once this lands. If the commits are messy (squash-worthy WIPs, vague messages), clean up via interactive rebase before pushing.
+
+### 3. Confirm with the user
+
+Show the user a one-screen summary of what will land on `{{MAIN_BRANCH}}`:
+- Commit messages (one line each)
+- Files touched (`git diff --stat`)
+- The task being closed
+
+Use `AskUserQuestion` with options like "Push" / "Amend first" / "Cancel". This is the human-review step that PRs would force; don't skip it.
+
+### 4. Push
+
+```
+git push origin HEAD:{{MAIN_BRANCH}}
+```
+
+If there's no remote configured (purely local repo), skip this step — the work is "shipped" once committed locally.
+
+### 5. Update task status to done
+
+{{IF TASK_SOURCE_GITHUB}}
+If the commit message contains `Closes #<id>`, GitHub auto-closes the issue on push to the default branch. Verify it closed:
+
+```
+gh issue view <id> --json state
+```
+
+If it didn't auto-close (e.g., the magic phrase wasn't in the commit), close it manually:
+
+```
+gh issue close <id> --comment "Shipped in $(git rev-parse --short HEAD)"
+```
+{{ENDIF}}{{IF TASK_SOURCE_TASKS}}
+Edit the row in `{{TASKS_FILE}}`: set Status to `{{STATUS_DONE}}`. Commit + push:
+
+```
+git add {{TASKS_FILE}}
+git commit -m "chore(tasks): <id> done"
+git push
+```
+{{ENDIF}}
+
+### 6. Hand off
+
+The work has shipped. Continue with Phase 9 (Post-ship — docs, learnings) and Phase 10 (Close out — `wrap-up`).
+
+## Anti-patterns
+
+- **Skipping `verify`** — this is the single point of failure for solo workflows; the PR review you'd otherwise have doesn't exist
+- **Pushing without confirming scope with the user** — you're skipping the human-review step that PRs would force; the cost of a 30-second confirmation is much less than the cost of a regression on `{{MAIN_BRANCH}}`
+- **Messy commit history** — git log IS the change record here. Squash WIPs, write descriptive messages
+- **Using this when PRs would be appropriate** — if the repo is shared, public, or regulated, use `ship-pr`. Solo today doesn't mean solo forever
+- **Force-push to `{{MAIN_BRANCH}}`** — never. Direct push is for fast-forward updates only; if you need to rewrite history on main, that's a deliberate operation requiring much more care

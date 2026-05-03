@@ -19,7 +19,9 @@ The `setup` wizard performs the substitution before writing the file.
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker file (only when the user picks the `tasks.md` claim variant) |
 | `startup.md.tmpl` | `.claude/skills/startup/SKILL.md` | Session bootstrap: sync, instruction-diff, architecture refresh, identify task |
 | `wrap-up.md.tmpl` | `.claude/skills/wrap-up/SKILL.md` | Session close-out: dangling commits, status reconciliation, next-task suggestion |
-| `pre-pr.md.tmpl` | `.claude/skills/pre-pr/SKILL.md` | Verification gate: tests, coverage audit, UI walkthrough, adversarial review |
+| `verify.md.tmpl` | `.claude/skills/verify/SKILL.md` | Phase 7 verification gate: tests, coverage audit, UI/manual walkthrough, adversarial review |
+| `ship-pr.md.tmpl` | `.claude/skills/ship/SKILL.md` | Phase 8 ship via pull request: push branch, `gh pr create`, mark task in-review |
+| `ship-direct.md.tmpl` | `.claude/skills/ship/SKILL.md` | Phase 8 ship without PR: confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub workflows. |
 
 ## Variable reference
 
@@ -51,13 +53,13 @@ GitHub-specific:
 | `STATUS_IN_REVIEW` | Status value: in review | `in-review` |
 | `STATUS_DONE` | Status value: done | `done` |
 
-`pre-pr`-specific:
+`verify`-specific:
 
 | Variable | Meaning | Example |
 |---|---|---|
-| `TEST_CMD` | Command to run the test suite | `npm test` |
+| `TEST_CMD` | Command to run the test suite | `npm test`, `pytest`, `cargo test` |
 | `UI_TEST_TOOL` | Tool name for UI walkthrough, or empty | `Playwright`, `bexoe-pw` |
-| `COVERAGE_CMD` | Command to print coverage, or empty | `npm run coverage` |
+| `COVERAGE_CMD` | Command to print coverage, or empty | `npm run coverage`, `pytest --cov` |
 
 `startup`-specific:
 

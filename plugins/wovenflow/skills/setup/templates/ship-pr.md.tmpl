@@ -1,0 +1,69 @@
+---
+name: ship-pr
+description: Ship via pull request. Pushes the current branch, opens a PR with a title + body derived from the issue/task, marks the task in-review, hands off to CI and reviewers. Phase 8 of the workstream for projects that ship through PR review.
+---
+
+# Ship via PR
+
+Phase 8 of the workstream for projects that ship through pull-request review. The previous phase (`verify`) must have completed cleanly — never push unverified work.
+
+## Steps
+
+### 1. Confirm `verify` passed
+
+The verification gate must have run and passed every check (tests, coverage audit, criterion walkthrough, adversarial review, user re-test). If you haven't run it, run it now.
+
+### 2. Push the branch
+
+```
+git push -u origin HEAD
+```
+
+If the push refuses (branch diverged from remote), pause and investigate before force-pushing — never force-push to `{{MAIN_BRANCH}}` or shared branches.
+
+### 3. Create the PR
+
+Title: short, descriptive (under 70 chars).
+Body: summary of what changed + a test-plan checklist + the issue/task reference.
+
+```
+gh pr create --title "<title>" --body "$(cat <<'EOF'
+## Summary
+<3-5 bullets describing what this changes>
+
+## Test plan
+<bulleted markdown checklist; one item per acceptance criterion>
+
+{{IF TASK_SOURCE_GITHUB}}Closes #<id>{{ENDIF}}{{IF TASK_SOURCE_TASKS}}Refs `<id>` in {{TASKS_FILE}}{{ENDIF}}
+EOF
+)"
+```
+
+{{IF TASK_SOURCE_GITHUB}}The `Closes #<id>` line auto-closes the issue when the PR merges.{{ENDIF}}{{IF TASK_SOURCE_TASKS}}For `tasks.md` tracking, the merge won't auto-close the row — `wrap-up` (Phase 10) handles that.{{ENDIF}}
+
+### 4. Update task status to in-review
+
+{{IF TASK_SOURCE_GITHUB}}
+```
+gh issue edit <id> --add-label {{LABEL_IN_REVIEW}} --remove-label {{LABEL_IN_PROGRESS}}
+```
+{{ENDIF}}{{IF TASK_SOURCE_TASKS}}
+Edit the row in `{{TASKS_FILE}}`: set Status to `{{STATUS_IN_REVIEW}}`. Commit + push:
+```
+git add {{TASKS_FILE}}
+git commit -m "chore(tasks): <id> in-review"
+git push
+```
+{{ENDIF}}
+
+### 5. Hand off
+
+CI runs against the PR; reviewers review. Continue with Phase 9 (Post-ship — `gstack:document-release` or equivalent) once the PR merges. If CI fails, fix the failure and amend / push again.
+
+## Anti-patterns
+
+- **Skipping `verify`** — the PR will surface issues that should have been caught locally; wastes the reviewer's time and yours
+- **Pushing unverified work** — even with intent to "amend later," the reviewer is now reviewing code that doesn't pass the gate
+- **Force-push to `{{MAIN_BRANCH}}` or shared branches** — never. Force-push only to your own feature branch and only after rebase/squash
+- **Stale PR title or body** — make them descriptive; reviewers shouldn't have to read the diff to know what changed
+- **Opening a PR with `[WIP]` or draft status without a clear ask** — say what you want from the reviewer (e.g., "early feedback on shape" vs "final review")
