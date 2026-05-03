@@ -77,7 +77,25 @@ Write a short paragraph (3-5 sentences) covering:
 
 Save it in whichever surface the project uses for session continuity — a comment on the task, a session-state file, or both.
 
-### 5. Claim the next task
+### 5. Notice workflow friction (offer flowtune)
+
+Scan the session for signals that the documented workflow drifted from how you actually worked:
+
+- A phase was skipped without it being a deliberate "this phase doesn't apply" decision
+- You ran a step (e.g., `gstack:simplify`) that isn't in the documented chain — repeatedly
+- A "Recommended" skill choice was overridden the same way 2+ times
+- Someone said "we should have a skill for X" or built something custom that filled an obvious gap
+- The verify chain converged on a different shape than the documented default
+
+If 1+ signal appears, offer to run `wovenflow:flowtune` via `AskUserQuestion`:
+
+- **Run flowtune now** — propose specific edits to CLAUDE.md's Standard workstream
+- **Defer** — note the signals in the checkpoint (step 4) for next session
+- **Skip** — this drift is intentional / one-off
+
+If no signals, skip this step silently — the workflow is working.
+
+### 6. Claim the next task
 
 Identify the most natural follow-on, in priority order:
 
