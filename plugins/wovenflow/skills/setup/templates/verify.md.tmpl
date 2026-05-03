@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Verification gate before declaring a feature ready to ship. Runs tests, audits coverage of every acceptance criterion, drives the UI (or the change surface) through each criterion, dispatches an adversarial reviewer, and walks the user through a re-test. Independent of how the project ships — applies whether you'll open a PR (`ship-pr`) or push direct (`ship-direct`).
+description: Verification gate before declaring a feature ready to ship. First surveys the change and proposes a verification chain (with the full list of available verify-flavored skills, marked applies/skip per change), then runs the gate — tests, coverage audit, criterion walkthrough, adversarial review, user re-test. Independent of how the project ships — pairs with `ship-pr` or `ship-direct`.
 ---
 
 # Verify
@@ -9,7 +9,51 @@ Run this before shipping. It catches issues that would otherwise come back from 
 
 ## Steps
 
-### 1. Run the test suite
+### 1. Survey the change and propose a verification chain
+
+Different changes need different verification. A backend-only refactor wants `simplify` + `codex review` + tests; a UI feature wants `design-review` + `qa` + manual walkthrough; a security-sensitive diff wants a focused security review. Don't run every available skill on every change — that's noise. Don't run too few — that's a regression risk.
+
+Steps:
+
+1. **Survey the change.** Run `git diff origin/{{MAIN_BRANCH}}...HEAD --stat` and skim. Classify: UI / backend / refactor / perf-sensitive / security-sensitive / docs-only / test-only / new-feature / bug-fix. A single change can be more than one.
+
+2. **Enumerate ALL installed verify-flavored skills** in this project. Common ones (vary per project):
+
+   - `gstack:simplify` — code reuse / quality / efficiency pass
+   - `gstack:codex review` — independent diff review (Codex CLI)
+   - `gstack:design-review` — visual / UI polish audit
+   - `gstack:qa` — exploratory QA against the running app
+   - `gstack:health` — repo health scorecard
+   - `gstack:benchmark` — performance regression detection
+   - `gstack:cso` — security audit
+   - `gstack:devex-review` — developer-experience audit
+   - `superpowers:requesting-code-review` — structured code review
+   - ...plus anything else the project has
+
+   List what's actually installed. Don't reference skills that aren't there.
+
+3. **Mark each as applies / skip** for THIS change, with one-line justification:
+
+   ```
+   - gstack:simplify       APPLIES  (refactor — high reuse-opportunity surface)
+   - gstack:codex review   APPLIES  (non-trivial logic change, second opinion warranted)
+   - gstack:design-review  SKIP     (no UI touched in this diff)
+   - gstack:qa             SKIP     (no app surface changed)
+   - gstack:cso            SKIP     (no auth / secrets / network code)
+   ```
+
+4. **Recommend a chain** in priority order (e.g. `simplify → codex review → adversarial review → walkthrough`).
+
+5. **Show the full list + recommendation to the user** and confirm via `AskUserQuestion`. Options:
+   - **Run the recommended chain** *(Recommended)*
+   - **Adjust the chain** — user names which to add/drop
+   - **Skip auxiliary skills** — run only the gate steps below
+
+6. **Dispatch the confirmed chain.** Run each picked skill in order. Each returns its findings; address Critical / Important issues before continuing to the gate.
+
+Then proceed to the gate steps (2-8 below). The gate runs every time regardless of which auxiliary skills were picked.
+
+### 2. Run the test suite
 
 ```
 {{TEST_CMD}}
@@ -17,12 +61,12 @@ Run this before shipping. It catches issues that would otherwise come back from 
 
 All tests must pass. If any are skipped, justify each (skip-with-reason in the test, not silently in CI). Treat a skipped test as a failing test for this gate.
 
-### 2. Audit test coverage of the change
+### 3. Audit test coverage of the change
 
 For every acceptance criterion in the issue/task, answer:
 
 - **Is there a test that verifies this criterion?** Cite the test by `path:line`.
-- **If no test exists**, justify why ("manually verified per step 3", "untestable surface — third-party network call", etc.) or add one.
+- **If no test exists**, justify why ("manually verified per step 4", "untestable surface — third-party network call", etc.) or add one.
 
 This is "the test file IS the spec" applied at the verification boundary. If a future maintainer can't read the tests and understand what changed, coverage is insufficient.
 
@@ -37,7 +81,7 @@ Coverage % alone isn't the goal — coverage of the *acceptance criteria* is. Us
 {{ENDIF}}
 
 {{IF UI_TEST_TOOL}}
-### 3. Drive the UI through every acceptance criterion
+### 4. Drive the UI through every acceptance criterion
 
 For each criterion, exercise the user-visible flow with `{{UI_TEST_TOOL}}` and capture screenshots of before/after states. Confirm the result matches the criterion.
 
@@ -45,12 +89,12 @@ If you can't reach a state through `{{UI_TEST_TOOL}}`, that's a bug to fix — n
 
 For non-UI changes (server-only, library code), say so explicitly and skip this step. Don't silently skip.
 {{ELSE}}
-### 3. Manual verification of every acceptance criterion
+### 4. Manual verification of every acceptance criterion
 
 For each criterion, exercise the change yourself and document what you saw — terminal output, screenshots, log lines, whatever evidence is appropriate. If the change is non-UI and tests cover everything, say so explicitly and reference the tests.
 {{ENDIF}}
 
-### 4. Self-review the diff
+### 5. Self-review the diff
 
 ```
 git diff origin/{{MAIN_BRANCH}}...HEAD
@@ -65,7 +109,7 @@ Check:
 
 If you find scope creep, decide: split into a follow-up commit/PR, or revert the unrelated changes from this branch.
 
-### 5. Adversarial review subagent
+### 6. Adversarial review subagent
 
 Dispatch a subagent (a cheap model is fine) with the explicit framing: *"Find issues. Do not approve a 'close enough' implementation."*
 
@@ -76,7 +120,7 @@ Pass:
 
 The reviewer should return Strengths + Issues (Critical / Important / Minor). Address Critical and Important before continuing; Minor can be filed as follow-ups.
 
-### 6. Walk the user through a re-test
+### 7. Walk the user through a re-test
 
 For each acceptance criterion, walk the user through one verification step:
 
@@ -84,9 +128,9 @@ For each acceptance criterion, walk the user through one verification step:
 2. Show it (paste output, screenshot, demo URL)
 3. Ask pass/fail before advancing
 
-The agent has already verified each criterion in step 3; this is a sanity check, not a fresh QA cycle. If the user says "fail" on any criterion, back up — don't ship with a known regression.
+The agent has already verified each criterion in step 4; this is a sanity check, not a fresh QA cycle. If the user says "fail" on any criterion, back up — don't ship with a known regression.
 
-### 7. Hand off to ship
+### 8. Hand off to ship
 
 Only after every check above passes. Continue with Phase 8 (Ship — `ship-pr` for PR-based projects, `ship-direct` for solo / no-PR projects).
 
