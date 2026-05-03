@@ -64,10 +64,20 @@ Marketplaces referenced in this catalog:
 
 For options below that don't link to a clean repo URL, the awesome-list discovery page acts as the canonical-install path: find the plugin entry, follow its README's install steps.
 
+### Session bootstrap *(per-session, runs before Phase 1)*
+
+**Job:** Sync the worktree with the integration branch, surface instruction-file changes, scan ADRs, identify the task to work on. Runs at the start of every session — not part of the 9-phase feature cycle.
+
+- [**`wovenflow:setup` startup template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `startup.md.tmpl` into `<repo>/.claude/skills/startup/SKILL.md`. Parameterized for main branch, instruction file, ADR location, and project-specific bootstrap commands.
+- [**`gstack:context-restore`**](https://github.com/garrytan/gstack) — pairs with `gstack:context-save` from Phase 9; restores prior session's thinking
+- [**Browse Session Lifecycle category**](https://buildwithclaude.com/) — other startup-flavored skills
+- **None** — fine for projects where each session can start cold without an explicit bootstrap
+
 ### Phase 1 — Claim
 
 **Job:** Pick up an issue or task; mark in-progress.
 
+- [**`wovenflow:setup` claim template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md` tracker, ships a starter table with id/status/priority/owner/notes) into `<repo>/.claude/skills/claim/SKILL.md`. Includes ADR cross-check, label or table management, and plan-comment posting.
 - [**`atlassian@claude-plugins-official`**](https://claude.com/plugins/atlassian) — Jira / Confluence / Compass integration via Atlassian's official MCP server
 - [**`linear@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Linear issue tracker integration (search the official directory for the Linear plugin entry)
 - [**`asana@claude-plugins-official`**](https://github.com/anthropics/claude-plugins-official) — Asana task integration
@@ -76,7 +86,7 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 - [**`gh issue` CLI**](https://cli.github.com/manual/gh_issue) — plain GitHub CLI, no plugin needed
 - [**TodoWrite**](https://docs.claude.com/en/docs/claude-code) — Claude Code built-in task surface for projects without an external tracker
 - [**Browse claudemarketplaces.com**](https://claudemarketplaces.com/) or [**buildwithclaude.com**](https://buildwithclaude.com/) — discover other claim / triage skills
-- **"Craft custom"** via [`skill-creator`](https://github.com/anthropics/claude-plugins-official) — scaffold a project-local claim skill
+- **"Craft custom"** via [`skill-creator`](https://github.com/anthropics/claude-plugins-official) — fallback if none of the above (and the wovenflow templates) fit
 
 ### Phase 2 — Clarify and challenge
 
@@ -130,7 +140,8 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`gstack:qa`**](https://github.com/garrytan/gstack) — exploratory QA against the running app
 - [**`test-writer-fixer`**](https://github.com/ComposioHQ/awesome-claude-plugins) — generate / repair unit tests for legacy code (community plugin; discover via awesome-list)
 - [**Browse Code Quality category**](https://buildwithclaude.com/) — discover debugger, security audit, performance, and other review-flavored skills
-- **Project-local pre-PR skill** — many projects benefit from a project-specific pre-PR gate (test coverage audit, screenshot capture, adversarial review). Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
+- [**`wovenflow:setup` pre-pr template (Recommended for project-local pre-PR)**](https://github.com/wovenflow/wovenflow) — wizard materializes `pre-pr.md.tmpl` into `<repo>/.claude/skills/pre-pr/SKILL.md`. Parameterized for test command, UI testing tool, and coverage command. Includes test coverage audit per acceptance criterion, UI walkthrough with screenshots, adversarial review subagent, and user re-test.
+- **Off-template pre-PR skill** — for projects whose verification gate doesn't fit the wovenflow template, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
 ### Phase 7 — Ship
 
@@ -157,7 +168,8 @@ Override only if you're explicitly using a different methodology. If you overrid
 
 - [**`gstack:context-save`**](https://github.com/garrytan/gstack) — save thinking + state for the next session
 - [**`research-workflow:wrap-up`**](https://github.com/anthropics/claude-plugins-official) — research-coded close-out
-- **Project-local wrap-up skill** — projects with issue-state reconciliation, dangling-commit audits, etc., have their own. Craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
+- [**`wovenflow:setup` wrap-up template (Recommended for project-local wrap-up)**](https://github.com/wovenflow/wovenflow) — wizard materializes `wrap-up.md.tmpl` into `<repo>/.claude/skills/wrap-up/SKILL.md`. Audits dangling commits, reconciles task status (GitHub or `tasks.md`), saves a session checkpoint, and surfaces 2-3 candidate next tasks.
+- **Off-template wrap-up skill** — for projects whose close-out doesn't fit the wovenflow template, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
 ## Wovenflow-shipped scaffold templates
 
