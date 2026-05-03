@@ -11,19 +11,21 @@ Second of three phases in a Doc-Test-Driven Development cycle. The `.spec.md` fr
 
 Each behavior gets a fenced test block immediately after its `Then`. The fence language tells the extractor which blocks belong to the test suite. Test code is copied verbatim — the extractor does not transform it.
 
+Behaviors are written with the wovenflow logic-symbol convention from `designflow`: **∵ IF** (precondition), **↦ WHEN** (event), **∴ THEN** (outcome). The test fence sits immediately after the **∴ THEN** line.
+
 ### TypeScript example
 
 ````markdown
 ### B1: <name>
-**If** <precondition>
-**When** <event>
-**Then** <expected outcome>
+∵ **IF** <precondition>
+↦ **WHEN** <event>
+∴ **THEN** <expected outcome>
 
 ```typescript
 test('B1: <name>', () => {
-  // arrange (the If)
-  // act (the When)
-  // assert (the Then)
+  // arrange (the ∵ IF)
+  // act (the ↦ WHEN)
+  // assert (the ∴ THEN)
 });
 ```
 ````
@@ -32,15 +34,15 @@ test('B1: <name>', () => {
 
 ````markdown
 ### B1: <name>
-**If** <precondition>
-**When** <event>
-**Then** <expected outcome>
+∵ **IF** <precondition>
+↦ **WHEN** <event>
+∴ **THEN** <expected outcome>
 
 ```python
 def test_b1_name():
-    # arrange (the If)
-    # act (the When)
-    # assert (the Then)
+    # arrange (the ∵ IF)
+    # act (the ↦ WHEN)
+    # assert (the ∴ THEN)
 ```
 ````
 

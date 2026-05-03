@@ -8,9 +8,19 @@ description: Design phase of DTDD (Doc-Test-Driven Development). Use when starti
 First of three phases in a Doc-Test-Driven Development cycle. Produce one `.spec.md` file in `doc/specs/` containing:
 
 - **User stories** — the why
-- **Behaviors** as `If` / `When` / `Then` triplets — the what
+- **Behaviors** as ∵ IF / ↦ WHEN / ∴ THEN triplets — the what
 
 No test code at this stage. No implementation. Just prose that captures the design clearly enough that the **testflow** skill can lock it down by inserting executable tests for each behavior.
+
+## Clause symbols
+
+Each behavior's three clauses are prefixed with a logic symbol that conveys what the clause does. Same semantics as BDD's Given/When/Then; the symbols make the structure pop when scanning a spec full of behaviors.
+
+| Symbol | Meaning | Clause |
+|---|---|---|
+| **∵** | "because" / "since" | the precondition |
+| **↦** | "maps to" / transition | the event or action |
+| **∴** | "therefore" | the expected outcome |
 
 ## File shape
 
@@ -25,14 +35,14 @@ No test code at this stage. No implementation. Just prose that captures the desi
 ## Behaviors
 
 ### B1: <short name>
-**If** <precondition>
-**When** <event>
-**Then** <expected outcome>
+∵ **IF** <precondition>
+↦ **WHEN** <event>
+∴ **THEN** <expected outcome>
 
 ### B2: <short name>
-**If** ...
-**When** ...
-**Then** ...
+∵ **IF** ...
+↦ **WHEN** ...
+∴ **THEN** ...
 ````
 
 ## Where it lives
@@ -48,8 +58,8 @@ No test code at this stage. No implementation. Just prose that captures the desi
 ## Rules
 
 - **No code blocks at this stage.** The next skill (`testflow`) inserts them.
-- **One If/When/Then per behavior.** If you can't capture it that way, the behavior is too big — split it.
-- **Behaviors are independent.** If B2 depends on B1's outcome, encode that in B2's "If" precondition explicitly.
+- **One ∵ IF / ↦ WHEN / ∴ THEN per behavior.** If you can't capture it that way, the behavior is too big — split it.
+- **Behaviors are independent.** If B2 depends on B1's outcome, encode that in B2's ∵ IF precondition explicitly.
 - **User stories describe what the user wants and why** — not how the system implements it.
 
 ## Handoff to testflow
