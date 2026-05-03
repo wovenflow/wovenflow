@@ -4,7 +4,7 @@ A Claude Code plugin for **Doc-Test-Driven Development (DTDD)** — TDD where in
 
 ## What it is
 
-`wovenflow` is the plugin (the tool); `DTDD` is the methodology (the practice). Just like Cucumber implements BDD or RSpec implements behavior-driven testing — wovenflow implements DTDD.
+`wovenflow` is the plugin (the tool); `DTDD` is the methodology (the practice). 
 
 The methodology in one paragraph:
 
@@ -42,7 +42,7 @@ In a project that has a test runner (Mocha, Vitest, Jest, or Node's built-in `no
 
 ## Why woven
 
-The skill names share a `*flow` suffix. The plugin name extends the metaphor: prose and tests *woven* together in one file. Knuth coined "literate programming" in 1984 — wovenflow is that idea applied to test-driven development.
+In most agentic workflows, it is easy to end up with many distributed sources of truth for any one feature. The goal of DTDD is to keep the definition and intent for any one feature in one place. This makes it easy to know what needs to be updated or replaced in the case of a change. Documentation stays fresh because it is conjoined to the test that enforces it. This solution also does not overspecify implementation for a sub-agent. We are not writing the code twice. 
 
 ## License
 
