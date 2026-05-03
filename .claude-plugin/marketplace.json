@@ -7,7 +7,7 @@
     {
       "name": "wovenflow",
       "description": "Doc-Test-Driven Development (DTDD) — literate-programming-flavored TDD. Four skills: designflow (Design phase — write .spec.md with user stories + if/when/then behaviors, prose only), testflow (Test phase — insert inline test blocks; bundled extractor produces derived .test.ts at pretest time, runner-agnostic), subflow (Build phase — dispatch implementer subagents per behavior, with spec-compliance and code-quality review; subagents read .spec.md by file path), and setup (interactive workflow wizard — detects existing CLAUDE.md workflow, walks through each phase suggesting skills or crafting custom ones, writes settled workflow back to CLAUDE.md).",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Will Rodenbusch"
       },

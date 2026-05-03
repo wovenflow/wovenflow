@@ -65,19 +65,31 @@ Run any project-specific bootstrap:
 This should be idempotent — safe to call when already started. If it isn't, fix the script before continuing.
 {{ENDIF}}
 
-### 5. Identify the task to work on
+### 5. Resume or claim the task
 
-Use the project's `claim` skill (or invoke directly via `/claim <id>`):
+**First, check for an already-in-progress task** (the prior session's `wrap-up` may have claimed one for resumption):
 
 {{IF TASK_SOURCE_GITHUB}}
-- What this agent already owns: `gh issue list {{IF AGENT_LABEL}}--label {{AGENT_LABEL}} {{ENDIF}}--state open`
-- Available to pick up: `gh issue list --label {{LABEL_READY}} --state open`
+```
+gh issue list {{IF AGENT_LABEL}}--label {{AGENT_LABEL}} {{ENDIF}}--label {{LABEL_IN_PROGRESS}} --state open
+```
 {{ENDIF}}{{IF TASK_SOURCE_TASKS}}
-- Open `{{TASKS_FILE}}` and look for the highest-priority `{{STATUS_READY}}` row
-- Or invoke `/claim` to auto-pick
+Open `{{TASKS_FILE}}` and find rows with Status = `{{STATUS_IN_PROGRESS}}` and Owner = `@me`.
 {{ENDIF}}
 
-If a task is already in-progress for this agent, confirm it's still the right target. Don't re-claim; just refresh context by reading the task and any plan comments.
+If exactly one in-progress task is found, that's the resume target. Read its body, any plan comments, and the prior session's checkpoint to refresh context. **Don't re-claim** — just continue.
+
+If multiple in-progress tasks exist, ask the user which to resume (use `AskUserQuestion`).
+
+**If no in-progress task exists**, fall back to picking from cold via the project's `claim` skill:
+
+{{IF TASK_SOURCE_GITHUB}}
+- Available to pick up: `gh issue list --label {{LABEL_READY}} --state open`
+- Then `/claim <id>` to run the full claim flow
+{{ENDIF}}{{IF TASK_SOURCE_TASKS}}
+- Open `{{TASKS_FILE}}` and look for the highest-priority `{{STATUS_READY}}` row
+- Then `/claim <id>` (or just `/claim` to auto-pick) to run the full claim flow
+{{ENDIF}}
 
 ### 6. Report ready and begin
 

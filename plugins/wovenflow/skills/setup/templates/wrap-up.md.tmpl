@@ -77,19 +77,24 @@ Write a short paragraph (3-5 sentences) covering:
 
 Save it in whichever surface the project uses for session continuity — a comment on the task, a session-state file, or both.
 
-### 5. Suggest the next task
+### 5. Claim the next task
 
-Look at the task tracker and identify 2-3 candidates for next session, with one-line reasons each:
+Identify the most natural follow-on, in priority order:
 
-- A task that depends on what just shipped
-- The next-highest-priority `{{IF TASK_SOURCE_GITHUB}}{{LABEL_READY}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_READY}}{{ENDIF}}` task
-- A previously-blocked task that may now be unblocked
+1. A task that depends on what just shipped (now unblocked)
+2. The next-highest-priority `{{IF TASK_SOURCE_GITHUB}}{{LABEL_READY}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_READY}}{{ENDIF}}` task
+3. A previously-blocked task that may now be unblocked by other work
 
-This isn't a binding pick — just a starting point so the next session's `startup` doesn't start from zero.
+Confirm the choice with the user using `AskUserQuestion`, then invoke the project's `claim` skill on it (e.g., `/claim <id>`). The full claim flow runs — {{IF ADR_LOCATION}}ADR cross-check, {{ENDIF}}clarifying questions, {{IF TASK_SOURCE_GITHUB}}label{{ENDIF}}{{IF TASK_SOURCE_TASKS}}status{{ENDIF}} update, plan comment.
+
+**Why claim at wrap-up:** starting next session with a task already `{{IF TASK_SOURCE_GITHUB}}{{LABEL_IN_PROGRESS}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_IN_PROGRESS}}{{ENDIF}}` is simpler than starting cold. The next `startup` becomes "resume work on `<id>`" instead of "pick a task and decide."
+
+If no clear next task exists, skip this step. Next session's `startup` will pick from cold.
 
 ## Anti-patterns
 
 - **Leaving commits unpushed** — work is invisible to others; risk of loss on disk failure
 - **Stale status** — the task tracker diverges from reality; other contributors trust stale data
 - **No checkpoint** — future-you re-derives context from scratch, costing 10-30 minutes per session
-- **Suggesting "everything" as the next task** — pick 2-3 specifically; "everything is next" is the same as "nothing is next"
+- **Auto-claiming without confirmation** — wrap-up should *propose* the next task and confirm with the user before invoking the claim skill; never silently take over a new task at session-end
+- **Skipping the claim flow when claiming** — if you do claim at wrap-up, run the project's full `claim` skill; don't shortcut the {{IF ADR_LOCATION}}ADR cross-check or {{ENDIF}}plan-comment steps
