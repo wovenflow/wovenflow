@@ -63,6 +63,8 @@ After `testflow`. Pre-conditions to verify before dispatching:
 
 If any pre-condition isn't met, fix that first; do not dispatch implementers against a partial setup.
 
+**Bug fixes are DTDD-shaped too.** Don't bypass the pipeline for bug-fix bursts. The failing record / repro IS the failing test — extract it as a regression test in `testflow`, spec the corrected behavior in `designflow`, then dispatch via this skill. Hand-rolling parallel dispatch via Claude Code's `Agent` tool with `isolation: "worktree"` looks simpler but has different (and inconsistent) close-time semantics than this skill's `worktree.mjs` — see Red flags below.
+
 ## Why subagents
 
 The orchestrator owns the contract; subagents own implementation. Subagents work in isolated context — they're given the spec file path and a behavior identifier, not pasted task text — and they read the canonical source themselves. This:
@@ -259,6 +261,7 @@ These mean STOP and reconsider:
 | Implementer adds code unrelated to the behavior | Spec compliance reviewer catches this. NEEDS_FIX with "remove out-of-scope additions." |
 | Two behaviors clearly share implementation but were dispatched separately | OK to combine future dispatches; complete the current ones independently. |
 | Subagent finishes "suspiciously fast" | Trust verification, not reports. Reviewer's job is to verify by reading code and running tests. |
+| Tempted to dispatch via Claude Code's `Agent` tool with `isolation: "worktree"` | Don't. That's the harness's worktree machinery — separate code path from this skill's `worktree.mjs`, with inconsistent close-time semantics (commits sometimes auto-merge onto master, branches sometimes deleted, sibling close-time races can wipe in-flight merges). `worktree.mjs create <id>` produces a named branch (`wovenflow/<id>`) at a predictable path with a deterministic merge protocol. Use it always. |
 
 ## Integration with other wovenflow skills
 
