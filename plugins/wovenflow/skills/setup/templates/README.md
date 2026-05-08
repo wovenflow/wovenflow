@@ -22,6 +22,7 @@ The `setup` wizard performs the substitution before writing the file.
 | `verify.md.tmpl` | `.claude/skills/verify/SKILL.md` | Phase 7 verification gate: tests, coverage audit, UI/manual walkthrough, adversarial review |
 | `ship-pr.md.tmpl` | `.claude/skills/ship/SKILL.md` | Phase 8 ship via pull request: push branch, `gh pr create`, mark task in-review |
 | `ship-direct.md.tmpl` | `.claude/skills/ship/SKILL.md` | Phase 8 ship without PR: confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub workflows. |
+| `researcher.md.tmpl` | `.claude/skills/researchflow/researchers/<NAME>.md` | Phase 3 custom researcher profile: field-specific steps and integrity gates layered on top of the base researchflow. |
 
 ## Variable reference
 
@@ -66,3 +67,19 @@ GitHub-specific:
 | Variable | Meaning | Example |
 |---|---|---|
 | `INFRA_LAUNCH` | Project-specific bootstrap command(s), or empty | `./scripts/dev-up.sh` |
+
+`researcher`-specific:
+
+| Variable | Meaning | Example |
+|---|---|---|
+| `NAME` | Profile slug; becomes filename | `security`, `clinical`, `data-science` |
+| `FIELD` | Display name for the field | `Security research`, `Clinical research` |
+| `DESCRIPTION_TAIL` | Frontmatter description sentence after the standard prefix | `Adds threat-model and CVE-database checks on top of the base researchflow.` |
+| `INTRO_PARAGRAPH` | One-paragraph intro: why this profile exists, what it adds | — |
+| `WHEN_TO_APPLY` | Bullet list of triggers for picking this profile | — |
+| `WHEN_TO_SKIP` | One-line "skip when …" | — |
+| `MINDSET_INTRO` | One-sentence framing for the mindset list | — |
+| `MINDSET_PRINCIPLES` | 2-4 numbered mindset rules | — |
+| `STEPS` | Specialized step list with IDs (e.g., `S1`, `S2`, …) | — |
+| `OUTPUT_SCHEMA_SECTIONS` | Bulleted list of `## Section` headers each step contributes | — |
+| `ANTI_PATTERNS` | Bulleted list of failure modes to avoid in this field | — |

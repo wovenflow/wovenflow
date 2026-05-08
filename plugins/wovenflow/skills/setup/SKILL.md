@@ -100,12 +100,23 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 
 ### Phase 3 — Survey outside context
 
-**Job:** Surface 3-5 concrete external references — academic papers, prior systems, established design patterns, library options, RFCs, ecosystem conventions — before designing. Generalized from the original research-only framing: applies to UI work (existing design patterns), architecture decisions (prior systems), library choice (concrete options), API design (RFCs / industry conventions), and academic research (papers + prior experimental systems).
+**Job:** Surface 3-5 concrete external references — academic papers, prior systems, established design patterns, library options, RFCs, ecosystem conventions — before designing. Applies to UI work (existing design patterns), architecture decisions (prior systems), library choice (concrete options), API design (RFCs / industry conventions), academic research (papers + prior experimental systems), and competitive / market work (vendor capabilities, segment sizing).
 
-- [**`wovenflow:researchflow`**](https://github.com/wovenflow/wovenflow) — pre-design outside-context surface. Lifts the "real references with links, no vague gestures" pattern. Produces `doc/research/<feature>.md` with question, 3-5 references, similarities/differences, and what's novel before `designflow` drafts the spec.
-- **"Craft custom"** — for projects with domain-specific discovery patterns (e.g., a security-research project might pull in CVE databases; a data-science project might pull in benchmark datasets)
+- [**`wovenflow:researchflow`** + researcher profiles](https://github.com/wovenflow/wovenflow) `(Recommended)` — pre-design outside-context surface. Composes one or more researcher profiles per invocation; each profile adds field-specific steps and integrity gates on top of the base flow. Produces `doc/research/<feature>.md`.
+- **"Craft custom researcher"** — projects with domain-specific discovery patterns (security research with CVE databases, data-science with benchmark datasets, hardware with datasheet review). Materializes `setup/templates/researcher.md.tmpl` into `<repo>/.claude/skills/researchflow/researchers/<name>.md`.
 
-Skip this phase when the work is mechanical, the domain is well-understood, or external references would be noise.
+**Profile sub-selection (multi-select):** when `wovenflow:researchflow` is picked, run a follow-up `AskUserQuestion` (`multiSelect: true`) to choose the project's default profile set. The chosen profiles are written into the `Standard workstream` section's Phase 3 line as `wovenflow:researchflow [profile, profile, ...]`. Surface the long tail using the same tiered + free-text fallback as Step 2:
+
+| Slot | Content |
+|---|---|
+| 1 | **`academic`** — hypothesis framing, citation integrity (verify DOIs, no hallucinated cites), replication planning, conflicts and contributions, data/code availability. For papers, preprints, technical reports, work whose output is a claim about the world. |
+| 2 | **`competitive-landscape`** — competitor set, source diversity, capability matrix, recency check, bias disclosure. For build-vs-buy, positioning, differentiation, feature-parity work. |
+| 3 | **Use existing project-local researcher** if `<repo>/.claude/skills/researchflow/researchers/` has any, else **Craft custom researcher** |
+| 4 | **Show full catalog of profiles** — agent prints every profile in `plugins/wovenflow/skills/researchflow/researchers/` plus any `<repo>/.claude/skills/researchflow/researchers/<name>.md`; user replies in free text with a comma-separated set |
+
+Multi-select is fine — projects often need 2-3 profiles (e.g., academic + competitive for a research-product paper). If the user picks none, `researchflow` runs in generalist mode (the base steps without specialized rigor).
+
+Skip the whole phase when the work is mechanical, the domain is well-understood, or external references would be noise.
 
 ### Phase 4 — Design (Wovenflow core)
 
@@ -185,6 +196,7 @@ For the universal patterns of the cycle, wovenflow ships fill-in templates that 
 | `ship-pr.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship via pull request (Phase 8) — push, `gh pr create`, mark task in-review |
 | `ship-direct.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship without PR (Phase 8) — confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub projects. |
 | `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 10) — dangling-commit audit, status reconciliation, next-task claim |
+| `researcher.md.tmpl` | `<repo>/.claude/skills/researchflow/researchers/<name>.md` | Custom researcher profile (Phase 3) — field-specific steps and integrity gates layered on top of base researchflow. Wizard fills name, field, when-to-apply, mindset, steps, output schema, anti-patterns. |
 
 All templates live at `plugins/wovenflow/skills/setup/templates/`. Variable reference and template syntax (substitution + conditional blocks) are documented in `templates/README.md`.
 
@@ -267,26 +279,45 @@ If not found:
 1. Tell the user: "No existing workflow found in `CLAUDE.md`. I'll walk through each phase from scratch."
 2. Use wovenflow's recommended defaults (see Skill catalog above)
 
+### Step 1.5 — Pick wizard mode
+
+Before walking phases, ask once:
+
+`AskUserQuestion`:
+- Question: "How interactive should the wizard be?"
+- Options:
+  1. **Interactive — ask me at each phase** `(Recommended)` — full per-phase menu with structured options
+  2. **Auto — let the model pick per phase** — the agent picks the best fit for each phase from the catalog, using project signals (language, GitHub vs tasks.md, UI vs no-UI, existing tooling) and defaulting to the wovenflow recommendation; logs each pick as it goes; no per-phase prompts
+
+Persist the chosen mode in the wizard's working state for the rest of the run. In Auto mode, log each phase's choice as the wizard proceeds: `Phase N — <name>: picked <skill> (auto)`. Show all picks together at the end and confirm with one yes/no before writing CLAUDE.md.
+
 ### Step 2 — Walk through each phase
 
-For each of the 10 phases (plus optional 2.5 if research-coded), run an `AskUserQuestion`:
+For each of the 10 phases (plus optional 2.5 if research-coded):
+
+**If wizard mode is Auto:** the agent picks from the per-phase catalog in this SKILL.md without prompting. Default to the wovenflow recommendation; deviate only when project signals make a different option clearly better (e.g., `claim-tasks` template over `claim-github` when there's no GitHub remote; `ship-direct` template over `ship-pr` for a solo repo with no PR history). Log the pick and continue. Skip the AskUserQuestion below entirely.
+
+**If wizard mode is Interactive:** run an `AskUserQuestion`.
 
 Question text: `"For Phase N — <name> (<job>), which skill plays this role?"`
 
-Options come from the per-phase Skill catalog above. Always include:
-1. **Recommended skill for this phase** — labeled `(Recommended)` if it's the wovenflow default
-2. **Other available skills** populated from the loaded skills list and the catalog
-3. **"Use existing custom skill"** — if the project already has a `.claude/skills/<phase>/SKILL.md`, offer it
-4. **"Craft a new custom skill"** — walks through skill creation for this phase
-5. **"Browse marketplace"** — opens [claudemarketplaces.com](https://claudemarketplaces.com/) or [buildwithclaude.com](https://buildwithclaude.com/) in a separate dialog
-6. **"None / handle this phase manually"** — explicit no-skill option (fine for tiny phases)
+The AskUserQuestion 4-option cap shapes the menu. Use the **tiered + free-text fallback** pattern:
 
-If the user picks an existing skill that isn't loaded:
-- Detect the missing plugin
-- Tell the user: "That skill ships in `<plugin>` which isn't enabled. Run `/plugin install <plugin>@<marketplace>` to install, or pick another."
-- Re-prompt
+| Slot | Content |
+|---|---|
+| 1 | **Recommended** — the wovenflow default for this phase from the catalog, labeled `(Recommended)` |
+| 2 | **Strongest alternative** — second-best catalog option for this phase (the agent picks based on project signals: language, existing tooling, GitHub vs tasks.md, UI vs no-UI, etc.) |
+| 3 | **Use existing custom skill** if `<repo>/.claude/skills/<phase>/SKILL.md` exists; otherwise **Craft a new custom skill** for this phase |
+| 4 | **Show full catalog** — when picked, the agent prints the full per-phase catalog from this SKILL.md as plain text (one line per option: skill name, marketplace, one-line summary, install URL) and the user replies in free text with their pick: a skill name, "craft custom", "browse marketplace", or "none" |
 
-For Phases 4, 5, 6 (the DTDD core: design / test / build): the wovenflow skills are the recommended default. The user CAN override (e.g., to use a different methodology), but flag it: "You're overriding wovenflow's core skill for this phase. Are you sure?"
+**Surfacing rule:** every option in slots 1-2 (and the printed catalog from slot 4) is sourced from the **per-phase catalog in this SKILL.md** — never filtered by the currently-loaded skill list. Surface uninstalled options too; if the user picks one that isn't installed, run install-on-pick below.
+
+**Install-on-pick:** if the user picks a skill that isn't loaded:
+1. Look up its plugin and marketplace from the catalog entry
+2. Tell the user: `"That skill ships in <plugin> from <marketplace>, not enabled. Install now? (Y / pick another)"`
+3. On `Y`: run `/plugin marketplace add <url>` (if the marketplace isn't already added) then `/plugin install <plugin>@<marketplace>`. Then continue to Step 3 if the chosen path is "craft custom", or proceed to the next phase otherwise.
+
+For Phases 4, 5, 6 (the DTDD core: design / test / build): the wovenflow skills are the default in both modes. In Interactive mode the user CAN override — flag it: "You're overriding wovenflow's core skill for this phase. Are you sure?" In Auto mode, never override these three.
 
 ### Step 3 — Craft custom skills (when chosen)
 
@@ -300,6 +331,7 @@ Templates live at `plugins/wovenflow/skills/setup/templates/`. The mappings:
 |---|---|
 | Session bootstrap (pre-Phase 1) | `startup.md.tmpl` |
 | Phase 1 (Claim) | `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md`) |
+| Phase 3 (Survey outside context, custom researcher) | `researcher.md.tmpl` |
 | Phase 7 (Verify) | `verify.md.tmpl` |
 | Phase 8 (Ship) | `ship-pr.md.tmpl` (PR-based) or `ship-direct.md.tmpl` (solo / no-PR) |
 | Phase 10 (Close out) | `wrap-up.md.tmpl` |
@@ -314,6 +346,7 @@ If a template matches, follow 3b. Otherwise skip to 3c.
    - **For `verify`:** test command (e.g. `npm test`, `pytest`, `cargo test`), UI testing tool (e.g. `Playwright`, or empty for non-UI), coverage command (or empty)
    - **For `ship`:** ship mode (`pr` or `direct`); pick `ship-pr` for projects shipping through PR review, `ship-direct` for solo / non-GitHub / no-PR projects
    - **For `startup`:** project-specific bootstrap command (or empty)
+   - **For `researcher`:** profile slug (`security`, `clinical`, `data-science`, etc.), display field name, when-to-apply paragraph, when-to-skip line, 2-4 mindset principles, specialized step list, output-schema sections, anti-patterns. Step IDs follow the convention `<letter><number>` where the letter is the profile slug's first letter (e.g., `S1` / `S2` / `S3` for security)
 
 2. Substitute placeholders:
    - `{{VAR}}` → the user's answer
@@ -445,7 +478,8 @@ The skill is idempotent: re-run it any time to revise the workflow. The detect-e
 - **Skipping Step 1 (detect existing).** Always read the existing workflow first; otherwise you'll generate redundant or conflicting CLAUDE.md content.
 - **Writing custom skills inside the wovenflow plugin.** Project-local custom skills go in `<repo>/.claude/skills/`, not in the wovenflow plugin directory. Wovenflow skills are project-agnostic.
 - **Forcing the 10-phase shape on a project that has a working 6-phase or 7-phase workflow.** Reconcile, don't bulldoze.
-- **Listing skills without verifying they exist.** Every option in the menu should resolve to a real, currently-loaded (or installable) skill. The catalog above is the verified set.
+- **Filtering the menu by currently-loaded skills.** The per-phase catalog is the source of truth — surface every option, regardless of what's installed. When the user picks an uninstalled one, run the install-on-pick flow in Step 2.
+- **Listing skills not in the catalog.** Every option must resolve to a verified entry in the per-phase catalog above. New options go in the catalog first; the menu pulls from there.
 
 ## Marketplace discovery
 

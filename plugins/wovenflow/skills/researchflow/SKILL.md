@@ -1,6 +1,6 @@
 ---
 name: researchflow
-description: Pre-design phase. Bridges the gap between the agent's training cutoff and current reality — searches the web for real papers, prior systems, design patterns, current library versions, current API shapes, RFCs, ecosystem conventions — and produces an outside-context document that becomes input to wovenflow:designflow. Runs before Phase 4 (Design) so the spec reflects what's true now, not what the model knew at training time.
+description: Pre-design phase. Bridges the gap between the agent's training cutoff and current reality — searches the web for real papers, prior systems, design patterns, current library versions, current API shapes, RFCs, and ecosystem conventions — and produces an outside-context document that becomes input to wovenflow:designflow. Composes one or more researcher profiles (academic, competitive-landscape, etc.) for field-specific rigor.
 ---
 
 # Researchflow (pre-design outside-context phase)
@@ -9,16 +9,28 @@ The agent's knowledge has a training cutoff. For any decision touching libraries
 
 The design phase rarely starts cold — for any non-trivial decision, something already exists in the world that's worth grounding the design in. The skill surfaces that outside context before the orchestrator drafts a `.spec.md`.
 
-"Research" reads colloquially. The skill applies to:
+## Researcher profiles
 
-- **Academic research projects** — relevant papers, prior experimental systems
-- **UI / UX work** — established design patterns, comparable products, accessibility conventions
-- **Architecture decisions** — prior systems solving the same problem, well-known trade-offs
-- **Library or framework selection** — concrete options with their tradeoffs and adoption signals; *current* version, recent breaking changes, deprecation notices
-- **API or protocol design** — RFCs, industry conventions, similar systems' interfaces; *current* API shape (endpoints, signatures) per official docs
-- **Naming and ergonomics** — how the ecosystem names things; what users expect
+A single project can need several specialist lenses on the same question — academic rigor, competitive intelligence, market sizing, UI prior art. `researchflow` runs **one or more researcher profiles** per invocation. Each profile contributes its own steps and output sections; shared steps (state the question, save the doc) run once.
 
-The shape is the same in every case: surface 3-5 concrete external references with links, identify what's similar/different, hand off to design.
+### Built-in profiles
+
+Built-in profiles ship at `plugins/wovenflow/skills/researchflow/researchers/`:
+
+- **`academic`** — hypothesis framing, citation integrity, replication planning, conflicts and contributions disclosure, data/code availability. For papers, preprints, technical reports, and any work whose output is a claim about the world.
+- **`competitive-landscape`** — competitor set, source diversity, capability matrix, recency check, bias disclosure. For build-vs-buy, positioning, differentiation, and feature-parity work.
+
+More profiles can be added to the same directory; each is a single markdown file with frontmatter describing when it applies and the specialized steps it adds.
+
+### Project-local profiles
+
+Project-specific profiles live at `<repo>/.claude/skills/researchflow/researchers/<name>.md` and are discovered alongside the built-ins at run time. Use the `setup` wizard's "Craft custom researcher" path to materialize a fresh profile from `setup/templates/researcher.md.tmpl`.
+
+### Picking profiles
+
+The project's `Standard workstream` section in `CLAUDE.md` names the default profiles for Phase 3. At invocation, `researchflow` reads that default and applies it; the user can override per-call by naming a different profile set. Profiles compose — pick as many as the question genuinely needs (typically 1-3).
+
+If no profiles are configured, `researchflow` runs in **generalist mode**: the base steps below, no specialized rigor on top.
 
 ## When to use
 
@@ -31,16 +43,27 @@ Skip when: the work is mechanical (rename a variable, fix a typo), the domain is
 
 ## Output
 
-A markdown document at `doc/research/<feature>.md` (or appended as a "Prior art" section to the eventual `.spec.md`) with:
+A markdown document at `doc/research/<feature>.md` with:
 
-- The question being decided (1 paragraph) — what design choice or scope are we informing?
+- The question being decided
 - 3-5 concrete external references with link, type, and 2-line summary each (**real and verifiable**; no vague gestures)
-- A "what's similar / what's different" section identifying how this work relates to the references
-- A short paragraph naming what's novel about this work, if anything
+- Per-profile sections — each loaded profile contributes its own structured section (hypothesis framing for `academic`, capability matrix for `competitive-landscape`, etc.)
+- Similarities / differences and what's novel about this work
 
 This document is input context for `wovenflow:designflow`. The design phase reads it and writes the spec informed by what's already known.
 
 ## Steps the orchestrator follows
+
+### 0. Load profiles
+
+Resolve the profile set:
+
+1. Read the project's `Standard workstream` section in `CLAUDE.md`; look for a `Phase 3` line naming profiles (e.g., `wovenflow:researchflow [academic, competitive-landscape]`)
+2. If the user named profiles in the invocation, those override the project default
+3. Discover the named profiles in `plugins/wovenflow/skills/researchflow/researchers/` (built-in) and `<repo>/.claude/skills/researchflow/researchers/` (project-local)
+4. Read each profile's frontmatter and step list
+
+If no profiles are configured, run the base steps below in generalist mode.
 
 ### 1. State the question
 
@@ -48,7 +71,15 @@ Walk the user through naming the design question in one paragraph. Concrete, sco
 
 For research: a falsifiable hypothesis. For UI: "How should users do X?" For architecture: "How do we structure Y given constraints Z?" For library choice: "We need a library that does X with constraints Y."
 
-### 2. Surface real references (3-5)
+This step runs once even when multiple profiles are loaded; profiles refine the question framing in their own steps.
+
+### 2. Run profile-prelude steps
+
+For each loaded profile, run its "before searching" steps (typically labeled `*1` — `A1` for academic, `C1` for competitive, etc.). These steps frame what the search will look for: hypothesis framing for academic, competitor-set scoping for competitive, etc.
+
+Profiles run in declaration order. Their outputs accumulate into the research doc as separate sections.
+
+### 3. Surface real references (3-5)
 
 Use web search, official docs, GitHub, design-pattern catalogs, scholar tools, or domain knowledge to find 3-5 *concrete* references relevant to the question. For each:
 
@@ -60,17 +91,19 @@ Use web search, official docs, GitHub, design-pattern catalogs, scholar tools, o
 
 **Hard rule:** if you can't link to a real reference, don't list it. "There's research on this" or "the literature suggests" or "common pattern" without a link is a tell that the orchestrator hasn't actually found anything. Better to list 2 real items than 5 vague gestures.
 
-### 3. (Optional) List prior systems or tools (2-3)
+Loaded profiles apply their integrity gates here as the references are surfaced — `academic` verifies DOIs, `competitive-landscape` checks source diversity, etc. A reference that fails an active profile's gate is dropped, not padded.
 
-When the references in step 2 were mostly papers / patterns / specs, also enumerate concrete prior systems that *implement* the relevant ideas. For each:
+### 4. (Optional) List prior systems or tools (2-3)
+
+When step 3 produced mostly papers / patterns / specs, also enumerate concrete prior systems that *implement* the relevant ideas. For each:
 
 - Name + URL (GitHub, project page, vendor docs)
 - 1-line takeaway: what does it do that matters here?
 - 1-line gap: what doesn't it do — sets up where this work fits
 
-Skip this step when step 2 already produced concrete systems.
+Skip when step 3 already produced concrete systems.
 
-### 4. Check dependency currency (when third-party touchpoints exist)
+### 5. Check dependency currency (when third-party touchpoints exist)
 
 For any library, framework, or API the design will rely on, verify the *current* state. The agent's training data is months-to-years stale on these specifically — versions advance, APIs deprecate, breaking changes ship.
 
@@ -83,11 +116,21 @@ For each dependency:
 
 Sources: official changelogs, release notes, `npm view <pkg>`, `pip index versions <pkg>`, `cargo info <pkg>`, GitHub Releases pages — **not** blog summaries or third-party tutorials (those lag the source-of-truth).
 
-If a library or API has changed materially since the agent's training cutoff, capture that explicitly in the prior-art doc. The design must target the *current* shape, not the agent's recollection. A spec that compiles against last year's API is a spec that ships broken.
+If a library or API has changed materially since the agent's training cutoff, capture that explicitly. The design must target the *current* shape, not the agent's recollection. A spec that compiles against last year's API is a spec that ships broken.
 
-Skip this step when the design is pure-internal (no third-party touchpoints).
+Skip when the design is pure-internal (no third-party touchpoints).
 
-### 5. Identify similarities and differences
+### 6. Run profile-specific analysis steps
+
+Each loaded profile contributes its analysis steps here:
+
+- `academic` adds replication planning (A3), conflicts and contributions (A4), data/code availability (A5)
+- `competitive-landscape` adds capability matrix (C3), recency check (C4), bias disclosure (C5)
+- Custom profiles add whatever steps their author defined
+
+Steps run in profile-declaration order. Each produces its own section in the output doc.
+
+### 7. Identify similarities and differences
 
 For each major reference, name how this work relates:
 
@@ -99,18 +142,22 @@ Then a short paragraph: what's novel about this work, if anything?
 - Not "we're doing it better" — name the specific novelty (mechanism, scale, domain, integration)
 - If nothing is specifically novel, that's important information: this work may be replication / consolidation / engineering rather than research, which changes the shape of what `designflow` writes
 
-### 6. Save the document
+### 8. Save the document
 
 `doc/research/<feature>.md` (or wherever the project's research artifacts live). Commit it.
 
-### 7. Hand off to designflow
+### 9. Hand off to designflow
 
-The next phase (`wovenflow:designflow`) reads this document as context when drafting the `.spec.md`. Behaviors in the spec should reflect what the references teach — don't re-derive what's known; address the actual gaps.
+The next phase (`wovenflow:designflow`) reads this document as context when drafting the `.spec.md`. Behaviors in the spec should reflect what the references and profile analyses teach — don't re-derive what's known; address the actual gaps.
 
 ## Output template
 
 ```markdown
 # Outside context for <feature>
+
+## Profiles applied
+
+<list — e.g., `academic`, `competitive-landscape`>
 
 ## Question
 
@@ -126,12 +173,10 @@ The next phase (`wovenflow:designflow`) reads this document as context when draf
 ## Prior systems (optional)
 
 - **<name>** — [link](<url>). <one-line takeaway>. *Doesn't:* <one-line gap>.
-- **<name>** — …
 
 ## Dependency currency (when third-party touchpoints exist)
 
-- **<library/API name>** — current stable: `<version>` (released `<date>`). Recent breaking changes: <one line, or "none in last 2 majors">. Deprecations: <one line, or "none active">. Source: [link to official changelog/release notes].
-- **<library/API name>** — …
+- **<library/API name>** — current stable: `<version>` (released `<date>`). Recent breaking changes: <one line>. Deprecations: <one line>. Source: [link to official changelog].
 
 ## Similarities and differences
 
@@ -140,7 +185,49 @@ The next phase (`wovenflow:designflow`) reads this document as context when draf
 
 ## What's novel about this work
 
-<short paragraph; name the specific novelty — mechanism, scale, domain, integration, etc. — or honestly note that the work is replication / consolidation / engineering>
+<short paragraph>
+
+<!-- Per-profile sections appear below, contributed by each loaded profile -->
+
+## Hypothesis and framing
+
+<from the academic profile, if loaded>
+
+## Citation integrity log
+
+<from the academic profile>
+
+## Replication plan
+
+<from the academic profile>
+
+## Conflicts and contributions
+
+<from the academic profile>
+
+## Data and code availability
+
+<from the academic profile>
+
+## Competitor set
+
+<from the competitive-landscape profile, if loaded>
+
+## Source-class log
+
+<from the competitive-landscape profile>
+
+## Capability matrix
+
+<from the competitive-landscape profile>
+
+## Recency check
+
+<from the competitive-landscape profile>
+
+## Bias and conflicts
+
+<from the competitive-landscape profile>
 ```
 
 ## Integration with the wovenflow core
@@ -158,5 +245,7 @@ The next phase (`wovenflow:designflow`) reads this document as context when draf
 - **Vague gestures.** "There's research on this," "common pattern," "industry standard" — without a link, these are noise. Surface concrete items or say nothing.
 - **Trusting the agent's recollection of library versions or API shapes.** That recollection is, by construction, at the training cutoff. Always verify against an official source for any dependency the design will touch.
 - **Treating researchflow as a literature review or full design audit.** It's a *targeted* outside-context survey for this specific decision. 3-5 references is the budget — don't sprawl.
-- **Running this for mechanical work.** Renaming a variable, fixing a typo, applying a known pattern in a known place — no outside context needed. Use this when the design choice genuinely depends on what others have tried.
+- **Running this for mechanical work.** Renaming a variable, fixing a typo, applying a known pattern in a known place — no outside context needed.
 - **Skipping when there's "nothing novel."** "No one has done exactly this" almost always means there's adjacent prior art — methods, tools, formulations. List those.
+- **Loading profiles that don't apply.** A profile costs steps and rigor; loading `academic` for a "pick a date library" decision is bureaucracy theater. Pick profiles that match the actual question.
+- **Inventing project-local profiles for one-off needs.** Profiles encode patterns the project will reuse. For a single specialized question, the base flow plus an ad-hoc note in the doc is enough.
