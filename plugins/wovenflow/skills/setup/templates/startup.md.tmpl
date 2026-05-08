@@ -67,28 +67,31 @@ This should be idempotent — safe to call when already started. If it isn't, fi
 
 ### 5. Resume or claim the task
 
-**First, check for an already-in-progress task** (the prior session's `wrap-up` may have claimed one for resumption):
+**First, check for an already-in-progress task** (the prior session's `wrap-up` may have reserved one for resumption):
 
 {{IF TASK_SOURCE_GITHUB}}
 ```
 gh issue list {{IF AGENT_LABEL}}--label {{AGENT_LABEL}} {{ENDIF}}--label {{LABEL_IN_PROGRESS}} --state open
 ```
 {{ENDIF}}{{IF TASK_SOURCE_TASKS}}
-Open `{{TASKS_FILE}}` and find rows with Status = `{{STATUS_IN_PROGRESS}}` and Owner = `@me`.
+```
+{{TASKS_HELPER}} list --status {{STATUS_IN_PROGRESS}} --owner @me
+```
 {{ENDIF}}
-
-If exactly one in-progress task is found, that's the resume target. Read its body, any plan comments, and the prior session's checkpoint to refresh context. **Don't re-claim** — just continue.
 
 If multiple in-progress tasks exist, ask the user which to resume (use `AskUserQuestion`).
 
-**If no in-progress task exists**, fall back to picking from cold via the project's `claim` skill:
+**If exactly one in-progress task is found, run the project's `claim` skill on it** — `/claim <id>`. The claim flow is idempotent: the status flip step is a no-op when the task is already in-progress (a `wrap-up`-reserved task), but {{IF ARCH_DOC}}the architecture refresh, {{ENDIF}}clarifying questions{{IF TASK_SOURCE_GITHUB}}, and plan comment{{ENDIF}} still run with fresh attention. This is the recommended path: `wrap-up` reserves; `startup` completes the claim.
+
+**If no in-progress task exists**, pick from cold via the project's `claim` skill:
 
 {{IF TASK_SOURCE_GITHUB}}
 - Available to pick up: `gh issue list --label {{LABEL_READY}} --state open`
 - Then `/claim <id>` to run the full claim flow
 {{ENDIF}}{{IF TASK_SOURCE_TASKS}}
-- Open `{{TASKS_FILE}}` and look for the highest-priority `{{STATUS_READY}}` row
-- Then `/claim <id>` (or just `/claim` to auto-pick) to run the full claim flow
+- Available to pick up: `{{TASKS_HELPER}} list --status {{STATUS_READY}}`
+- Or auto-pick the highest-priority ready task: `{{TASKS_HELPER}} next`
+- Then `/claim <id>` to run the full claim flow
 {{ENDIF}}
 
 ### 6. Report ready and begin
@@ -107,4 +110,4 @@ Then continue with the project's standard workstream — typically Phase 2 (clar
 - **Auto-resolving merge conflicts** — they signal divergent assumptions; the user decides
 - **Skipping the instruction diff** — silently violating new rules is worse than asking
 {{IF ARCH_DOC}}- **Skipping the architecture refresh** — orientation drift; suggestions will increasingly conflict with the project's actual shape
-{{ENDIF}}- **Re-claiming an already-in-progress task** — wastes the marker history; just refresh context
+{{ENDIF}}- **Treating a reserved task as fully claimed** — when wrap-up reserved a task, run `/claim <id>` at startup so {{IF ARCH_DOC}}the architecture refresh, {{ENDIF}}clarifying questions{{IF TASK_SOURCE_GITHUB}}, and plan comment{{ENDIF}} happen with fresh attention. The claim skill is idempotent on the status flip.

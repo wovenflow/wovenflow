@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""Reference helper for wovenflow {{TASKS_FILE}} projects.
+
+Parses and updates the task table programmatically so skills
+don't have to reason about markdown formatting.
+
+Usage:
+    {{TASKS_HELPER}} list [--status STATUS] [--owner OWNER]
+    {{TASKS_HELPER}} show <id>
+    {{TASKS_HELPER}} next [--status STATUS]
+    {{TASKS_HELPER}} set <id> [--status STATUS] [--owner OWNER] [--notes NOTES]
+
+Set commands are idempotent — re-applying the same value reports "no change"
+and exits 0 without rewriting the file. Skills can call set without first
+checking current state.
+"""
+import argparse
+import os
+import re
+import sys
+
+DEFAULT_TASKS_FILE = "{{TASKS_FILE}}"
+PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+
+
+def parse_table(lines):
+    header_idx = sep_idx = None
+    row_idxs = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if header_idx is not None and row_idxs:
+                break
+            continue
+        if header_idx is None:
+            header_idx = i
+        elif sep_idx is None and re.match(r"^\|[\s\-:|]+\|\s*$", stripped):
+            sep_idx = i
+        elif sep_idx is not None:
+            row_idxs.append(i)
+    if header_idx is None or sep_idx is None:
+        sys.exit("No task table found")
+    columns = [c.strip() for c in lines[header_idx].strip().strip("|").split("|")]
+    return columns, row_idxs
+
+
+def parse_row(line, columns):
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    while len(cells) < len(columns):
+        cells.append("")
+    return dict(zip(columns, cells[: len(columns)]))
+
+
+def format_row(values, columns):
+    return "| " + " | ".join(values.get(c, "") for c in columns) + " |\n"
+
+
+def load(path):
+    with open(path) as f:
+        return f.readlines()
+
+
+def save(path, lines):
+    with open(path, "w") as f:
+        f.writelines(lines)
+
+
+def find_row(lines, columns, row_idxs, task_id):
+    for i in row_idxs:
+        row = parse_row(lines[i], columns)
+        if row.get("ID") == task_id:
+            return i, row
+    return None, None
+
+
+def cmd_list(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    for i in row_idxs:
+        row = parse_row(lines[i], columns)
+        if args.status and row.get("Status") != args.status:
+            continue
+        if args.owner and row.get("Owner") != args.owner:
+            continue
+        print(
+            f"{row.get('ID', ''):<8} {row.get('Status', ''):<14} "
+            f"{row.get('Priority', ''):<4} {row.get('Title', '')}"
+        )
+
+
+def cmd_show(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    _, row = find_row(lines, columns, row_idxs, args.id)
+    if row is None:
+        sys.exit(f"Task {args.id} not found")
+    for c in columns:
+        print(f"{c}: {row.get(c, '')}")
+
+
+def cmd_next(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    target = args.status or "ready"
+    candidates = [parse_row(lines[i], columns) for i in row_idxs]
+    candidates = [r for r in candidates if r.get("Status") == target]
+    if not candidates:
+        sys.exit(f"No tasks with status '{target}'")
+    candidates.sort(
+        key=lambda r: (PRIORITY_ORDER.get(r.get("Priority", "P9"), 9), r.get("ID", ""))
+    )
+    print(candidates[0]["ID"])
+
+
+def cmd_set(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    idx, row = find_row(lines, columns, row_idxs, args.id)
+    if row is None:
+        sys.exit(f"Task {args.id} not found")
+    updates = {}
+    for col, value in (("Status", args.status), ("Owner", args.owner), ("Notes", args.notes)):
+        if value is None:
+            continue
+        if row.get(col, "") == value:
+            continue
+        updates[col] = value
+    if not updates:
+        print(f"{args.id}: no change")
+        return
+    row.update(updates)
+    lines[idx] = format_row(row, columns)
+    save(args.file, lines)
+    summary = ", ".join(f"{k}={v}" for k, v in updates.items())
+    print(f"{args.id}: {summary}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="wovenflow tasks.md helper")
+    parser.add_argument("--file", default=DEFAULT_TASKS_FILE)
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("list")
+    p.add_argument("--status")
+    p.add_argument("--owner")
+    p.set_defaults(func=cmd_list)
+
+    p = sub.add_parser("show")
+    p.add_argument("id")
+    p.set_defaults(func=cmd_show)
+
+    p = sub.add_parser("next")
+    p.add_argument("--status")
+    p.set_defaults(func=cmd_next)
+
+    p = sub.add_parser("set")
+    p.add_argument("id")
+    p.add_argument("--status")
+    p.add_argument("--owner")
+    p.add_argument("--notes")
+    p.set_defaults(func=cmd_set)
+
+    args = parser.parse_args()
+    if not os.path.exists(args.file):
+        sys.exit(f"Task file not found: {args.file}")
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

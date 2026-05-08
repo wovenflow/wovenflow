@@ -191,6 +191,7 @@ For the universal patterns of the cycle, wovenflow ships fill-in templates that 
 | `claim-github.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in GitHub Issues |
 | `claim-tasks.md.tmpl` | `<repo>/.claude/skills/claim/SKILL.md` | Project tracks work in a `tasks.md` file |
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker (only when `claim-tasks` is picked and the file doesn't already exist) |
+| `tasks.py.tmpl` | `<repo>/scripts/tasks.py` | Reference Python helper for `tasks.md` projects (only when `claim-tasks` is picked). Skills invoke `tasks.py set <id> --status …` instead of editing markdown directly — atomic, idempotent, no prose-parsing. |
 | `startup.md.tmpl` | `<repo>/.claude/skills/startup/SKILL.md` | Session bootstrap (pre-Phase 1) — sync, instruction diff, architecture refresh, identify task |
 | `verify.md.tmpl` | `<repo>/.claude/skills/verify/SKILL.md` | Verification gate (Phase 7) — tests, coverage audit, UI/manual walkthrough, adversarial review |
 | `ship-pr.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship via pull request (Phase 8) — push, `gh pr create`, mark task in-review |
@@ -357,7 +358,7 @@ If a template matches, follow 3b. Otherwise skip to 3c.
 
 4. Write to `<repo>/.claude/skills/<name>/SKILL.md`.
 
-5. **Special case for `claim-tasks`:** if `<repo>/<TASKS_FILE>` doesn't exist, also materialize `tasks.md.tmpl` to that path with the same variables. The project starts with a usable task tracker.
+5. **Special case for `claim-tasks`:** if `<repo>/<TASKS_FILE>` doesn't exist, also materialize `tasks.md.tmpl` to that path with the same variables. The project starts with a usable task tracker. Always materialize `tasks.py.tmpl` to `<repo>/<TASKS_HELPER>` (default: `scripts/tasks.py`) and `chmod +x` it — `claim-tasks`, `wrap-up`, and `startup` all invoke this helper. Default `TASKS_HELPER=scripts/tasks.py`; ask the user only if they want it elsewhere.
 
 #### 3c. Fall back to skill-creator (no template available)
 

@@ -17,6 +17,7 @@ The `setup` wizard performs the substitution before writing the file.
 | `claim-github.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a GitHub issue (Phase 1 of the workstream) |
 | `claim-tasks.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a task from a `tasks.md` file (Phase 1, alternative source) |
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker file (only when the user picks the `tasks.md` claim variant) |
+| `tasks.py.tmpl` | `<repo>/scripts/tasks.py` | Reference Python helper that parses and updates `tasks.md` programmatically. Skills (`claim-tasks`, `wrap-up`, `startup`) invoke `tasks.py set <id> --status …` instead of editing markdown by hand. Idempotent — re-applying the same value is a no-op. |
 | `startup.md.tmpl` | `.claude/skills/startup/SKILL.md` | Session bootstrap: sync, instruction-diff, architecture refresh, identify task |
 | `wrap-up.md.tmpl` | `.claude/skills/wrap-up/SKILL.md` | Session close-out: dangling commits, status reconciliation, next-task suggestion |
 | `verify.md.tmpl` | `.claude/skills/verify/SKILL.md` | Phase 7 verification gate: tests, coverage audit, UI/manual walkthrough, adversarial review |
@@ -49,6 +50,7 @@ GitHub-specific:
 | Variable | Meaning | Example |
 |---|---|---|
 | `TASKS_FILE` | Path to the task tracker file | `tasks.md` |
+| `TASKS_HELPER` | Invocation for the `tasks.py` helper | `scripts/tasks.py` |
 | `STATUS_READY` | Status value: ready | `ready` |
 | `STATUS_IN_PROGRESS` | Status value: in progress | `in-progress` |
 | `STATUS_IN_REVIEW` | Status value: in review | `in-review` |

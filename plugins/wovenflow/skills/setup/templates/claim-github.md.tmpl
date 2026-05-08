@@ -72,11 +72,21 @@ Don't claim with unresolved ambiguity. Guesses compound; questions get resolved 
 gh issue edit <id> {{IF AGENT_LABEL}}--add-label {{AGENT_LABEL}} {{ENDIF}}--add-label {{LABEL_IN_PROGRESS}} --remove-label {{LABEL_READY}} --add-assignee @me
 ```
 
+`gh issue edit` is idempotent — re-applying the same labels and assignee is a no-op. If the prior session's `wrap-up` already reserved this issue (label set, assignee set), the command silently confirms current state. Run it anyway; it's the cheapest way to be sure.
+
 This signals to other agents and the project board that the issue is taken.
 
 ### 6. Post a plan comment
 
 Draft a 3-5 bullet plan and post it as a comment. The comment survives session restarts and is visible to other agents.
+
+First, check whether a plan comment already exists (e.g., the issue was claimed by an earlier session that posted one):
+
+```
+gh issue view <id> --json comments --jq '.comments[].body' | grep -m1 "^## Plan" >/dev/null && echo "plan already posted"
+```
+
+If a plan comment exists, skip this step. Otherwise post:
 
 ```
 gh issue comment <id> --body "$(cat <<'EOF'

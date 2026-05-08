@@ -55,10 +55,10 @@ gh issue comment <id> --body "Pausing here. Next: ..."
 {{ENDIF}}{{IF TASK_SOURCE_TASKS}}
 For every row in `{{TASKS_FILE}}` you own:
 
-- PR open: set Status to `{{STATUS_IN_REVIEW}}`
-- Still working: leave Status at `{{STATUS_IN_PROGRESS}}`
-- PR merged: set Status to `{{STATUS_DONE}}`
-- Stepping away mid-work: append a Notes update with where you left off
+- PR open: `{{TASKS_HELPER}} set <id> --status {{STATUS_IN_REVIEW}}`
+- Still working: leave Status at `{{STATUS_IN_PROGRESS}}` (no helper call needed)
+- PR merged: `{{TASKS_HELPER}} set <id> --status {{STATUS_DONE}}`
+- Stepping away mid-work: `{{TASKS_HELPER}} set <id> --notes "<where you left off>"`
 
 ```
 git add {{TASKS_FILE}}
@@ -95,7 +95,7 @@ If 1+ signal appears, offer to run `wovenflow:flowtune` via `AskUserQuestion`:
 
 If no signals, skip this step silently — the workflow is working.
 
-### 6. Claim the next task
+### 6. Reserve the next task
 
 Identify the most natural follow-on, in priority order:
 
@@ -103,9 +103,26 @@ Identify the most natural follow-on, in priority order:
 2. The next-highest-priority `{{IF TASK_SOURCE_GITHUB}}{{LABEL_READY}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_READY}}{{ENDIF}}` task
 3. A previously-blocked task that may now be unblocked by other work
 
-Confirm the choice with the user using `AskUserQuestion`, then invoke the project's `claim` skill on it (e.g., `/claim <id>`). The full claim flow runs — {{IF ARCH_DOC}}architecture refresh, {{ENDIF}}clarifying questions, {{IF TASK_SOURCE_GITHUB}}label{{ENDIF}}{{IF TASK_SOURCE_TASKS}}status{{ENDIF}} update, plan comment.
+Confirm the choice with the user using `AskUserQuestion`. On confirmation, **only flip the status** — do not run the full claim flow. The session-start steps ({{IF ARCH_DOC}}architecture refresh, {{ENDIF}}clarifying questions{{IF TASK_SOURCE_GITHUB}}, plan comment{{ENDIF}}) belong at the start of the next session, when the user is paying fresh attention.
 
-**Why claim at wrap-up:** starting next session with a task already `{{IF TASK_SOURCE_GITHUB}}{{LABEL_IN_PROGRESS}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_IN_PROGRESS}}{{ENDIF}}` is simpler than starting cold. The next `startup` becomes "resume work on `<id>`" instead of "pick a task and decide."
+{{IF TASK_SOURCE_GITHUB}}
+```
+gh issue edit <id> {{IF AGENT_LABEL}}--add-label {{AGENT_LABEL}} {{ENDIF}}--add-label {{LABEL_IN_PROGRESS}} --remove-label {{LABEL_READY}} --add-assignee @me
+```
+{{ENDIF}}{{IF TASK_SOURCE_TASKS}}
+```
+{{TASKS_HELPER}} set <id> --status {{STATUS_IN_PROGRESS}} --owner @me
+```
+
+If the helper reports a change, commit it:
+
+```
+git add {{TASKS_FILE}}
+git commit -m "chore(tasks): reserve <id>"
+```
+{{ENDIF}}
+
+**Why reserve, not claim:** starting next session with a task already `{{IF TASK_SOURCE_GITHUB}}{{LABEL_IN_PROGRESS}}{{ENDIF}}{{IF TASK_SOURCE_TASKS}}{{STATUS_IN_PROGRESS}}{{ENDIF}}` is simpler than starting cold — `startup` resumes a known target instead of picking from scratch. But a stale architecture refresh and a plan comment posted at session-end aren't useful; they belong at session-start. So wrap-up reserves only; the next session's `startup` runs the project's `claim` skill (which is idempotent on the status flip), completing the architecture refresh, clarifying questions, and plan-comment steps with fresh attention.
 
 If no clear next task exists, skip this step. Next session's `startup` will pick from cold.
 
@@ -114,5 +131,5 @@ If no clear next task exists, skip this step. Next session's `startup` will pick
 - **Leaving commits unpushed** — work is invisible to others; risk of loss on disk failure
 - **Stale status** — the task tracker diverges from reality; other contributors trust stale data
 - **No checkpoint** — future-you re-derives context from scratch, costing 10-30 minutes per session
-- **Auto-claiming without confirmation** — wrap-up should *propose* the next task and confirm with the user before invoking the claim skill; never silently take over a new task at session-end
-- **Skipping the claim flow when claiming** — if you do claim at wrap-up, run the project's full `claim` skill; don't shortcut the {{IF ARCH_DOC}}architecture refresh or {{ENDIF}}plan-comment steps
+- **Auto-reserving without confirmation** — wrap-up should *propose* the next task and confirm with the user before flipping status; never silently take over a new task at session-end
+- **Running the full claim flow at wrap-up** — architecture refresh, clarifying questions, and plan comments belong at session-start when the user is paying fresh attention. Reserve flips status only; the next `startup` completes the claim.

@@ -46,9 +46,13 @@ If anything is ambiguous, ask before claiming. Use `AskUserQuestion` with struct
 
 ### 5. Update the table
 
-Edit `{{TASKS_FILE}}`:
-- Set the row's **Status** column to `{{STATUS_IN_PROGRESS}}`
-- Set the **Owner** column to `@me` (or the agent's identifier)
+Use the project's task helper to flip status and owner:
+
+```
+{{TASKS_HELPER}} set <id> --status {{STATUS_IN_PROGRESS}} --owner @me
+```
+
+The helper is idempotent — if the task is already `{{STATUS_IN_PROGRESS}}` (e.g., reserved by the prior session's `wrap-up`), it reports "no change" and exits 0. Don't manually edit `{{TASKS_FILE}}` — the helper handles markdown formatting consistently.
 
 Commit:
 
@@ -56,6 +60,8 @@ Commit:
 git add {{TASKS_FILE}}
 git commit -m "chore(tasks): claim <id>"
 ```
+
+If `git status` shows no change after the helper run, skip the commit — the table was already current.
 
 ### 6. Hand off to the next phase
 
