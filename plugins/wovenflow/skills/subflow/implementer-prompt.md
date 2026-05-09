@@ -63,7 +63,32 @@ Task tool (general-purpose):
 
       <REPO_WORKING_DIR>
 
-    In parallel mode, this is a per-behavior git worktree on its own branch (`wovenflow/<behavior-id>`). Treat it as a normal repo: edit, run tests, and `git commit` from inside this directory. Your commits go on the current branch automatically. Do NOT try to switch branches or merge — the orchestrator handles merge-back after reviews approve.
+    In Team and Parallel modes, this is a per-behavior git worktree on its own branch (`wovenflow/<behavior-id>`). In Sequential mode it's the project root. Treat it as a normal repo: edit, run tests, and `git commit` from inside this directory. Your commits go on the current branch automatically. Do NOT try to switch branches or merge — the orchestrator handles merge-back after reviews approve.
+
+    ## Team mode (only if these inputs are filled in)
+
+      Team name:        <TEAM_NAME>            (e.g., wovenflow-2026-05-04-feature)
+      Your name:        <TEAMMATE_NAME>        (e.g., impl-B1)
+      Your task id:     <TASK_ID>              (e.g., impl-B1)
+
+    If those are filled in, you are running as a persistent teammate inside an Agent Team (the harness has `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set). If they are blank, you are running as a one-shot subagent — skip this section.
+
+    Differences when running as a teammate:
+
+    - **Status reporting goes through `TaskUpdate`, not the return message.** When you finish (or hit a blocker), call `TaskUpdate` on your task id with the status and notes; then idle. The orchestrator sees your idle notification.
+      - DONE: `TaskUpdate({ task_id: "<TASK_ID>", status: "completed", notes: "DONE: <one-paragraph summary>; tests <N> pass" })`
+      - DONE_WITH_CONCERNS: same with `notes: "DONE_WITH_CONCERNS: ..."` listing concerns
+      - BLOCKED: `TaskUpdate({ task_id: "<TASK_ID>", status: "blocked", notes: "BLOCKED: <reason>" })` plus `SendMessage({ to: "team-lead", summary: "B1 blocked", message: "<full reason>" })`
+    - **NEEDS_CONTEXT becomes a message, not a termination.** Don't end your turn. Call:
+      ```
+      SendMessage({ to: "team-lead", summary: "B1 needs context", message: "<your specific question>" })
+      ```
+      Then idle. The orchestrator answers via `SendMessage`; you resume from the same context.
+    - **Reviewer feedback arrives via `SendMessage`.** When the spec-compliance or code-quality reviewer marks `NEEDS_FIX`, the orchestrator (or the reviewer directly) sends you a message with the fix list. Wake on that message, fix, run tests green again, and `TaskUpdate` your task back to `completed` with new notes. Do NOT create a new task.
+    - **Peer DMs are clarification only.** You can `SendMessage` other implementers (e.g., `impl-B3`) to align on a shared interface or naming. **You cannot decide spec changes together.** If the conversation reveals the spec is under-specified, escalate via `SendMessage({ to: "team-lead", ... })` — the orchestrator updates the `.spec.md` and re-notifies impacted teammates. If you and a peer just "agree on a shape" without orchestrator update, the spec-compliance reviewer will catch it as `NEEDS_FIX`.
+    - **Discover peers** by reading `~/.claude/teams/<TEAM_NAME>/config.json`. Address peers by name (`impl-B3`), never by UUID.
+    - **Don't send structured JSON status messages** like `{"type":"task_completed",...}` — use `TaskUpdate` for status; use `SendMessage` for plain-text communication.
+    - **Don't originate `shutdown_request`.** The orchestrator manages teardown.
 
     ## Before you begin — ask clarifying questions
 
@@ -85,10 +110,12 @@ Task tool (general-purpose):
 
        `<concise summary>: implement <BEHAVIOR_ID> per <spec-filename>`
 
-    4. Report your status (canonical values below) plus:
-       - One paragraph summarizing what you implemented (which files, which functions)
-       - Test pass count
-       - Any concerns
+    4. Report your status:
+       - **Team mode:** `TaskUpdate` your task id (see Team mode section above) and idle. Do not return a long status message.
+       - **One-shot mode (Parallel / Sequential):** return your status (canonical values below) plus:
+         - One paragraph summarizing what you implemented (which files, which functions)
+         - Test pass count
+         - Any concerns
 
     ## Status reporting (canonical)
 

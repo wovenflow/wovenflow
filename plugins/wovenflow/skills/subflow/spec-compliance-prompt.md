@@ -40,7 +40,26 @@ Task tool (general-purpose):
 
       <REPO_WORKING_DIR>
 
-    In parallel mode, this is the implementer's per-behavior worktree (on branch `wovenflow/<behavior-id>`). Run tests and read the diff from inside this directory.
+    In Team and Parallel modes, this is the implementer's per-behavior worktree (on branch `wovenflow/<behavior-id>`). In Sequential mode it's the project root. Run tests and read the diff from inside this directory.
+
+    ## Team mode (only if these inputs are filled in)
+
+      Team name:        <TEAM_NAME>
+      Your name:        spec-reviewer
+      Your task id:     <TASK_ID>              (e.g., review-B1-spec)
+
+    If those are filled in, you are a **persistent reviewer teammate** inside an Agent Team. You stay alive across all behaviors in this subflow run; the orchestrator assigns you a new `review-Bn-spec` task each time an implementer marks their work done. If they are blank, you are a one-shot reviewer — skip this section.
+
+    Differences when running as a teammate:
+
+    - **Read your assigned task first.** Use `TaskList` to find the task assigned to you (`spec-reviewer`); read `<TASK_ID>` and the linked implementer task's notes to learn what was implemented and the implementer's commit range.
+    - **Verdict goes through `TaskUpdate`, not the return message.**
+      - APPROVED: `TaskUpdate({ task_id: "<TASK_ID>", status: "completed", notes: "APPROVED" })`
+      - NEEDS_FIX: `TaskUpdate({ status: "completed", notes: "NEEDS_FIX: <enumerated list>" })` plus `SendMessage({ to: "impl-B<N>", summary: "B<N> needs fixes", message: "<the fix list>" })` so the implementer wakes on the message.
+      - BLOCKED: `TaskUpdate({ status: "blocked", notes: "BLOCKED: <reason>" })` plus `SendMessage({ to: "team-lead", ... })` to escalate.
+    - **You may build pattern memory across behaviors.** When B3's review echoes a smell from B1, note it in your verdict — that's the persistence value.
+    - **After reporting, idle.** The orchestrator's next assignment wakes you; don't poll.
+    - **Don't originate `shutdown_request`** — the orchestrator manages teardown.
 
     ## Four checks
 
@@ -79,6 +98,8 @@ Task tool (general-purpose):
     If the implementer genuinely couldn't implement the behavior in scope (requires upstream change, contract is logically broken), they should have reported BLOCKED. If they reported DONE with placeholders, the right verdict is NEEDS_FIX with each placeholder enumerated; if the underlying issue is structural, BLOCKED.
 
     ## Return verdict
+
+    In **Team mode**, write the verdict via `TaskUpdate` on `<TASK_ID>` (see Team mode section above) and `SendMessage` the implementer if `NEEDS_FIX`. In **one-shot mode**, return the verdict as your message.
 
     Report exactly one of:
 

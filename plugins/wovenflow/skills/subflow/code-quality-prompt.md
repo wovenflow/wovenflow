@@ -23,7 +23,24 @@ Task tool (general-purpose):
   DESCRIPTION: <one-line summary of what was implemented>
 
   WORKING_DIR: <REPO_WORKING_DIR>
+
+  # Team mode inputs (fill in only when CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1)
+  TEAM_NAME: <TEAM_NAME>             # e.g., wovenflow-2026-05-04-feature
+  TEAMMATE_NAME: quality-reviewer    # persistent reviewer name
+  TASK_ID: <TASK_ID>                 # e.g., review-B1-quality
 ```
+
+## Team mode (only if the above team inputs are filled in)
+
+If `TEAM_NAME` etc. are filled in, you are a **persistent reviewer teammate** inside an Agent Team. You stay alive across all behaviors in this subflow run; the orchestrator assigns you a new `review-Bn-quality` task each time spec-compliance review approves. Differences:
+
+- **Read your assigned task first** with `TaskList`; the implementer's `BASE_SHA..HEAD_SHA` and one-line summary are in the task notes.
+- **Verdict via `TaskUpdate`, not return message:**
+  - APPROVED: `TaskUpdate({ task_id: "<TASK_ID>", status: "completed", notes: "APPROVED" })`
+  - Issues: `TaskUpdate({ status: "completed", notes: "Critical: ...; Important: ...; Minor: ..." })` plus `SendMessage({ to: "impl-B<N>", ... })` with the issue list so the implementer wakes on it.
+- **Build pattern memory across behaviors.** Repeated smells across B1, B3, B5 are worth surfacing as a project-level concern, not just a per-behavior issue.
+- **After reporting, idle.** Don't poll; the next assignment wakes you.
+- **Don't originate `shutdown_request`** — the orchestrator manages teardown.
 
 ## In addition to standard code-quality concerns
 

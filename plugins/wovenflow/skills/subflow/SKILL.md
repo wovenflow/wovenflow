@@ -81,11 +81,120 @@ Each H3 behavior section (`### B1: ...`) in the spec is one task. One subagent i
 
 If two behaviors share enough implementation that splitting them produces redundant work, dispatch them together (one subagent, two behaviors). Document the coupling in the dispatch prompt. Default is one-per-subagent unless coupling is obvious.
 
-## Parallel dispatch (default)
+## Dispatch modes
 
-All behavior-implementer subagents run in parallel. Each gets its own git worktree, branched from the same starting commit. They never compete for files, never see each other's half-built code, and commit to independent branches that the orchestrator merges back when reviews approve.
+Subflow supports three dispatch modes. The orchestrator picks the best available at the start of the run.
 
-> **Recommended:** set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in your Claude Code settings (`~/.claude/settings.json` under `env`, or per-project `.claude/settings.json`). This exposes the experimental `TeamCreate` / `TeamDelete` / `SendMessage` tools, giving the orchestrator richer primitives for coordinating a parallel-dispatch team — including direct messaging when an implementer hits a `NEEDS_CONTEXT` moment, instead of round-tripping through the orchestrator. Subflow runs without it, but the dispatch is already team-shaped; the flag is the natural fit. Configure via `update-config` or edit `settings.json` directly.
+| Mode | When | Recommended for |
+|---|---|---|
+| **Team mode** | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set and `TeamCreate` is available | Default when the flag is on. Persistent named teammates, mid-flight messaging, shared task list. |
+| **Parallel mode** | Flag off; worktrees viable | Default when the flag is off. One-shot subagent dispatch per behavior into per-behavior worktrees. |
+| **Sequential mode** | Flag off; worktrees not viable, or behaviors share scaffolding | Fallback. One subagent at a time in the orchestrator's working tree. |
+
+**Mode detection:** at start of the run, the orchestrator probes `TeamCreate`. If it succeeds, Team mode. If it errors with "tool not available" (or equivalent indicating the flag isn't set), fall back to Parallel mode. Report the chosen mode in the first progress message so the user can see which path is running.
+
+**Recommended:** set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in your Claude Code settings (`~/.claude/settings.json` under `env`, or per-project `.claude/settings.json`). Subflow runs without it; the flag unlocks the better path. Configure via `update-config` or edit `settings.json` directly.
+
+## Team mode (recommended; flag on)
+
+Replaces the one-shot dispatch model with **persistent named teammates** who share a task list and exchange messages. Worktree mechanics stay identical to Parallel mode (one tree per behavior, same `worktree.mjs` helper); only the dispatch and coordination layer changes.
+
+### Why Team mode
+
+Three concrete wins over Parallel mode:
+
+1. **`NEEDS_CONTEXT` becomes a message, not a re-spawn.** Implementer DMs the orchestrator with the question and idles; orchestrator answers; implementer resumes from the same context. No re-spawn cost (no re-reading spec, no re-loading codebase).
+2. **Reviewers persist across behaviors.** One `spec-reviewer` and one `quality-reviewer` teammate stay alive for the whole subflow run, picking reviews off the shared task list. They build pattern memory ("B1 had a similar lifecycle issue") instead of cold-starting per behavior.
+3. **Peer DMs surface coupling early.** Implementers can message peers about shared interfaces and naming. Orchestrator sees a summary in idle notifications and intervenes only when needed. Conflicts that would otherwise show up at merge time surface during implementation.
+
+### Setup
+
+1. **Probe + create the team.**
+   ```
+   TeamCreate({
+     team_name: "wovenflow-<feature-slug>",
+     description: "Subflow build for <spec-filename>"
+   })
+   ```
+   Slug = `.spec.md` basename, lowercased, no path. One team per feature.
+
+2. **Create a worktree per behavior** (same as Parallel mode):
+   ```
+   node <plugin>/skills/subflow/worktree.mjs create B1
+   ```
+
+3. **Spawn implementer teammates** — one per behavior, in a single message:
+   ```
+   Agent({
+     subagent_type: "general-purpose",
+     team_name: "wovenflow-<feature-slug>",
+     name: "impl-B1",
+     prompt: <implementer-prompt.md filled in for B1>,
+     working_dir: <worktree path for B1>
+   })
+   ```
+   Use `name: "impl-Bn"` so peers and reviewers can address each other by behavior id.
+
+4. **Spawn two persistent reviewer teammates** — `spec-reviewer` and `quality-reviewer`. They stay alive across all behaviors and pick reviews off the shared task list.
+
+5. **Seed the task list.** `TaskCreate` one task per behavior:
+   - `id: "impl-Bn"`, `owner: "impl-Bn"`, `status: "in_progress"`, `description: "Implement Bn per <spec>"`.
+   - Reviewer tasks (`review-Bn-spec`, `review-Bn-quality`) are created later, when each implementer marks its task done.
+
+### Lifecycle (per behavior)
+
+1. Implementer reads its task; reads `.spec.md` by file path; implements; runs tests green; commits in its worktree; marks its task `completed` via `TaskUpdate` with verdict (`DONE` / `DONE_WITH_CONCERNS`) in notes; idles.
+2. Orchestrator receives the idle notification with task summary. Creates `review-Bn-spec` task assigned to `spec-reviewer`.
+3. `spec-reviewer` wakes on assignment, reviews in the Bn worktree, marks task `completed` with verdict (`APPROVED` / `NEEDS_FIX` / `BLOCKED`) in notes, idles.
+4. If `NEEDS_FIX`: orchestrator `SendMessage`s `impl-Bn` with the fix list. Implementer wakes, fixes, marks the original task done again. **No re-spawn** — same context, same persona, same in-memory state.
+5. If `APPROVED`: orchestrator creates `review-Bn-quality` task assigned to `quality-reviewer`. Same loop for code-quality verdict (Critical / Important / Minor).
+6. When both reviews approved: orchestrator runs `worktree.mjs merge Bn <orchestrator-branch>`. Worktree torn down.
+7. After all behaviors merged: orchestrator sends `shutdown_request` to each teammate, awaits approvals, calls `TeamDelete`.
+
+### Mid-flight clarification (the NEEDS_CONTEXT path)
+
+When an implementer hits ambiguity:
+
+- It does **not** terminate. It sends:
+  ```
+  SendMessage({ to: "team-lead", summary: "B1 needs context", message: "..." })
+  ```
+- Orchestrator answers via `SendMessage` to `impl-B1`.
+- Implementer resumes from the same state. No spec re-parse, no codebase re-orient.
+
+### Peer DMs (cross-behavior coordination)
+
+Implementers can DM peers about shared interfaces, naming choices, or invariants:
+
+> `impl-B1` → `impl-B3`: "I'm exposing this as `User.signup(email, password)`. Does that match what you're consuming?"
+
+Orchestrator sees a brief summary in its idle notification (peer DM visibility). Don't intervene unless coordination escalates.
+
+**Source-of-truth rule (critical):** peer DMs are **clarification only**. They surface ambiguity; they do **not** resolve it through informal agreement. If a peer DM reveals that the spec is under-specified (two behaviors must agree on a shape the spec doesn't pin down), the implementers **must escalate to the orchestrator**. The orchestrator updates the `.spec.md`, re-notifies impacted teammates via `SendMessage`, and re-runs the pretest extractor if test code changed. Peers do **not** "just decide together" and proceed — that's spec drift, and the spec-compliance reviewer will catch it as `NEEDS_FIX` (implementation doesn't match the prose).
+
+### TaskUpdate as the status surface
+
+In Team mode, status reporting flows through the shared task list, not subagent return values:
+
+| Event | TaskUpdate |
+|---|---|
+| Implementer ready to review | `status: completed`, `notes: "DONE: <one-paragraph summary>; tests <N> pass"` |
+| Implementer ran into uncertainty | `notes: "NEEDS_CONTEXT: <question>"` plus `SendMessage` to team-lead |
+| Implementer blocked structurally | `status: blocked`, `notes: "BLOCKED: <reason>"` plus `SendMessage` to team-lead |
+| Spec-reviewer verdict | `status: completed`, `notes: "APPROVED" | "NEEDS_FIX: <list>" | "BLOCKED: <reason>"` |
+| Quality-reviewer verdict | `status: completed`, `notes: "APPROVED" | "Issues: Critical=...; Important=...; Minor=..."` |
+
+The status semantics (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED for implementers; APPROVED / NEEDS_FIX / BLOCKED for spec reviewer; APPROVED / Issues for quality reviewer) are unchanged from Parallel mode — only the wire mechanism differs.
+
+### Cleanup
+
+- **Normal completion:** orchestrator sends `shutdown_request` to each teammate, waits for `shutdown_response: approve=true`, then calls `TeamDelete`.
+- **Abort:** same shutdown sequence first. If teammates don't respond, force-terminate via the Agent tool's normal cleanup, then `TeamDelete` (which fails while members are active; the force-cleanup must happen first).
+- **Orphaned teams** (e.g., subflow killed mid-run): the next subflow run on the same feature should detect a stale `wovenflow-<slug>` team via `~/.claude/teams/`. Force-cleanup any leftover members and `TeamDelete` before `TeamCreate`-ing fresh.
+
+## Parallel mode (fallback when flag is off)
+
+When `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is **not** set, behavior-implementer subagents run in parallel as one-shot dispatches. Each gets its own git worktree, branched from the same starting commit. They never compete for files, never see each other's half-built code, and commit to independent branches that the orchestrator merges back when reviews approve.
 
 ### The mechanism
 
@@ -164,24 +273,41 @@ Every subagent — implementer, spec-compliance reviewer, code-quality reviewer 
 |---|---|
 | **Spec file (absolute path)** | `/path/to/project/doc/specs/2026-05-04-feature.spec.md` |
 | **Behavior identifier** | `B1` (matches the H3 header in the spec) |
-| **Working directory** | `/path/to/project/.wovenflow/worktrees/B1` (per-behavior worktree in parallel mode; the project root in sequential mode) |
+| **Working directory** | `/path/to/project/.wovenflow/worktrees/B1` (per-behavior worktree in Team and Parallel modes; the project root in Sequential mode) |
+
+In **Team mode**, also:
+
+| Input | Example |
+|---|---|
+| **Team name** | `wovenflow-2026-05-04-feature` |
+| **Teammate name** | `impl-B1`, `spec-reviewer`, `quality-reviewer` |
+| **Task id** | `impl-B1`, `review-B1-spec`, `review-B1-quality` (the task this teammate is working) |
 
 Subagents do NOT receive paste-text of the behavior. They open the file and read it. This is the central design choice that makes the system honest:
 
 - The `.spec.md` is the source of truth. Subagents read truth.
-- If the spec is updated mid-cycle, the subagent reads the current version on retry.
+- If the spec is updated mid-cycle, the subagent reads the current version on retry (or after a `SendMessage` notification in Team mode).
 - Commits, error logs, and review comments reference the file path — git history points back to the contract.
+- In Team mode, peer DMs are clarification only; the spec is the only durable contract.
 
 ## The process (per behavior)
 
-The diagram below shows the lifecycle of *one* behavior's subagent and its reviewers. In parallel mode, every behavior runs through this lifecycle concurrently in its own worktree; the orchestrator coordinates merges after each one approves.
+The diagram below shows the **logical lifecycle** of one behavior's subagent and its reviewers. The lifecycle is the same in all modes; only the wire mechanism differs:
+
+| Step | Team mode | Parallel mode | Sequential mode |
+|---|---|---|---|
+| "Dispatch implementer" | spawn as named teammate; assign task | one-shot Agent call to per-behavior worktree | one-shot Agent call to main worktree |
+| "Provide context" on `NEEDS_CONTEXT` | `SendMessage` to idle implementer | re-dispatch fresh subagent | re-dispatch fresh subagent |
+| "Dispatch reviewer" | assign new task to persistent `spec-reviewer` / `quality-reviewer` | one-shot Agent call | one-shot Agent call |
+| "Implementer fixes" | `SendMessage` with fix list to idle implementer | re-dispatch with fix list | re-dispatch with fix list |
+| "Mark behavior complete" | `TaskUpdate` to completed; orchestrator runs merge | orchestrator runs merge | orchestrator continues |
 
 ```dot
 digraph build_per_behavior {
   rankdir=TB;
   "Dispatch implementer (./implementer-prompt.md)" [shape=box];
   "Implementer reports" [shape=diamond];
-  "Provide context, redispatch" [shape=box];
+  "Provide context (SendMessage in Team mode; redispatch in Parallel/Sequential)" [shape=box];
   "Implementer escalates? Pause." [shape=box];
   "Implementer fixes spec gaps" [shape=box];
   "Dispatch spec-compliance reviewer (./spec-compliance-prompt.md)" [shape=box];
@@ -192,8 +318,8 @@ digraph build_per_behavior {
   "Mark behavior complete" [shape=box style=filled fillcolor=lightgreen];
 
   "Dispatch implementer (./implementer-prompt.md)" -> "Implementer reports";
-  "Implementer reports" -> "Provide context, redispatch" [label="NEEDS_CONTEXT"];
-  "Provide context, redispatch" -> "Dispatch implementer (./implementer-prompt.md)";
+  "Implementer reports" -> "Provide context (SendMessage in Team mode; redispatch in Parallel/Sequential)" [label="NEEDS_CONTEXT"];
+  "Provide context (SendMessage in Team mode; redispatch in Parallel/Sequential)" -> "Dispatch implementer (./implementer-prompt.md)";
   "Implementer reports" -> "Implementer escalates? Pause." [label="BLOCKED"];
   "Implementer reports" -> "Dispatch spec-compliance reviewer (./spec-compliance-prompt.md)" [label="DONE / DONE_WITH_CONCERNS"];
   "Dispatch spec-compliance reviewer (./spec-compliance-prompt.md)" -> "Spec compliance verdict";
@@ -211,11 +337,20 @@ Spec compliance review runs before code quality review. Order matters: there's n
 
 ## Implementer status reporting
 
-Implementers report exactly one of four statuses. Handle each:
+Implementers report exactly one of four statuses. The semantics are the same in all modes; the wire mechanism differs.
 
-- **DONE.** Tests green, contract met, no concerns. Proceed to spec-compliance review.
+| Status | Team mode | Parallel / Sequential |
+|---|---|---|
+| **DONE** | `TaskUpdate` to completed; notes start with `DONE:` | Subagent returns with `DONE` status |
+| **DONE_WITH_CONCERNS** | `TaskUpdate` to completed; notes start with `DONE_WITH_CONCERNS:` and list the concerns | Subagent returns with that status and concerns |
+| **NEEDS_CONTEXT** | `SendMessage` to team-lead with the question; teammate idles | Subagent terminates with `NEEDS_CONTEXT` and the question |
+| **BLOCKED** | `TaskUpdate` to blocked; `SendMessage` to team-lead with the issue | Subagent terminates with `BLOCKED` and the reason |
+
+Handle each:
+
+- **DONE.** Tests green, contract met, no concerns. Proceed to spec-compliance review (next teammate task in Team mode; new dispatch in Parallel / Sequential).
 - **DONE_WITH_CONCERNS.** Tests green, but the implementer flags something (file getting large, pattern smells, a related behavior they noticed). Read the concerns; fold relevant ones into the next review pass. If concerns suggest a real bug or scope mismatch, address before reviewing.
-- **NEEDS_CONTEXT.** Implementer can't proceed without information that wasn't in the spec or codebase. Provide the missing context and re-dispatch the same subagent (don't start over).
+- **NEEDS_CONTEXT.** Implementer can't proceed without information that wasn't in the spec or codebase. **Team mode:** answer via `SendMessage`; the implementer resumes from the same context. **Parallel / Sequential:** provide the missing context and re-dispatch the same subagent (don't start over).
 - **BLOCKED.** Fundamental issue — spec is wrong, conflicts with other behaviors, requires architectural change beyond this behavior's scope. **Pause the cycle**, read the report, decide: fix the spec (orchestrator returns to `testflow` or `designflow`), or escalate to user.
 
 Never ignore an escalation. If the implementer says they're stuck, something needs to change.
@@ -264,6 +399,9 @@ These mean STOP and reconsider:
 | Two behaviors clearly share implementation but were dispatched separately | OK to combine future dispatches; complete the current ones independently. |
 | Subagent finishes "suspiciously fast" | Trust verification, not reports. Reviewer's job is to verify by reading code and running tests. |
 | Tempted to dispatch via Claude Code's `Agent` tool with `isolation: "worktree"` | Don't. That's the harness's worktree machinery — separate code path from this skill's `worktree.mjs`, with inconsistent close-time semantics (commits sometimes auto-merge onto master, branches sometimes deleted, sibling close-time races can wipe in-flight merges). `worktree.mjs create <id>` produces a named branch (`wovenflow/<id>`) at a predictable path with a deterministic merge protocol. Use it always. |
+| Two implementers DM each other to "decide" on an interface or naming, then proceed without spec update | That's spec drift. Peer DMs are clarification only. Either escalate to the orchestrator (who updates the `.spec.md` and re-notifies impacted teammates) or stop and surface the under-specification as a `BLOCKED` status. The reviewer will catch silent peer agreements as `NEEDS_FIX` because the implementation won't match the prose. |
+| Team mode: orchestrator polls teammate state via Bash or `TaskList` instead of waiting for messages | Idle notifications are automatic. Polling burns context and rate limits. Wait for the system to deliver. |
+| Stale `~/.claude/teams/wovenflow-<slug>/` directory left from a prior run | Force-cleanup leftover members and `TeamDelete` before `TeamCreate`-ing fresh. Don't try to reuse an orphaned team. |
 
 ## Integration with other wovenflow skills
 
