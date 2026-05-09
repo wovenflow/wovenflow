@@ -85,6 +85,8 @@ If two behaviors share enough implementation that splitting them produces redund
 
 All behavior-implementer subagents run in parallel. Each gets its own git worktree, branched from the same starting commit. They never compete for files, never see each other's half-built code, and commit to independent branches that the orchestrator merges back when reviews approve.
 
+> **Recommended:** set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in your Claude Code settings (`~/.claude/settings.json` under `env`, or per-project `.claude/settings.json`). This exposes the experimental `TeamCreate` / `TeamDelete` / `SendMessage` tools, giving the orchestrator richer primitives for coordinating a parallel-dispatch team — including direct messaging when an implementer hits a `NEEDS_CONTEXT` moment, instead of round-tripping through the orchestrator. Subflow runs without it, but the dispatch is already team-shaped; the flag is the natural fit. Configure via `update-config` or edit `settings.json` directly.
+
 ### The mechanism
 
 1. **Orchestrator creates one worktree per behavior** before dispatch, using the bundled helper:
