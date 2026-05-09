@@ -42,7 +42,7 @@ Task tool (general-purpose):
 
     In parallel mode, this is the implementer's per-behavior worktree (on branch `wovenflow/<behavior-id>`). Run tests and read the diff from inside this directory.
 
-    ## Three checks
+    ## Four checks
 
     ### 1. Does the test pass?
 
@@ -63,6 +63,21 @@ Task tool (general-purpose):
     - Do other behaviors' tests still pass? Run the full suite.
     - Did the implementer modify the `.spec.md`? They shouldn't have. If they did, that's an automatic NEEDS_FIX (or BLOCKED if the spec itself is wrong).
 
+    ### 4. No shortcuts, no placeholders
+
+    Test-passing isn't enough. Scan the diff for:
+
+    - `TODO`, `FIXME`, `XXX`, `HACK` comments on the contract path
+    - `throw new Error("not implemented")` (or language equivalents) reachable from the contract
+    - Stub returns hardcoded to the test fixture (e.g., `return 42` because the test asserts 42; `if (input === testCase) return expected`) — try one extra contract-valid input mentally; would the implementation handle it?
+    - Commented-out code labelled "real implementation goes here," "fill this in," etc.
+    - Empty function bodies that pass only because the test doesn't assert on the side effect
+    - Mock or fake objects in production code paths
+
+    Each of these is a NEEDS_FIX. There is no follow-up phase to fill in placeholders — subflow's contract is "the behavior is implemented." A stub that passes a single test fixture is not implementation; it's a lie that happens to compile.
+
+    If the implementer genuinely couldn't implement the behavior in scope (requires upstream change, contract is logically broken), they should have reported BLOCKED. If they reported DONE with placeholders, the right verdict is NEEDS_FIX with each placeholder enumerated; if the underlying issue is structural, BLOCKED.
+
     ## Return verdict
 
     Report exactly one of:
@@ -73,6 +88,7 @@ Task tool (general-purpose):
       - Contract violation (with input that violates it)
       - Scope creep (with the file/lines added that aren't in the contract)
       - Regression (with the failing other test)
+      - Placeholder / shortcut (with the file:line of each TODO, stub return, "not implemented" throw, or hardcoded test-fixture value)
 
       Each issue must include enough detail for the implementer to fix without asking back-and-forth.
     - **BLOCKED** — the spec itself appears wrong (e.g., the test contradicts the If/When/Then prose; the contract is logically impossible to satisfy). Pause; raise to the orchestrator.

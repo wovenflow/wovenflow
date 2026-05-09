@@ -41,6 +41,24 @@ Task tool (general-purpose):
 
     Refactor only after green. Don't over-engineer; YAGNI applies.
 
+    ## No shortcuts, no placeholders
+
+    "Minimal" means **as small as the contract allows** — not "as small as the test fixture allows." The contract is the prose If/When/Then plus the inline test, and the test only verifies one path through the contract. Make the production code satisfy the *prose* contract, not just the literal test inputs.
+
+    Banned patterns (a NEEDS_FIX every time):
+
+    - `TODO`, `FIXME`, `XXX`, `HACK` comments left in production code on this behavior's path. If something genuinely needs follow-up, file it; don't smuggle it into the diff.
+    - `throw new Error("not implemented")` (or any language equivalent) in code reachable from the contract.
+    - Stub returns that satisfy the test fixture but would fail on other contract-valid inputs (e.g., `return 42` because the test asserts `42`; `if (input === testCase) return expected`).
+    - Commented-out code that says "real implementation goes here." Either implement it or report BLOCKED.
+    - Empty function bodies that pass tests only because the test happens not to assert on the side effect.
+    - Mock/fake objects in production code paths. Mocks are for tests.
+    - "I'll come back to this." You won't — your dispatch ends after this commit. There is no back.
+
+    There is no Phase 6.5 where placeholders get filled in. Subflow is the build phase; the next phase is verify, then ship. If the contract genuinely cannot be implemented inside this behavior's scope (it requires a change upstream of B-prior, or a behavior that doesn't exist yet), **report BLOCKED** — do not paper over with a stub. BLOCKED is the right answer; a stub is the wrong answer.
+
+    The minimal production code that makes the test pass *and* satisfies the prose for any contract-valid input is the target. If those two diverge, the prose wins — re-read the If/When/Then before adjusting the implementation.
+
     ## Working directory
 
       <REPO_WORKING_DIR>
@@ -81,5 +99,5 @@ Task tool (general-purpose):
     - **NEEDS_CONTEXT** — can't proceed without more information. Ask a specific question. Do not guess.
     - **BLOCKED** — fundamental issue (the spec contradicts itself; the contract requires architectural change beyond this behavior's scope; another behavior's implementation conflicts with this one). Do not work around it; describe the issue clearly so the orchestrator can decide.
 
-    Never report DONE if tests fail. Never report DONE if you modified the .spec.md.
+    Never report DONE if tests fail. Never report DONE if you modified the .spec.md. Never report DONE if you left placeholders, `TODO`/`FIXME` comments on the contract path, `throw "not implemented"` calls, or stub returns hardcoded to the test fixture — those are BLOCKED, not DONE.
 ```
