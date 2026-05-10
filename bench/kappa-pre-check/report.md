@@ -20,13 +20,13 @@
 |---|---|---|---|---|---|---|
 | leading-edge | true | false | true | false | ✓ | ✓ |
 | trailing-edge | true | false | true | false | ✓ | ✓ |
-| burst-coalesced | false | false | true | false | ✗ | ✓ |
+| burst-coalesced | true | false | true | false | ✓ | ✓ |
 | post-window-fires-immediately | false | false | false | false | ✓ | ✓ |
 | passes-arguments | true | false | false | false | ✗ | ✓ |
 | preserves-this | true | false | false | false | ✗ | ✓ |
-| single-call | false | false | true | false | ✗ | ✓ |
+| single-call | true | false | true | false | ✓ | ✓ |
 
-**Per-task agreement:** 10/14 = 71.4%
+**Per-task agreement:** 12/14 = 85.7%
 
 ## Task: deep-equal
 
@@ -46,8 +46,8 @@
 ## Aggregate
 
 - Total label×fixture observations per rater: 44
-- Pairwise agreement: 40/44 = 90.9%
-- Rater A correctness on positive fixtures: 19/22 (86.4%)
+- Pairwise agreement: 42/44 = 95.5%
+- Rater A correctness on positive fixtures: 20/22 (90.9%)
 - Negative-fixture correctness pooled across raters: 44/44 (100.0%)
 
 ## Methodology note

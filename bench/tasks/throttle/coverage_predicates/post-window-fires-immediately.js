@@ -1,6 +1,8 @@
 // Predicate for label: post-window-fires-immediately
 // Description: After the throttle window has elapsed and any trailing-edge call has fired, the next call outside the window fires immediately as a fresh leading edge. The agent's tests should include at least one assertion exercising this behavior.
 // Strategy: Look for tests that advance the clock past the window and then make a follow-up call, with an assertion that the call fires (count incremented) immediately. Phrases like "after the window", "next window", "second window", "fresh leading edge", "again", "new window" combined with an additional timer-advance + invocation count step.
+//
+// LOW-CONFIDENCE: per the kappa pre-check (bench/kappa-pre-check/FINDINGS.md), all three blind raters' predicates failed to fire on the actual hidden test that exercises this label. Static text inspection cannot reliably detect "wait past window, then call again, then assert count delta" without lexical signals, and tests in the wild often don't carry such signals. The bench's headline self-test-coverage metric should report this label with a low-confidence flag and exclude it from the sensitivity-analysis variant.
 import fs from 'node:fs';
 import path from 'node:path';
 

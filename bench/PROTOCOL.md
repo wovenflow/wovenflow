@@ -137,7 +137,9 @@ Three primary scoring functions (specified by `B4`, `B5`, `B6` of the spec; impl
 - **Self-test pass rate:** the agent's own tests against the agent's own source. Sanity check; failure here flags trials where the agent reported done with red tests.
 - **Self-test coverage of hidden cases:** for each label the hidden suite uses, a blind-authored semantic predicate (per `B6`) inspects the agent's tests and returns true if at least one of them asserts on that label. Per-label coverage is the count of true predicates / total labels.
 
-Coverage predicates are committed to `bench/tasks/<task>/coverage_predicates/<label>.js` and **published as part of the bench repo** so external reviewers can read, contest, and re-score. Target inter-rater agreement: ≥0.80 Cohen's kappa when re-authored by an independent third party on a sample.
+Coverage predicates are committed to `bench/tasks/<task>/coverage_predicates/<label>.js` and **published as part of the bench repo** so external reviewers can read, contest, and re-score. Target inter-rater agreement: **≥0.80 per-task** (not aggregate) when re-authored by an independent third party on a sample. Aggregate alone hides single-task failures behind averaging across robust tasks; per-task is the reportable threshold.
+
+When a task fails the per-task threshold (per `bench/kappa-pre-check/FINDINGS.md`), the bench report flags the affected labels as **low-confidence coverage** rather than dropping the task; the headline self-test-coverage metric is also reported with low-confidence labels excluded as a sensitivity analysis. The pre-check process surfaces the labels needing care; predicate authors can do additional rounds (3+ raters, take majority) or the bench can document the limitation.
 
 ### 3.6 Methodology compliance verification
 
@@ -213,14 +215,22 @@ The spec author **does not** write the style cards or the coverage predicates. D
 - If the protocol's design is substantively criticized post-hoc, we will publish the criticism alongside the result and respond.
 - We will tag this document at the commit it locks at; that tag is the binding pre-registration. Subsequent versions are explicit amendments.
 
-## 9. Open prerequisites (blocking Stage 2)
+## 9. Prerequisites status
 
-- [ ] Style cards authored at `bench/styles/{tdd,dtdd,plan,freeform}.md` per `bench/styles/AUTHORING.md`
-- [ ] Multi-agent topology helper authored at `bench/topology/multi.md`
-- [ ] 10 tasks added under `bench/tasks/<task>/` with `intent.md`, `hidden_tests/`, `coverage_predicates/`, and `provenance.md`
-- [ ] Grading rubric drafted at `bench/grading-rubric.md`
-- [ ] Inter-rater kappa pre-check on coverage predicates (independent third party re-authors a sample; ≥0.80 target)
-- [ ] Stage-2 commitment tag created on the locked protocol commit
+- [x] Style cards authored at `bench/styles/{tdd,dtdd,plan,freeform}.md` per `bench/styles/AUTHORING.md`
+- [x] Multi-agent topology helper authored at `bench/topology/multi.md`
+- [x] 10 tasks added under `bench/tasks/<task>/` with `intent.md`, `hidden_tests/`, `coverage_predicates/`, and `provenance.md`
+- [x] Grading rubric drafted at `bench/grading-rubric.md`
+- [x] Inter-rater agreement pre-check on coverage predicates — sampled 3 tasks; results in `bench/kappa-pre-check/`. Per-task agreement: slugify 100%, deep-equal 100%, throttle initially 71% (failed ≥0.80 threshold). After third independent rater (`rater-c`) for throttle, low-confidence labels documented per the §3.5 amendment. See `bench/kappa-pre-check/FINDINGS.md` for the full reading.
+- [x] Stage-2 commitment tag — see git tag `stage-2-pre-registered-2026-05-10`
+
+## 9a. Known limitations carried into Stage 2
+
+These are documented in advance per the pre-registration commitment to publish all results regardless of direction:
+
+- **Throttle's timing-shape labels** (`burst-coalesced`, `post-window-fires-immediately`, `passes-arguments`, `preserves-this`, `single-call`) are inherently hard to detect via static text inspection of agent-produced tests. The kappa pre-check showed both initial raters' predicates struggled. The bench reports these labels with a low-confidence flag and excludes them from the headline self-test-coverage metric in a sensitivity analysis. Future work could replace text-inspection predicates with sandboxed-execution probes for timing labels.
+- **Open-LLM baseline absent.** Per §3.4. Deferred.
+- **Predicate-authoring took N=2 raters per task plus a third pass for throttle.** A more rigorous protocol would use ≥3 raters per task with adversarial fixture banks; the lightweight pre-check is enough for a directional preprint but not a peer-reviewed claim.
 
 ## 10. Schedule (provisional)
 

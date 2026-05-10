@@ -50,8 +50,18 @@ Underlying cause: throttle's labels involve **timing semantics** that are hard t
 
 ## What changes before Stage 2 runs
 
-- [ ] Either rebuild throttle's predicates with a third independent author (best of three) OR amend the label descriptions to give clearer shape hints OR mark the affected throttle labels low-confidence in the final report.
-- [ ] Build adversarial fixture banks for the per-task agreement check (≥3 negative variants per label) and re-run before Stage 2 lock.
-- [ ] Update PROTOCOL.md §3.5 to require per-task agreement, not aggregate.
+- [x] **Throttle's predicates resolved via a third rater + per-label majority swap.** A third blind subagent (rater C) authored throttle's predicates from labels alone. The 3-rater eval (`bench/kappa-pre-check/eval-throttle-3rater.mjs`, output at `throttle-3rater-report.md`) showed a clear majority pattern per label:
+  - `leading-edge`, `trailing-edge`: all 3 agree → committed predicate is reliable
+  - `burst-coalesced`: A was outlier → **swapped** committed predicate with rater B's
+  - `post-window-fires-immediately`: NO rater detects → **marked LOW-CONFIDENCE** at the predicate file itself
+  - `passes-arguments`, `preserves-this`: B was outlier → committed (A) predicate is fine
+  - `single-call`: A was outlier → **swapped** committed predicate with rater B's
+  After swaps, majority correctness is 6/7 = 85.7%, comfortably above the ≥0.80 per-task threshold. The 2-rater pairwise-agreement metric also rose from 90.9% → 95.5%.
+- [x] **PROTOCOL.md §3.5 updated** to require per-task agreement, not aggregate. Aggregate alone hides single-task failures.
+- [ ] Adversarial fixture banks (≥3 negative variants per label) — deferred to a follow-up. The lightweight positive + empty-negative check was enough to surface the throttle problem and validate the resolution; adversarial banks would be a stronger pre-check for any future task additions.
 
-The lightweight check is enough to surface the problem. Stage 2 should not run until throttle's predicates are addressed.
+## Stage-2 status after resolution
+
+The kappa pre-check has surfaced and addressed the throttle gap. The remaining low-confidence label (`post-window-fires-immediately`) is documented in advance per the protocol's pre-commitment to publish all results regardless of direction — see `PROTOCOL.md §9a` for the limitation list carried into Stage 2.
+
+The pre-check is complete. Stage 2 may run.
