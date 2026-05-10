@@ -1,0 +1,31 @@
+{
+  "raters": [
+    {
+      "rater_id": "rater-1",
+      "grades": [
+        {"trial_id": "slugify-tdd-single-0", "style": "tdd", "verdict": "compliant", "evidence": "stub"},
+        {"trial_id": "slugify-dtdd-single-0", "style": "dtdd", "verdict": "compliant", "evidence": "stub"},
+        {"trial_id": "slugify-plan-single-0", "style": "plan", "verdict": "non-compliant", "evidence": "stub"},
+        {"trial_id": "slugify-freeform-single-0", "style": "freeform", "verdict": "compliant", "evidence": "stub"}
+      ]
+    },
+    {
+      "rater_id": "rater-2",
+      "grades": [
+        {"trial_id": "slugify-tdd-single-0", "style": "tdd", "verdict": "compliant", "evidence": "stub"},
+        {"trial_id": "slugify-dtdd-single-0", "style": "dtdd", "verdict": "compliant", "evidence": "stub"},
+        {"trial_id": "slugify-plan-single-0", "style": "plan", "verdict": "compliant", "evidence": "stub"},
+        {"trial_id": "slugify-freeform-single-0", "style": "freeform", "verdict": "compliant", "evidence": "stub"}
+      ]
+    },
+    {
+      "rater_id": "rater-3",
+      "grades": [
+        {"trial_id": "slugify-tdd-single-0", "style": "tdd", "verdict": "non-compliant", "evidence": "stub"},
+        {"trial_id": "slugify-dtdd-single-0", "style": "dtdd", "verdict": "compliant", "evidence": "stub"},
+        {"trial_id": "slugify-plan-single-0", "style": "plan", "verdict": "non-compliant", "evidence": "stub"},
+        {"trial_id": "slugify-freeform-single-0", "style": "freeform", "verdict": "compliant", "evidence": "stub"}
+      ]
+    }
+  ]
+}

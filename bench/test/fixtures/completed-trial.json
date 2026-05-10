@@ -1,0 +1,23 @@
+{
+  "run_id": "test-run-001",
+  "trial_id": "slugify-dtdd-multi-0",
+  "task_id": "slugify",
+  "style": "dtdd",
+  "topology": "multi",
+  "trial_index": 0,
+  "source_files": {
+    "index.js": "export function slugify(s) { return s; }\n"
+  },
+  "test_files": {
+    "slugify.test.js": "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { slugify } from './index.js';\ntest('slugify is a function', () => assert.equal(typeof slugify, 'function'));\n"
+  },
+  "conversation": [
+    {"role": "system", "content": "stub"},
+    {"role": "user", "content": "stub"},
+    {"role": "assistant", "content": "stub"}
+  ],
+  "tokens_input": 1234,
+  "tokens_output": 567,
+  "wall_clock_ms": 12345,
+  "stop_reason": "done"
+}

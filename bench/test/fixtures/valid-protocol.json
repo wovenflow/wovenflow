@@ -1,0 +1,13 @@
+{
+  "tasks": ["slugify"],
+  "styles": ["tdd", "dtdd", "plan", "freeform"],
+  "topologies": ["single", "multi"],
+  "model_id": "claude-opus-4-7",
+  "n_trials_per_cell": 5,
+  "temperature": 0.7,
+  "stop_conditions": {
+    "turn_cap": 50,
+    "wall_clock_ms": 600000
+  },
+  "seed": 42
+}

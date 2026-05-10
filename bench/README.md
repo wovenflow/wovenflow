@@ -1,0 +1,1 @@
+Bench harness for the DTDD prompting-style comparison. See `doc/specs/2026-05-10-dtdd-bench.spec.md` for the contract. Run `npm test --prefix bench` from the repo root to extract and execute the spec tests.
