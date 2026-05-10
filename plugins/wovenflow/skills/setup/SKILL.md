@@ -138,7 +138,8 @@ Override only if you're explicitly using a different methodology. If you overrid
 
 **Job:** Dispatch implementer subagents per behavior; spec-compliance + code-quality review.
 
-- [**`wovenflow:subflow`**](https://github.com/wovenflow/wovenflow) — **default**. DTDD-native dispatcher; subagents read `.spec.md` by file path.
+- [**`wovenflow:subflow`**](https://github.com/wovenflow/wovenflow) — **default**. DTDD-native dispatcher; subagents read `.spec.md` by file path. Final step invokes `wovenflow:scopecheck` to enforce no over-implementation.
+- [**`wovenflow:scopecheck`**](https://github.com/wovenflow/wovenflow) — coverage-based over-implementation guardrail invoked by subflow's final step (and reusable directly). Any committed line not exercised by a test is by-construction not required by any behavior; flags such regions and proposes either removal or a new behavior + test to formalize the addition.
 - [**`superpowers:subagent-driven-development`**](https://github.com/obra/superpowers) — fallback for non-DTDD work (no `.spec.md`)
 - [**`compound-engineering:ce-work`**](https://github.com/EveryInc/compound-engineering-plugin) — fallback for projects following Compound Engineering's plan-first methodology instead of DTDD; executes plans with task tracking
 - [**`ruvnet/claude-flow`**](https://github.com/ruvnet/claude-flow) — full multi-agent orchestration platform (intelligent swarms, autonomous workflows, RAG, self-learning swarm intelligence). Heavyweight alternative for projects whose build phase is genuinely swarm-shaped — many concurrent agents with cross-talk and shared memory beyond what `subflow`'s per-behavior worktree model assumes. Picking this means leaving wovenflow's DTDD core; honest framing is "different methodology," not "drop-in replacement."
