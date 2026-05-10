@@ -1,8 +1,24 @@
 # wovenflow
 
-A Claude Code plugin for **Doc-Test-Driven Development (DTDD)** — TDD where intent and tests are woven into a single `.spec.md` file per feature. The subagents implment one feature at a time acording to the spec and test to ensure intent is preserved and token churn is minimized during definition and execution. There is a setup skill that will help you generate a full workflow that matches your project's needs and includes wovenflow at the core. 
+BDD + TDD + Doctest (literate programming) = DTDD
+
+This project is intended as a suggested methodology and not just a workflow tool. Please consider the methodology and tooling separately. One or both may work for you.
+
+## Why use wovenflow
+
+You need a contract with your agents.
+
+Single line prompts do not inspire agents to write clean code. Writing long prompts is time consuming. Precision is hard when you are trying to move fast and get things done. Language is not naturally explicit. If you are not examining every line of code, how do you know what it is doing? 
+
+In the industry, we have found solutions to these kinds of problems when we work with humans. With humans, we often spec + build and then test + document. I can trust my engineers to do this well because they do not have wildly jagged intelligence. You have probably found normal workflow does not work well with your BFF agent. It will fail even harder with a swarm of agents. What I am proposing here is a repurposing of old tools that used to work well but were hard to sustain in practice with humans: BDD + TDD + DocTest. 
+
+We need a contract with our datacenter of geniuses that is readable, extendable, and executable. I am suggesting a document that captures behaviors explicity in markdown and then encodes them in test even more explicitly. This md becomes contract, spec, test, and documentation. It will remain fresh because the tests will fail when the product no longer supports the behavior described directly above it. Each behavior is nuclear which makes it handy for splitting among multiple agents. Both the English and code capture the intent. Most importantly, I find it easier to scan these documents to check that what I wanted is going to be accomplished. I provide some general direction at the start and then I just have to verify that the spec encodes what I wanted. 
+
+If you have felt like your project did not work well with other plugin style workflow helpers, I am hoping you might have fewer issues with wovenflow because most of the phases in the workflow are not hardcoded. The /setup is built just to walk you through creating your own workflow that still embodies the spirit of wovenflow. It will hopefully help you surface skills from other plugins that might be a good fit for what you are working on and help you author a skill that fits your style. In my personal time I work on both product style projets and pretraining research experiments. Those are very different workflows but both fit within this tooling. 
 
 ## What it is
+
+A Claude Code plugin for **Doc-Test-Driven Development (DTDD)** — TDD where intent and tests are woven into a single `.spec.md` file per feature. The subagents implment one feature at a time acording to the spec and test to ensure intent is preserved and token churn is minimized during definition and execution. There is a setup skill that will help you generate a full workflow that matches your project's needs and includes wovenflow at the core. 
 
 `wovenflow` is the plugin (the tool); `DTDD` is the methodology (the practice). 
 
