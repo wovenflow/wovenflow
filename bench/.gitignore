@@ -2,3 +2,12 @@ out/
 node_modules/
 results/
 worktrees/
+
+# B10 fixtures are initialized as standalone git repos at pretest time
+# (see scripts/setup-fixtures.mjs). Their .git dirs and any modifications
+# inside them must not bleed into this repo's working tree.
+test/fixtures/clean-tree/.git/
+test/fixtures/clean-tree/baseline.txt
+test/fixtures/dirty-tree/.git/
+test/fixtures/dirty-tree/baseline.txt
+test/fixtures/dirty-tree/uncommitted.txt
