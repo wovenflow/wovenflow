@@ -127,7 +127,9 @@ Per-trial procedure (enforced by `B2` and `B3`):
 
 The model is pinned. If the underlying API changes the model's behavior (e.g., a silent point-update), the protocol's external validity is bounded to the snapshot in use during the run window. We log the model version string returned by the API per trial.
 
-**Open-LLM baseline (deferred).** The 2508.15503 guidelines recommend an open-LLM baseline. We acknowledge this and defer to a follow-up run; the primary report flags the absence as a limitation.
+**Open-LLM baseline (planned, via local model).** The 2508.15503 guidelines recommend an open-LLM baseline. The path: run the same protocol against a local open-weights coding model served via an OpenAI-compatible endpoint (Ollama, llama.cpp server, or vLLM). Candidate models in the right size+capability class for this benchmark: Qwen2.5-Coder-32B-Instruct, DeepSeek-Coder-V2-Lite-Instruct-16B, or Llama-3.1-70B-Instruct (or current equivalents at run time). The local-model run is reported **alongside** the Claude Sonnet 4.6 primary, not as a replacement — the headline question is "does DTDD prompting improve generalization on the model wovenflow users actually run on," and the local-model run is the secondary cross-check the empirical-SE-with-LLMs guidelines call for.
+
+Implementation requirement before the local-model run: the bench harness's `dispatchTrial` (B2 of `doc/specs/2026-05-10-dtdd-bench.spec.md`) needs a pluggable-provider extension. Currently the harness assumes Anthropic SDK; the extension would route via a `BENCH_PROVIDER` env var or runtime config naming the endpoint URL + model id. That's a follow-up implementation task tracked outside this protocol; the protocol commits to running the local-model baseline once the extension lands. Cost is electricity only, so the extension unlocks a free reproduction-friendly baseline at any future point.
 
 ### 3.5 Scoring
 
@@ -230,7 +232,7 @@ The spec author **does not** write the style cards or the coverage predicates. D
 These are documented in advance per the pre-registration commitment to publish all results regardless of direction:
 
 - **Throttle's timing-shape labels** (`burst-coalesced`, `post-window-fires-immediately`, `passes-arguments`, `preserves-this`, `single-call`) are inherently hard to detect via static text inspection of agent-produced tests. The kappa pre-check showed both initial raters' predicates struggled. The bench reports these labels with a low-confidence flag and excludes them from the headline self-test-coverage metric in a sensitivity analysis. Future work could replace text-inspection predicates with sandboxed-execution probes for timing labels.
-- **Open-LLM baseline absent.** Per §3.4. Deferred.
+- **Open-LLM baseline planned, not yet run.** Per §3.4. Path is a local open-weights coding model served via OpenAI-compatible endpoint, requiring a `BENCH_PROVIDER` extension to the harness's `dispatchTrial`. Cost-zero once the extension lands; reported alongside the Claude primary, not as a replacement.
 - **Predicate-authoring took N=2 raters per task plus a third pass for throttle.** A more rigorous protocol would use ≥3 raters per task with adversarial fixture banks; the lightweight pre-check is enough for a directional preprint but not a peer-reviewed claim.
 
 ## 10. Schedule (provisional)
