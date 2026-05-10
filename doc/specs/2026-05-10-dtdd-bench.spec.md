@@ -17,6 +17,27 @@ Bench harness for a pre-registered factorial study comparing DTDD prompting agai
 ↦ **WHEN** the runner starts
 ∴ **THEN** it parses the protocol, validates that every required field is present and well-typed, captures the protocol's git commit SHA into the run metadata, and prints the loaded configuration before dispatching any trial — refusing to dispatch if validation fails
 
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { loadProtocol, ProtocolValidationError } from '../bench/runner.js';
+
+test('B1: loads valid protocol file with required fields and pins commit SHA', () => {
+  const result = loadProtocol('bench/test/fixtures/valid-protocol.json');
+  for (const field of ['tasks', 'styles', 'topologies', 'model_id', 'n_trials_per_cell', 'temperature', 'stop_conditions', 'seed']) {
+    assert.ok(field in result.config, `missing required field: ${field}`);
+  }
+  assert.match(result.metadata.protocol_sha, /^[0-9a-f]{40}$/, 'protocol_sha must be a full git SHA');
+});
+
+test('B1: refuses to dispatch when a required protocol field is missing', () => {
+  assert.throws(
+    () => loadProtocol('bench/test/fixtures/protocol-missing-styles.json'),
+    ProtocolValidationError,
+  );
+});
+```
+
 ### B2: Each trial is dispatched with the right style card and topology, otherwise identical
 ∵ **IF** a trial is queued with (task_id, style, topology, trial_index)
 ↦ **WHEN** the runner dispatches it
@@ -26,20 +47,122 @@ The multi-agent topology helper is fully specified at `bench/topology/multi.md` 
 
 No DTDD-specific tooling is auto-injected (no `extract.mjs` or `worktree.mjs` from wovenflow). If a style's agent chooses to invoke such tools, that's a methodology choice the agent is making — not a harness asymmetry.
 
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { dispatchTrial } from '../bench/runner.js';
+
+test('B2: injects the named style card as system prompt and uses the constant multi-agent helper', async () => {
+  const dispatched = await dispatchTrial({
+    task_id: 'slugify',
+    style: 'dtdd',
+    topology: 'multi',
+    trial_index: 0,
+    dry_run: true,
+  });
+  assert.equal(dispatched.style_card_path, 'bench/styles/dtdd.md');
+  assert.equal(dispatched.topology_helper_path, 'bench/topology/multi.md');
+  assert.match(dispatched.worktree_path, /\/bench\/worktrees\/slugify-dtdd-multi-0$/);
+});
+
+test('B2: refuses topology configs that introduce style-specific wiring outside the style card', () => {
+  assert.throws(
+    () => dispatchTrial({
+      task_id: 'slugify',
+      style: 'tdd',
+      topology: 'multi',
+      trial_index: 0,
+      dry_run: true,
+      topology_helper_path: 'bench/topology/multi-tdd-only.md',
+    }),
+    /style-specific topology wiring rejected/,
+  );
+});
+```
+
 ### B3: Trial output is captured before any scoring
 ∵ **IF** a trial completes — agent declares done OR turn limit reached OR wall-clock cap reached
 ↦ **WHEN** the runner records the trial
 ∴ **THEN** it captures into `bench/results/<run-id>/<trial-id>/`: (a) the produced source code as `source/`, (b) any tests the agent wrote as `tests/`, (c) the full conversation log as `conversation.jsonl`, (d) tokens consumed (input + output, per turn), (e) wall-clock time, (f) the stop reason (`done` / `turn-cap` / `time-cap` / `error`)
+
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { captureTrial } from '../bench/runner.js';
+
+test('B3: writes all six required artifacts under the trial directory and locks before scoring', async () => {
+  const trialDir = await captureTrial({
+    run_id: 'test-run-001',
+    trial_id: 'slugify-dtdd-multi-0',
+    fixture: 'bench/test/fixtures/completed-trial.json',
+  });
+  assert.ok(fs.existsSync(`${trialDir}/source`), 'source/ missing');
+  assert.ok(fs.existsSync(`${trialDir}/tests`), 'tests/ missing');
+  assert.ok(fs.existsSync(`${trialDir}/conversation.jsonl`), 'conversation.jsonl missing');
+  const meta = JSON.parse(fs.readFileSync(`${trialDir}/meta.json`, 'utf8'));
+  assert.ok(typeof meta.tokens_input === 'number');
+  assert.ok(typeof meta.tokens_output === 'number');
+  assert.ok(typeof meta.wall_clock_ms === 'number');
+  assert.ok(['done', 'turn-cap', 'time-cap', 'error'].includes(meta.stop_reason));
+});
+```
 
 ### B4: Hidden-test pass rate is computed against truly held-out tests
 ∵ **IF** a trial has produced source code and the task has a hidden test suite at `bench/tasks/<task-id>/hidden_tests/`
 ↦ **WHEN** the scorer runs the hidden suite against the produced source in an isolated environment
 ∴ **THEN** it records pass count, total count, the per-test pass/fail map, and any runtime errors; **the produced source code is sandboxed from accessing or importing anything from the hidden-tests directory at any point during the trial or scoring** — verified by static check (no path references to `hidden_tests/` in source) and runtime check (filesystem permission denial on the hidden-tests path)
 
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { scoreHidden, HiddenTestLeakError } from '../bench/scorer.js';
+
+test('B4: returns pass/total/per-test map and never lets source see hidden-tests dir', async () => {
+  const result = await scoreHidden({
+    task_id: 'slugify',
+    source_dir: 'bench/test/fixtures/source-clean/',
+  });
+  assert.equal(typeof result.pass_count, 'number');
+  assert.equal(typeof result.total_count, 'number');
+  assert.ok(result.pass_count <= result.total_count);
+  assert.ok(result.per_test && typeof result.per_test === 'object');
+});
+
+test('B4: rejects source that statically references the hidden-tests directory', async () => {
+  await assert.rejects(
+    scoreHidden({
+      task_id: 'slugify',
+      source_dir: 'bench/test/fixtures/source-leak/',
+    }),
+    HiddenTestLeakError,
+  );
+});
+```
+
 ### B5: Self-test pass rate is computed and reported separately
 ∵ **IF** a trial produced both source code and tests
 ↦ **WHEN** the scorer runs the agent's own tests against the agent's own source
 ∴ **THEN** it records pass count, total count, test count, lines-of-test (parsimony signal), and a flag for whether all the agent's tests pass — failure here means the agent reported done with red tests, which is a methodology-compliance issue worth surfacing
+
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { scoreSelf } from '../bench/scorer.js';
+
+test('B5: reports pass count, test count, lines-of-test, and all-pass flag', async () => {
+  const result = await scoreSelf({
+    source_dir: 'bench/test/fixtures/source-clean/',
+    tests_dir: 'bench/test/fixtures/tests-with-some-failing/',
+  });
+  assert.equal(typeof result.pass_count, 'number');
+  assert.equal(typeof result.total_count, 'number');
+  assert.equal(typeof result.test_count, 'number');
+  assert.equal(typeof result.lines_of_test, 'number');
+  assert.equal(typeof result.all_pass, 'boolean');
+  assert.equal(result.all_pass, result.pass_count === result.total_count);
+});
+```
 
 ### B6: Self-test coverage of hidden cases is computed (the novel metric)
 ∵ **IF** a trial produced tests and the task's hidden-test suite has labeled cases (each hidden test tagged with edge-case categories like `empty-input`, `unicode`, `off-by-one`, `negative`, `large-input`, `null`, `type-coercion`)
@@ -49,6 +172,34 @@ No DTDD-specific tooling is auto-injected (no `extract.mjs` or `worktree.mjs` fr
 The per-task semantic predicates are authored under blinding to remove the obvious researcher-bias attack: predicates are written by a person (or LLM) who sees only the labels and a generic spec of what each label means, never the produced tests with their style tag. Each predicate is committed to `bench/tasks/<task-id>/coverage_predicates/` and is **published as part of the bench repo** so external reviewers can read, contest, and re-score. The bench refuses to start if any task lacks coverage predicates for every label its hidden tests use.
 
 Predicates inspect AST or text and return boolean per label — never literal-text match, which over-counts. If the predicate library produces low inter-rater agreement when re-authored by an independent third party (target ≥0.80 Cohen's kappa on a sample), the metric is reported as low-confidence and the predicates are revised before the headline result is published.
+
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { scoreCoverage, MissingPredicatesError } from '../bench/scorer.js';
+
+test('B6: returns per-label boolean coverage map using blind-authored predicates', async () => {
+  const result = await scoreCoverage({
+    task_id: 'slugify',
+    tests_dir: 'bench/test/fixtures/tests-with-edge-cases/',
+  });
+  assert.ok(result.per_label && typeof result.per_label === 'object');
+  for (const label of ['empty-input', 'unicode', 'off-by-one']) {
+    assert.equal(typeof result.per_label[label], 'boolean', `missing label ${label}`);
+  }
+  assert.equal(result.predicates_path, 'bench/tasks/slugify/coverage_predicates/');
+});
+
+test('B6: refuses to score when a task is missing a predicate for a label its hidden tests use', async () => {
+  await assert.rejects(
+    scoreCoverage({
+      task_id: 'task-with-incomplete-predicates',
+      tests_dir: 'bench/test/fixtures/tests-empty/',
+    }),
+    MissingPredicatesError,
+  );
+});
+```
 
 ### B7: Methodology compliance is verified by a human-graded stratified sample
 ∵ **IF** a run has completed all trials under all styles
@@ -65,20 +216,134 @@ Why human-graded and not deterministic: an automated rule like "test file mentio
 
 Trials outside the sample are reported with their automated-only metrics (hidden-pass, self-pass, self-coverage, tokens, time); the report makes the sample-vs-full distinction explicit. Per-style results are broken down by `compliant` vs `non-compliant` within the sample so readers can see whether a style's score is dragged by instruction-following failures.
 
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { sampleForGrading, aggregateGrading } from '../bench/grader.js';
+
+test('B7: stratified sample includes ≥30 trials per style across all tasks', () => {
+  const sample = sampleForGrading({
+    run_dir: 'bench/test/fixtures/run-200-trials/',
+    sample_size_per_style: 30,
+    seed: 42,
+  });
+  const counts = {};
+  for (const trial of sample) counts[trial.style] = (counts[trial.style] || 0) + 1;
+  for (const style of ['tdd', 'dtdd', 'plan', 'freeform']) {
+    assert.ok((counts[style] || 0) >= 30, `style ${style} has ${counts[style]} < 30`);
+  }
+});
+
+test('B7: aggregation reports majority verdict, per-style compliance rate, and Cohen kappa', () => {
+  const result = aggregateGrading({
+    grades_path: 'bench/test/fixtures/grades-3-raters.json',
+  });
+  for (const style of ['tdd', 'dtdd', 'plan', 'freeform']) {
+    assert.equal(typeof result.compliance_rate[style], 'number');
+  }
+  assert.equal(typeof result.cohens_kappa, 'number');
+  assert.ok(Array.isArray(result.disagreements));
+});
+```
+
 ### B8: Run aggregation produces a stable, reviewer-readable report
 ∵ **IF** all trials in a run have completed and been scored
 ↦ **WHEN** the reporter is invoked
 ∴ **THEN** it produces `bench/results/<run-id>/report.md` containing: (1) run metadata (protocol SHA, model id, temperature, seed, total trials, total cost), (2) per-style aggregate table with mean and 95% confidence interval for each metric (hidden-test pass rate, self-test pass rate, self-test coverage of hidden cases, tokens, time, compliance rate), (3) per-task heatmap showing each (task × style) cell, (4) per-cell breakdown by `compliant` vs `non-compliant`, (5) a raw-data appendix with relative links to every per-trial directory
+
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { generateReport } from '../bench/reporter.js';
+
+test('B8: report.md contains all five required sections with metadata and CIs', async () => {
+  const reportPath = await generateReport({ run_dir: 'bench/test/fixtures/run-scored/' });
+  const md = fs.readFileSync(reportPath, 'utf8');
+  for (const heading of [
+    '## Run metadata',
+    '## Per-style aggregates',
+    '## Per-task heatmap',
+    '## Compliant vs non-compliant',
+    '## Raw data',
+  ]) {
+    assert.ok(md.includes(heading), `missing section: ${heading}`);
+  }
+  assert.match(md, /protocol_sha:\s*[0-9a-f]{40}/, 'metadata must pin protocol SHA');
+  assert.match(md, /95% CI/, 'aggregates must include 95% CI');
+});
+```
 
 ### B9: Tasks declare their provenance and contamination status
 ∵ **IF** a task is added under `bench/tasks/<task-id>/`
 ↦ **WHEN** the bench validates tasks before runtime
 ∴ **THEN** it requires a `bench/tasks/<task-id>/provenance.md` declaring (a) source: `livecodebench-post-2025-cutoff` | `hand-written` | `other-with-justification`, (b) the model-cutoff date the source was published after (if applicable), (c) any URLs the task or hidden tests are derived from. The bench refuses to start if any task lacks provenance, and surfaces contamination risk per task in the report
 
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { validateTasks, MissingProvenanceError } from '../bench/validator.js';
+
+test('B9: refuses to start when any task lacks provenance.md', () => {
+  assert.throws(
+    () => validateTasks({
+      tasks_dir: 'bench/test/fixtures/tasks-missing-provenance/',
+    }),
+    MissingProvenanceError,
+  );
+});
+
+test('B9: returns per-task contamination metadata when all provenance is valid', () => {
+  const result = validateTasks({
+    tasks_dir: 'bench/test/fixtures/tasks-with-provenance/',
+  });
+  assert.ok(Array.isArray(result.tasks));
+  for (const task of result.tasks) {
+    assert.ok(['livecodebench-post-2025-cutoff', 'hand-written', 'other-with-justification'].includes(task.source));
+    assert.equal(typeof task.contamination_risk, 'string');
+  }
+});
+```
+
 ### B10: A run cannot start if the protocol or harness has uncommitted changes
 ∵ **IF** the working tree contains uncommitted changes to `bench/PROTOCOL.md`, `bench/styles/`, `bench/tasks/`, or any harness source under `bench/`
 ↦ **WHEN** the runner is invoked
 ∴ **THEN** it refuses to start unless `--allow-dirty` is passed, prints the dirty paths and a one-line explanation that pre-registered runs require a clean commit so the protocol SHA in the run metadata is meaningful
+
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { checkPreregistration, DirtyTreeError } from '../bench/validator.js';
+
+test('B10: refuses to start when bench/ has uncommitted changes and --allow-dirty is not passed', () => {
+  assert.throws(
+    () => checkPreregistration({
+      bench_dir: 'bench/test/fixtures/dirty-tree/',
+      allow_dirty: false,
+    }),
+    DirtyTreeError,
+  );
+});
+
+test('B10: proceeds with --allow-dirty but records the dirty paths in metadata', () => {
+  const result = checkPreregistration({
+    bench_dir: 'bench/test/fixtures/dirty-tree/',
+    allow_dirty: true,
+  });
+  assert.ok(Array.isArray(result.dirty_paths));
+  assert.ok(result.dirty_paths.length > 0);
+  assert.equal(result.allow_dirty, true);
+});
+
+test('B10: clean tree captures protocol SHA and proceeds without --allow-dirty', () => {
+  const result = checkPreregistration({
+    bench_dir: 'bench/test/fixtures/clean-tree/',
+    allow_dirty: false,
+  });
+  assert.match(result.protocol_sha, /^[0-9a-f]{40}$/);
+  assert.equal(result.dirty_paths.length, 0);
+});
+```
 
 ## Where it lives
 
