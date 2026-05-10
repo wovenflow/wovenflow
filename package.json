@@ -1,6 +1,6 @@
 {
   "name": "wovenflow",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "private": true,
   "description": "Wovenflow plugin self-tests. Dogfoods the testflow extractor: tests live in tests/*.spec.md as JavaScript fences, extracted to out/spec-tests/ by extract.mjs at pretest, then run with node --test.",
   "scripts": {

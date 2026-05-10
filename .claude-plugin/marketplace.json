@@ -7,7 +7,7 @@
     {
       "name": "wovenflow",
       "description": "Doc-Test-Driven Development (DTDD) — literate-programming-flavored TDD. Seven skills: designflow (Design phase — write .spec.md with user stories + ∵ IF / ↦ WHEN / ∴ THEN behaviors, prose only; invokes redteam before locking), testflow (Test phase — insert inline test blocks; bundled extractor produces derived test files at pre-test time; 28 built-in languages + override flags for any other language or DSL), subflow (Build phase — dispatch implementer subagents per behavior with spec-compliance and code-quality review; Team mode when CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1, Parallel mode otherwise, Sequential as rare fallback), researchflow (pre-design phase — bridges the gap between the agent's training cutoff and current reality via web search; composes researcher profiles for academic, competitive-landscape, and custom fields), redteam (decision-quality gate — list the top three reasons this is not the right call; invocable at any commit point), setup (interactive workflow wizard — detects existing CLAUDE.md workflow, walks through each phase suggesting skills or crafting custom ones from bundled scaffold templates: claim, startup, verify, ship-pr, ship-direct, wrap-up, researcher, tasks.py), and flowtune (workflow self-tuning — reviews the session for friction signals and proposes updates to CLAUDE.md's Standard workstream so future sessions have the right defaults).",
-      "version": "0.1.25",
+      "version": "0.1.26",
       "author": {
         "name": "Will Rodenbusch"
       },
