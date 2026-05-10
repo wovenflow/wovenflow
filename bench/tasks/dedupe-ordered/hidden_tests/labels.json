@@ -1,0 +1,20 @@
+{
+  "labels": [
+    "empty-input",
+    "no-duplicates",
+    "all-duplicates",
+    "preserves-first-occurrence-order",
+    "primitive-types-mixed",
+    "object-reference-equality",
+    "nan-deduplication"
+  ],
+  "label_descriptions": {
+    "empty-input": "An empty array returns an empty array. The agent's tests should include at least one assertion exercising empty input.",
+    "no-duplicates": "An array with no duplicates returns a copy with the same elements in the same order. The agent's tests should include at least one assertion exercising the no-duplicates case.",
+    "all-duplicates": "An array where every element is the same value collapses to a single-element array. The agent's tests should include at least one assertion exercising the all-same case.",
+    "preserves-first-occurrence-order": "When duplicates are removed, the order of remaining elements matches their first-occurrence order in the input. The agent's tests should include at least one assertion exercising order preservation with duplicates.",
+    "primitive-types-mixed": "Different primitive types are deduplicated independently (1 and '1' are different, true and 1 are different). The agent's tests should include at least one assertion exercising mixed-primitive-types behavior.",
+    "object-reference-equality": "Two different object literals with the same shape are NOT considered duplicates. The agent's tests should include at least one assertion exercising object-reference-equality.",
+    "nan-deduplication": "Multiple NaN entries collapse to one (NaN treated as equal to NaN for dedupe purposes). The agent's tests should include at least one assertion exercising NaN handling."
+  }
+}

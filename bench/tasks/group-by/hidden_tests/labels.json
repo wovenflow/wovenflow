@@ -1,0 +1,20 @@
+{
+  "labels": [
+    "empty-input",
+    "single-group",
+    "multiple-groups",
+    "preserves-order",
+    "numeric-keys",
+    "boolean-keys",
+    "all-same-key"
+  ],
+  "label_descriptions": {
+    "empty-input": "Calling groupBy on an empty array returns an empty object (or equivalent — no enumerable own keys). The agent's tests should include at least one assertion exercising empty input.",
+    "single-group": "All items produce different keys; each item ends up in its own single-element group. The agent's tests should include at least one assertion exercising the every-item-distinct case.",
+    "multiple-groups": "Items split across multiple non-singleton groups. The agent's tests should include at least one assertion exercising a typical multi-group case.",
+    "preserves-order": "Within each group, items appear in the same order they appeared in the input. The agent's tests should include at least one assertion that order within a group is preserved.",
+    "numeric-keys": "The keyFn returns numbers (or numbers convertible to keys). Resulting object keys may be string-coerced; the test should still find groups under those keys. The agent's tests should include at least one assertion exercising numeric-keyed grouping.",
+    "boolean-keys": "The keyFn returns booleans (true/false). The agent's tests should include at least one assertion exercising boolean-keyed grouping.",
+    "all-same-key": "Every item produces the same key; all items end up in one group. The agent's tests should include at least one assertion exercising the everything-coalesces case."
+  }
+}

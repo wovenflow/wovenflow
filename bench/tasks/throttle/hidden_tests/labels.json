@@ -1,0 +1,20 @@
+{
+  "labels": [
+    "leading-edge",
+    "trailing-edge",
+    "burst-coalesced",
+    "post-window-fires-immediately",
+    "passes-arguments",
+    "preserves-this",
+    "single-call"
+  ],
+  "label_descriptions": {
+    "leading-edge": "On the first call, the throttled function invokes the wrapped function synchronously (or within a vanishingly small delay). The agent's tests should include at least one assertion that the first call fires immediately.",
+    "trailing-edge": "When the throttled function is called multiple times within one window, the wrapped function is called once at the END of the window with the most recent arguments. The agent's tests should include at least one assertion that a trailing-edge call fires after the window with the latest args.",
+    "burst-coalesced": "Many rapid calls within one window result in only one or two underlying invocations (one leading-edge, optionally one trailing-edge), not one per call. The agent's tests should include at least one assertion that a burst of N>=3 rapid calls produces fewer than N invocations.",
+    "post-window-fires-immediately": "After the throttle window has elapsed and any trailing-edge call has fired, the next call outside the window fires immediately as a fresh leading edge. The agent's tests should include at least one assertion exercising this behavior.",
+    "passes-arguments": "The wrapped function receives the arguments that were passed to the throttled function (correctly, for whichever invocation the underlying call corresponds to). The agent's tests should include at least one assertion checking arguments.",
+    "preserves-this": "When the throttled function is called as a method (with a this binding), the wrapped function receives the same this. The agent's tests should include at least one assertion checking the this binding.",
+    "single-call": "A single isolated call to the throttled function results in exactly one invocation of the wrapped function. The agent's tests should include at least one assertion exercising single-call behavior."
+  }
+}

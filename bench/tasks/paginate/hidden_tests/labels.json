@@ -1,0 +1,22 @@
+{
+  "labels": [
+    "first-page",
+    "middle-page",
+    "last-page-partial",
+    "offset-past-end",
+    "empty-input",
+    "zero-limit",
+    "negative-offset",
+    "has-more-flag"
+  ],
+  "label_descriptions": {
+    "first-page": "offset=0, limit smaller than total returns the first slice. The agent's tests should include at least one assertion exercising the first-page case.",
+    "middle-page": "offset>0 and offset+limit<total returns a middle slice. The agent's tests should include at least one assertion exercising a middle-page case.",
+    "last-page-partial": "offset+limit exceeds total but offset<total — returns the remaining items, which is fewer than limit. The agent's tests should include at least one assertion exercising the partial-last-page case.",
+    "offset-past-end": "offset>=total returns empty items array with hasMore false. The agent's tests should include at least one assertion exercising offset-past-end.",
+    "empty-input": "Input array is empty. Returns empty items, hasMore false. The agent's tests should include at least one assertion exercising empty input.",
+    "zero-limit": "limit<=0 returns empty items array. The agent's tests should include at least one assertion exercising zero-or-negative limit.",
+    "negative-offset": "offset<0 is treated as zero. The agent's tests should include at least one assertion exercising negative offset.",
+    "has-more-flag": "hasMore is true when there are items beyond the slice, false otherwise. The agent's tests should include at least one assertion checking the hasMore flag in both states."
+  }
+}

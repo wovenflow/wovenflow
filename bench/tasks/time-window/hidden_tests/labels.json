@@ -1,0 +1,20 @@
+{
+  "labels": [
+    "empty-window",
+    "all-within-window",
+    "some-expired",
+    "all-expired",
+    "exact-edge-excluded",
+    "just-inside-edge-included",
+    "ordered-and-unordered-adds"
+  ],
+  "label_descriptions": {
+    "empty-window": "A new window with no values added returns sum 0 for any sum() query. The agent's tests should include at least one assertion exercising an empty window.",
+    "all-within-window": "When every recorded value is within the TTL of the query timestamp, sum returns the total of all values. The agent's tests should include at least one assertion exercising the all-within case.",
+    "some-expired": "When some recorded values are older than ttlMs and others are within, sum returns only the within-window values' total. The agent's tests should include at least one assertion exercising partial expiration.",
+    "all-expired": "When every recorded value is older than ttlMs, sum returns 0. The agent's tests should include at least one assertion exercising the all-expired case.",
+    "exact-edge-excluded": "A value recorded exactly at now-ttlMs is EXCLUDED from the sum (the window is exclusive on the older edge). The agent's tests should include at least one assertion exercising the exact-edge case.",
+    "just-inside-edge-included": "A value recorded at now-ttlMs+1 (one tick newer than the edge) is INCLUDED. The agent's tests should include at least one assertion exercising the just-inside case.",
+    "ordered-and-unordered-adds": "Adds may arrive in any timestamp order (not necessarily monotonic); sum still returns the correct windowed total. The agent's tests should include at least one assertion exercising out-of-order adds."
+  }
+}

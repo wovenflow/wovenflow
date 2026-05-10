@@ -1,0 +1,20 @@
+{
+  "labels": [
+    "empty-input",
+    "single-line-collapse",
+    "tabs-collapse",
+    "preserves-paragraph-break",
+    "collapses-blank-lines",
+    "trims-edges",
+    "single-newline-becomes-space"
+  ],
+  "label_descriptions": {
+    "empty-input": "Empty string input returns the empty string. The agent's tests should include at least one assertion exercising empty input.",
+    "single-line-collapse": "Multiple spaces within one line collapse to a single space. The agent's tests should include at least one assertion exercising space collapse.",
+    "tabs-collapse": "Tabs within a line are treated as whitespace and collapse with surrounding spaces to a single space. The agent's tests should include at least one assertion exercising tab handling.",
+    "preserves-paragraph-break": "Two or more consecutive newlines remain as exactly one blank line in the output (\\n\\n separator). The agent's tests should include at least one assertion exercising paragraph-break preservation.",
+    "collapses-blank-lines": "Three or more consecutive newlines collapse to exactly two newlines (one blank line between paragraphs). The agent's tests should include at least one assertion exercising blank-line collapse.",
+    "trims-edges": "Leading and trailing whitespace (including blank lines) is removed from the overall result. The agent's tests should include at least one assertion exercising edge trimming.",
+    "single-newline-becomes-space": "A single newline within a paragraph (between non-empty lines) becomes a single space, joining the lines. The agent's tests should include at least one assertion exercising single-newline-to-space behavior."
+  }
+}

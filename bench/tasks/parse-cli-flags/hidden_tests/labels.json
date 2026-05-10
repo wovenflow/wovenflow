@@ -1,0 +1,22 @@
+{
+  "labels": [
+    "long-flag-space-value",
+    "long-flag-equals-value",
+    "short-flag",
+    "combined-short-flags",
+    "positional-args",
+    "boolean-long-flag",
+    "repeated-long-flag",
+    "empty-input"
+  ],
+  "label_descriptions": {
+    "long-flag-space-value": "Long flags in the form '--name value' (separate tokens) parse value as the flag's value. The agent's tests should include at least one assertion exercising space-separated long flag values.",
+    "long-flag-equals-value": "Long flags in the form '--name=value' (single token) parse value as the flag's value. The agent's tests should include at least one assertion exercising equals-separated long flag values.",
+    "short-flag": "Short flags '-x value' parse with value as a string, or set the flag boolean if no value follows. The agent's tests should include at least one assertion exercising short-flag handling.",
+    "combined-short-flags": "Combined short flags '-xyz' set each of x, y, z as boolean true. The agent's tests should include at least one assertion exercising combined short flags.",
+    "positional-args": "Tokens that do not start with a dash are positional arguments and appear in the positional array in order. The agent's tests should include at least one assertion exercising positional arg collection.",
+    "boolean-long-flag": "A long flag with no value (next token is a flag or end of input) is captured as boolean true. The agent's tests should include at least one assertion exercising boolean long-flag behavior.",
+    "repeated-long-flag": "When a long flag appears multiple times, values collect into an array. The agent's tests should include at least one assertion exercising repeated-flag collection.",
+    "empty-input": "Empty argv array returns an empty flags object and an empty positional array. The agent's tests should include at least one assertion exercising empty input."
+  }
+}

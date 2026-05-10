@@ -1,0 +1,22 @@
+{
+  "labels": [
+    "primitive-equal",
+    "primitive-unequal",
+    "nan-equality",
+    "array-equal",
+    "object-equal",
+    "nested-structure",
+    "type-mismatch",
+    "cyclic-reference"
+  ],
+  "label_descriptions": {
+    "primitive-equal": "Two equal primitive values (e.g. 1 and 1, 'foo' and 'foo', true and true) compare as equal. The agent's tests should include at least one assertion exercising primitive equality.",
+    "primitive-unequal": "Two unequal primitive values compare as not equal. The agent's tests should include at least one assertion exercising primitive inequality.",
+    "nan-equality": "NaN compared to NaN returns true (despite native ===). The agent's tests should include at least one assertion exercising NaN handling.",
+    "array-equal": "Two arrays with the same length and equal elements compare as equal; different length compares as not equal. The agent's tests should include at least one assertion exercising array equality.",
+    "object-equal": "Two plain objects with the same keys and equal values compare as equal; different keys compare as not equal. The agent's tests should include at least one assertion exercising object equality.",
+    "nested-structure": "Equality recurses into nested arrays/objects. The agent's tests should include at least one assertion exercising at least 2 levels of nesting.",
+    "type-mismatch": "Values of different types (e.g. array vs object, null vs undefined, number vs string) compare as not equal. The agent's tests should include at least one assertion exercising a type mismatch.",
+    "cyclic-reference": "An object that contains a reference back to itself does not cause infinite recursion when compared to itself or another cyclic object. The agent's tests should include at least one assertion exercising cyclic structures."
+  }
+}
