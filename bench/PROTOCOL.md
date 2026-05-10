@@ -214,6 +214,7 @@ The spec author **does not** write the style cards or the coverage predicates. D
 - We will report any deviations from this protocol explicitly.
 - If the protocol's design is substantively criticized post-hoc, we will publish the criticism alongside the result and respond.
 - We will tag this document at the commit it locks at; that tag is the binding pre-registration. Subsequent versions are explicit amendments.
+- All bench artifacts — protocol, style cards, topology helper, tasks, hidden tests, predicates, raw logs, and reports — are licensed under the repo's existing MIT license (see `LICENSE` at the repo root). No separate license decision applies.
 
 ## 9. Prerequisites status
 
