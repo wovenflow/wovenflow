@@ -154,6 +154,11 @@ function loadTrial(trialDir) {
     self_coverage,
     compliance_verdict: compliance ? compliance.verdict : null,
     is_graded: !!compliance,
+    // Provider extension fields (B3 of bench-provider spec). Null when the
+    // trial pre-dates the provider extension.
+    provider: typeof meta.provider === 'string' ? meta.provider : null,
+    endpoint_url: typeof meta.endpoint_url === 'string' ? meta.endpoint_url : null,
+    model_id: typeof meta.model_id === 'string' ? meta.model_id : null,
   };
 }
 
@@ -365,6 +370,50 @@ function renderRawData(trials, runDir) {
 // Entry point
 // ---------------------------------------------------------------------------
 
+function renderSingleProviderReport({ run_id, runMeta, trials, resolvedRunDir }) {
+  const sections = [
+    `# Bench run report — ${run_id}`,
+    '',
+    renderRunMetadata(runMeta, trials),
+    renderPerStyleAggregates(trials),
+    renderHeatmap(trials),
+    renderComplianceBreakdown(trials),
+    renderRawData(trials, resolvedRunDir),
+  ];
+  return sections.join('\n');
+}
+
+// Multi-provider index file (B4). The spec calls for a bulleted list naming
+// every (provider, endpoint_url, model_id) triple seen plus relative links to
+// each per-provider report. Implementers can extend; this is the floor.
+function renderMultiProviderIndex({ run_id, runMeta, providers }) {
+  const lines = [];
+  lines.push(`# Bench run index — ${run_id}`);
+  lines.push('');
+  lines.push('This run contains trials from multiple providers. Per the bench-provider spec B4, results are stratified by provider — each provider gets its own report shaped exactly like a single-provider run.');
+  lines.push('');
+  if (runMeta.protocol_sha) {
+    lines.push(`- protocol_sha: ${runMeta.protocol_sha}`);
+  }
+  if (runMeta.run_id) {
+    lines.push(`- run_id: ${runMeta.run_id}`);
+  }
+  lines.push('');
+  lines.push('## Providers');
+  lines.push('');
+  for (const p of providers) {
+    const reportFile = `report-${p.provider}.md`;
+    const triples = p.triples
+      .map((t) => `(provider=${t.provider}, endpoint_url=${t.endpoint_url ?? 'null'}, model_id=${t.model_id ?? 'null'})`)
+      .join('; ');
+    lines.push(`- **${p.provider}** — [${reportFile}](./${reportFile}) — ${triples} — N=${p.count} trials`);
+  }
+  lines.push('');
+  lines.push('Cross-provider analysis (e.g., "did DTDD\'s effect size differ between Claude and the local model?") is an explicit follow-up artifact authored separately, not built into the reporter.');
+  lines.push('');
+  return lines.join('\n');
+}
+
 export async function generateReport({ run_dir }) {
   if (!run_dir) throw new Error('generateReport: run_dir is required');
 
@@ -379,21 +428,65 @@ export async function generateReport({ run_dir }) {
 
   const trials = loadAllTrials(resolvedRunDir);
 
-  const sections = [
-    `# Bench run report — ${run_id}`,
-    '',
-    renderRunMetadata(runMeta, trials),
-    renderPerStyleAggregates(trials),
-    renderHeatmap(trials),
-    renderComplianceBreakdown(trials),
-    renderRawData(trials, resolvedRunDir),
-  ];
-  const md = sections.join('\n');
+  // Detect distinct providers across trials (B4). Trials without a provider
+  // field don't count toward provider diversity — they're treated as
+  // unspecified and grouped with the rest under the single-provider report
+  // so legacy fixtures (and the existing run-scored fixture) keep working.
+  const providersSeen = new Set();
+  for (const t of trials) {
+    if (t.provider) providersSeen.add(t.provider);
+  }
+  const isMultiProvider = providersSeen.size > 1;
 
-  const benchDir = findBenchDir();
-  const outDir = path.join(benchDir, 'results', run_id);
-  fs.mkdirSync(outDir, { recursive: true });
-  const outPath = path.join(outDir, REPORT_FILENAME);
-  fs.writeFileSync(outPath, md, 'utf8');
-  return path.resolve(outPath);
+  // Per spec B4: when multi-provider, write the per-provider reports plus
+  // the index file directly into the run dir so the spec's tests (which
+  // dereference `${run_dir}/report-<provider>.md` straight away) read back
+  // the same files. Single-provider keeps the existing behavior of writing
+  // to <bench>/results/<run_id>/report.md so callers can rely on a stable
+  // absolute path returned by generateReport.
+  if (!isMultiProvider) {
+    const benchDir = findBenchDir();
+    const outDir = path.join(benchDir, 'results', run_id);
+    fs.mkdirSync(outDir, { recursive: true });
+    const md = renderSingleProviderReport({ run_id, runMeta, trials, resolvedRunDir });
+    const outPath = path.join(outDir, REPORT_FILENAME);
+    fs.writeFileSync(outPath, md, 'utf8');
+    return path.resolve(outPath);
+  }
+
+  // Multi-provider mode. Render one report per provider plus an index.
+  fs.mkdirSync(resolvedRunDir, { recursive: true });
+  const perProvider = [];
+  for (const provider of [...providersSeen].sort()) {
+    const subset = trials.filter((t) => t.provider === provider);
+    // Collect distinct (provider, endpoint_url, model_id) triples for this
+    // provider so the index can list every variant the run actually ran
+    // against (silent point-updates per B3 of the bench-provider spec).
+    const seen = new Map();
+    for (const t of subset) {
+      const key = `${t.provider}|${t.endpoint_url ?? ''}|${t.model_id ?? ''}`;
+      if (!seen.has(key)) {
+        seen.set(key, {
+          provider: t.provider,
+          endpoint_url: t.endpoint_url,
+          model_id: t.model_id,
+        });
+      }
+    }
+    const triples = [...seen.values()];
+    perProvider.push({ provider, count: subset.length, triples });
+
+    const md = renderSingleProviderReport({
+      run_id: `${run_id} — provider: ${provider}`,
+      runMeta,
+      trials: subset,
+      resolvedRunDir,
+    });
+    fs.writeFileSync(path.join(resolvedRunDir, `report-${provider}.md`), md, 'utf8');
+  }
+
+  const indexMd = renderMultiProviderIndex({ run_id, runMeta, providers: perProvider });
+  const indexPath = path.join(resolvedRunDir, 'index.md');
+  fs.writeFileSync(indexPath, indexMd, 'utf8');
+  return path.resolve(indexPath);
 }
