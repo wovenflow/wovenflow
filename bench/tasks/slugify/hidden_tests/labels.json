@@ -1,4 +1,22 @@
 {
-  "comment": "Edge-case category labels covered by this task's hidden tests. Each label must have a corresponding predicate file under coverage_predicates/<label>.js. Hidden test files (named <label>.test.js or <label>.<n>.test.js) are run by scoreHidden against the produced source.",
-  "labels": ["empty-input", "unicode", "off-by-one"]
+  "comment": "Edge-case category labels covered by this task's hidden tests. Each label must have a corresponding predicate file under coverage_predicates/<label>.js. The label_descriptions field is the only context a blind predicate-authoring subagent sees.",
+  "labels": [
+    "empty-input",
+    "whitespace-only",
+    "consecutive-separators",
+    "leading-trailing-separators",
+    "mixed-case",
+    "punctuation",
+    "unicode-non-ascii"
+  ],
+  "label_descriptions": {
+    "empty-input": "The input is the empty string. The agent's tests should include at least one assertion that exercises empty-string input.",
+    "whitespace-only": "The input contains only whitespace characters (spaces, tabs, etc.). The agent's tests should include at least one assertion that exercises whitespace-only input.",
+    "consecutive-separators": "The input contains adjacent characters that all become hyphens (e.g. multiple spaces in a row, mixed punctuation back-to-back). The agent's tests should include at least one assertion that exercises consecutive-separator input.",
+    "leading-trailing-separators": "The input begins or ends with characters that become hyphens. The agent's tests should include at least one assertion that exercises leading or trailing separator input.",
+    "mixed-case": "The input contains both uppercase and lowercase letters. The agent's tests should include at least one assertion that exercises mixed-case input.",
+    "punctuation": "The input contains common punctuation (commas, exclamation marks, ampersands, etc.). The agent's tests should include at least one assertion that exercises punctuated input.",
+    "unicode-non-ascii": "The input contains characters outside the ASCII letter/digit range (accented letters, CJK, emoji). The agent's tests should include at least one assertion that exercises non-ASCII input."
+  }
 }
+

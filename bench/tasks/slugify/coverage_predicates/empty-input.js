@@ -1,40 +1,58 @@
-// Coverage predicate for the `empty-input` label on the slugify task.
-//
-// Returns true if the agent's tests in `testsDir` exercise empty-string input
-// to slugify. Inspects test source text for an empty-string literal passed to
-// slugify, OR a test name that names the case explicitly. This is a coarse
-// text inspection (the spec target is AST-or-text predicates that are not
-// pure literal-text match — we look for either a recognizable code shape OR
-// a recognizable label-shape, which is more robust than matching one phrase).
-//
-// Authored to be re-implementable by an independent rater from the label
-// alone: "empty-input means the agent passed '' / "" to the function under
-// test, or named a case 'empty input' / 'empty-input' / 'empty string'."
+// Predicate for label: empty-input
+// Description: The input is the empty string. The agent's tests should include
+// at least one assertion that exercises empty-string input.
+// Strategy: Look for a call to slugify (or any function under test) being
+// passed an empty string literal '' or "", OR a label/comment mentioning
+// "empty" near the relevant test. Either signal alone is brittle, so we
+// accept either, but prefer them combined when present.
+import fs from 'node:fs';
+import path from 'node:path';
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-
-function* walk(dir) {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) {
-      yield* walk(p);
-    } else if (/\.(m?js|cjs|ts)$/.test(name)) {
-      yield p;
-    }
-  }
-}
-
-export default function emptyInputPredicate(testsDir) {
-  let combined = '';
+export default function predicate(testsDir) {
+  let files;
   try {
-    for (const f of walk(testsDir)) combined += readFileSync(f, 'utf8') + '\n';
+    files = fs.readdirSync(testsDir).filter(f =>
+      f.endsWith('.js') || f.endsWith('.ts') ||
+      f.endsWith('.mjs') || f.endsWith('.cjs')
+    );
   } catch {
     return false;
   }
-  // Code shape: slugify('') or slugify("").
-  const callShape = /slugify\s*\(\s*(['"])\1\s*\)/.test(combined);
-  // Label shape in test names / comments.
-  const labelShape = /empty[\s-]?(input|string)/i.test(combined);
-  return callShape || labelShape;
+
+  // Code-shape: a function call that passes an empty string literal as an arg.
+  // Matches: foo('') , foo("") , foo(``) — including with whitespace.
+  const emptyArgRe = /\(\s*(?:''|""|``)\s*[,)]/;
+
+  // Label/comment: word "empty" appearing in test name, describe, it, comment, or string.
+  const emptyWordRe = /\bempty\b/i;
+
+  for (const f of files) {
+    let text;
+    try { text = fs.readFileSync(path.join(testsDir, f), 'utf8'); }
+    catch { continue; }
+
+    const hasEmptyArg = emptyArgRe.test(text);
+    const mentionsEmpty = emptyWordRe.test(text);
+
+    // Strong signal: both shape and label.
+    if (hasEmptyArg && mentionsEmpty) return true;
+
+    // Code-shape alone is acceptable: passing '' is rarely accidental.
+    if (hasEmptyArg) return true;
+
+    // Label alone with an assert/expect nearby is acceptable as fallback.
+    if (mentionsEmpty && /\b(assert|expect|equal|toBe|strictEqual|deepEqual|is\(|t\.)/.test(text)) {
+      // require the empty word to appear within ~120 chars of an assertion-ish keyword
+      const lines = text.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (emptyWordRe.test(lines[i])) {
+          const window = lines.slice(Math.max(0, i - 3), i + 4).join('\n');
+          if (/\b(assert|expect|equal|toBe|strictEqual|deepEqual|is\(|t\.)/.test(window)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
 }

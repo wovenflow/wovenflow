@@ -1,0 +1,21 @@
+{
+  "comment": "Edge-case category labels covered by this task's hidden tests. Each label must have a corresponding predicate file under coverage_predicates/<label>.js. The label_descriptions field is the only context a blind predicate-authoring subagent sees.",
+  "labels": [
+    "basic-version",
+    "prerelease-identifier",
+    "build-metadata",
+    "prerelease-and-build",
+    "invalid-shape",
+    "leading-zeros",
+    "non-numeric-component"
+  ],
+  "label_descriptions": {
+    "basic-version": "The input is a plain MAJOR.MINOR.PATCH version string (e.g. '1.2.3') with no prerelease and no build metadata. The agent's tests should include at least one assertion exercising a plain version.",
+    "prerelease-identifier": "The input includes a prerelease identifier after a hyphen (e.g. '1.2.3-alpha', '1.2.3-rc.1'). The agent's tests should include at least one assertion exercising a version with a prerelease.",
+    "build-metadata": "The input includes build metadata after a plus sign (e.g. '1.2.3+sha.deadbeef'). The agent's tests should include at least one assertion exercising a version with build metadata.",
+    "prerelease-and-build": "The input includes BOTH a prerelease identifier and build metadata in the same string (e.g. '1.2.3-alpha+sha.deadbeef'). The agent's tests should include at least one assertion exercising both segments together.",
+    "invalid-shape": "The input does not match the semver shape (e.g. '1.2', 'abc', '1.2.3.4', empty string). The agent's tests should include at least one assertion that the function rejects malformed input by throwing.",
+    "leading-zeros": "The input has a numeric component with a leading zero (e.g. '01.2.3'). Per the semver spec this is invalid; the agent's tests should include at least one assertion about leading-zero behavior, accepting either rejection or acceptance with a documented choice.",
+    "non-numeric-component": "The input has a non-numeric character where a numeric component should be (e.g. 'a.2.3', '1.b.3'). The agent's tests should include at least one assertion that the function rejects non-numeric MAJOR/MINOR/PATCH components."
+  }
+}
