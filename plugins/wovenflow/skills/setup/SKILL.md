@@ -141,6 +141,7 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`wovenflow:subflow`**](https://github.com/wovenflow/wovenflow) — **default**. DTDD-native dispatcher; subagents read `.spec.md` by file path.
 - [**`superpowers:subagent-driven-development`**](https://github.com/obra/superpowers) — fallback for non-DTDD work (no `.spec.md`)
 - [**`compound-engineering:ce-work`**](https://github.com/EveryInc/compound-engineering-plugin) — fallback for projects following Compound Engineering's plan-first methodology instead of DTDD; executes plans with task tracking
+- [**`ruvnet/claude-flow`**](https://github.com/ruvnet/claude-flow) — full multi-agent orchestration platform (intelligent swarms, autonomous workflows, RAG, self-learning swarm intelligence). Heavyweight alternative for projects whose build phase is genuinely swarm-shaped — many concurrent agents with cross-talk and shared memory beyond what `subflow`'s per-behavior worktree model assumes. Picking this means leaving wovenflow's DTDD core; honest framing is "different methodology," not "drop-in replacement."
 
 ### Phase 7 — Verify
 
@@ -502,3 +503,4 @@ If the catalog above doesn't have what you need, browse:
 - [**`travisvn/awesome-claude-skills`**](https://github.com/travisvn/awesome-claude-skills) — broader skills catalog (cross-IDE)
 - [**`garrytan/gstack`**](https://github.com/garrytan/gstack) — Garry Tan's full Claude Code stack (28 skills)
 - [**`obra/superpowers`**](https://github.com/obra/superpowers) — TDD, debugging, planning, collaboration discipline (upstream of `superpowers@claude-plugins-official`)
+- [**`ruvnet/claude-flow`**](https://github.com/ruvnet/claude-flow) — multi-agent orchestration platform (intelligent swarms, autonomous workflows, RAG, native Claude Code / Codex integration). Different methodology shape than wovenflow's DTDD core; useful when the work is genuinely swarm-shaped.
