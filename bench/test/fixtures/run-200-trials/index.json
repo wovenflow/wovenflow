@@ -1,0 +1,1206 @@
+{
+  "run_id": "test-run-200",
+  "total_trials": 200,
+  "trials": [
+    {
+      "trial_id": "slugify-tdd-single-0",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-1",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-2",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-3",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-4",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-5",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-6",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-7",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-8",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-tdd-single-9",
+      "style": "tdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-0",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-1",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-2",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-3",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-4",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-5",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-6",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-7",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-8",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-tdd-single-9",
+      "style": "tdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-0",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-1",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-2",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-3",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-4",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-5",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-6",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-7",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-8",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-tdd-single-9",
+      "style": "tdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-0",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-1",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-2",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-3",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-4",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-5",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-6",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-7",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-8",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-tdd-single-9",
+      "style": "tdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-0",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-1",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-2",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-3",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-4",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-5",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-6",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-7",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-8",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-tdd-single-9",
+      "style": "tdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-0",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-1",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-2",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-3",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-4",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-5",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-6",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-7",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-8",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-dtdd-single-9",
+      "style": "dtdd",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-0",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-1",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-2",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-3",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-4",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-5",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-6",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-7",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-8",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-dtdd-single-9",
+      "style": "dtdd",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-0",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-1",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-2",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-3",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-4",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-5",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-6",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-7",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-8",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-dtdd-single-9",
+      "style": "dtdd",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-0",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-1",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-2",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-3",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-4",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-5",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-6",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-7",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-8",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-dtdd-single-9",
+      "style": "dtdd",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-0",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-1",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-2",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-3",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-4",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-5",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-6",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-7",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-8",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-dtdd-single-9",
+      "style": "dtdd",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-0",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-1",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-2",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-3",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-4",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-5",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-6",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-7",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-8",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-plan-single-9",
+      "style": "plan",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-0",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-1",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-2",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-3",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-4",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-5",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-6",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-7",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-8",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-plan-single-9",
+      "style": "plan",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-0",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-1",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-2",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-3",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-4",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-5",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-6",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-7",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-8",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-plan-single-9",
+      "style": "plan",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-0",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-1",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-2",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-3",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-4",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-5",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-6",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-7",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-8",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-plan-single-9",
+      "style": "plan",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-0",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-1",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-2",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-3",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-4",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-5",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-6",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-7",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-8",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-plan-single-9",
+      "style": "plan",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-0",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-1",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-2",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-3",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-4",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-5",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-6",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-7",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-8",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "slugify-freeform-single-9",
+      "style": "freeform",
+      "task_id": "slugify",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-0",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-1",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-2",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-3",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-4",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-5",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-6",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-7",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-8",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "fizzbuzz-freeform-single-9",
+      "style": "freeform",
+      "task_id": "fizzbuzz",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-0",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-1",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-2",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-3",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-4",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-5",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-6",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-7",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-8",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "palindrome-freeform-single-9",
+      "style": "freeform",
+      "task_id": "palindrome",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-0",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-1",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-2",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-3",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-4",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-5",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-6",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-7",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-8",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "anagram-freeform-single-9",
+      "style": "freeform",
+      "task_id": "anagram",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-0",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-1",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-2",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-3",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-4",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-5",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-6",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-7",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-8",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    },
+    {
+      "trial_id": "reverse-string-freeform-single-9",
+      "style": "freeform",
+      "task_id": "reverse-string",
+      "topology": "single"
+    }
+  ]
+}
