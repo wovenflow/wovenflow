@@ -403,27 +403,22 @@ These mean STOP and reconsider:
 | Team mode: orchestrator polls teammate state via Bash or `TaskList` instead of waiting for messages | Idle notifications are automatic. Polling burns context and rate limits. Wait for the system to deliver. |
 | Stale `~/.claude/teams/wovenflow-<slug>/` directory left from a prior run | Force-cleanup leftover members and `TeamDelete` before `TeamCreate`-ing fresh. Don't try to reuse an orphaned team. |
 
-## Final step before declaring complete: scope check
+## Over-implementation guardrail (handled in verify by default)
 
-Once every behavior has been implemented, reviewed, and merged back, **subflow's last step is `wovenflow:scopecheck`**. The scope check runs the project's coverage command, intersects the coverage report with the feature-branch diff, and flags any committed line not exercised by a test. By construction those lines do not trace to a spec behavior — DTDD's contract makes coverage the over-implementation guardrail.
+DTDD's contract is "every behavior has a test, every test traces to a behavior; nothing more." If the implementation overshoots — code that doesn't trace to any behavior — `wovenflow:scopecheck` catches it by running the project's coverage command and flagging any committed line in the feature-branch diff that no test exercises.
 
-Possible verdicts:
+**By default, scopecheck runs in Phase 7 (verify), not in subflow.** The verify template owns the coverage tooling; running scopecheck there reuses it cleanly and keeps subflow focused on "make the failing tests pass."
 
-- **CLEAN** — every committed line is covered. Subflow declares complete; hand off to verify.
-- **VIOLATIONS** — uncovered regions exist. The orchestrator reads the scopecheck report and per region decides: remove (scope creep) or formalize (the addition was needed but the spec missed it; add a behavior + test, then re-run scopecheck). Loop until CLEAN.
-- **AMBIGUOUS** — only untrackable regions (type-only TypeScript, decorators, etc.). Surface but do not block.
-- **BLOCKED** — coverage command failed. Stop; investigate.
-
-Subflow does not declare DONE on a feature with VIOLATIONS open. This is the rule that prevents over-implementation from accumulating across the cycle.
+Projects that prefer a tighter feedback loop can opt to invoke scopecheck as subflow's final step instead, before declaring the build phase complete. The trade is: catch scope creep at the build moment (faster signal) vs at the verify gate (subflow stays simpler). Either is supported; pick per project preference.
 
 ## Integration with other wovenflow skills
 
 - `wovenflow:designflow` — wrote the prose contract (Design phase)
 - `wovenflow:testflow` — wrote the failing tests (Test phase)
 - **`wovenflow:subflow`** (this skill) — make the failing tests pass (Build phase)
-- `wovenflow:scopecheck` — invoked as subflow's final step; coverage-based over-implementation guardrail
+- `wovenflow:scopecheck` — coverage-based over-implementation guardrail; runs by default in verify (Phase 7), optionally as subflow's final step
 
-After Phase 6 completes (subflow returns CLEAN from its scopecheck), exit DTDD; the workstream proceeds to verification (`/verify`) and then ship (`/ship-pr` for PR-based projects or `/ship-direct` for solo / no-PR projects).
+After Phase 6 completes, exit DTDD; the workstream proceeds to verification (`/verify`) — which includes the scopecheck step — and then ship (`/ship-pr` for PR-based projects or `/ship-direct` for solo / no-PR projects).
 
 ## Integration with superpowers
 

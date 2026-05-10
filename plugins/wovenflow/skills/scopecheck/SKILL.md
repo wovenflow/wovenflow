@@ -11,8 +11,8 @@ This skill enforces that property by **measuring coverage**: any line of code in
 
 ## When to use
 
-- **End of Phase 6 (subflow)** — after all per-behavior worktrees merge back, before declaring the build phase complete. This is the canonical home; subflow's protocol now invokes scopecheck as its final step.
-- **Start of Phase 7 (verify)** — as the first gate of the verify chain, before tests / coverage / adversarial review.
+- **Phase 7 (verify)** — **canonical home.** The verify template runs scopecheck after the coverage audit, before adversarial review. Verify already owns the coverage tooling; scopecheck plugs into the existing pipeline naturally and keeps subflow focused on "make tests pass."
+- **End of Phase 6 (subflow), optionally** — projects that want a tighter feedback loop can invoke scopecheck as subflow's final step before declaring the build phase complete. This catches scope creep at the build moment instead of at the verify gate. Trades subflow simplicity for earlier signal; pick per project.
 - **Pre-merge on a PR** — when reviewing an integration branch about to land on main.
 - **Refactor cycles** — after a refactor pass, confirm no new logic snuck in beyond what the refactor's `.spec.md` describes.
 - **Directly invoked** as `/wovenflow:scopecheck <spec> <base..head>` to run an audit at any point.
@@ -126,15 +126,21 @@ Append (or save as a sibling file) a structured report:
 <paragraph: what should happen next>
 ```
 
-## Integration with subflow
+## Integration with verify (canonical)
 
-`wovenflow:subflow`'s lifecycle ends with the orchestrator merging all per-behavior worktrees back. Subflow now runs **scopecheck as its final step before declaring the build phase complete**. If the verdict is VIOLATIONS:
+The verify template (`bench/setup/templates/verify.md.tmpl`) runs scopecheck right after the coverage audit step. Verify owns the project's coverage command anyway; scopecheck reuses it. If the verdict is VIOLATIONS:
 
-- Subflow does not declare DONE; it returns the scopecheck report and pauses.
-- The orchestrator reads the report, decides per region (remove or formalize), applies the decisions, then re-runs scopecheck.
-- Loop until CLEAN (or AMBIGUOUS) before subflow's declared completion.
+- Verify does not approve the change; the orchestrator reads the scopecheck report and decides per region (remove or formalize).
+- Apply the decisions (delete the scope-creep code, or add the new behavior + test that formalizes a legitimate addition), then re-run scopecheck.
+- Loop until CLEAN (or AMBIGUOUS) before continuing to the rest of the verify chain.
 
-This makes the over-implementation rule structural: subflow can't ship code beyond the spec without an explicit override.
+This is the canonical wiring — verify is where coverage already runs, and the over-implementation rule is a verify-gate concern.
+
+## Integration with subflow (optional)
+
+Some projects want a tighter feedback loop and invoke scopecheck at the **end of subflow** rather than at verify. The trade is: catching scope creep at the build moment vs at the verify gate. Subflow stays simpler if scopecheck lives in verify; subflow gives faster signal if scopecheck runs there too.
+
+If a project chooses the subflow-final integration, the loop shape is identical (subflow does not declare DONE on VIOLATIONS open). This is supported but not required.
 
 ## Why coverage instead of diff-vs-spec text comparison
 

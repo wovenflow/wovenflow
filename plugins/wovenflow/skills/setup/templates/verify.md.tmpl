@@ -78,6 +78,17 @@ Optional sanity check:
 ```
 
 Coverage % alone isn't the goal — coverage of the *acceptance criteria* is. Use the report as a hint, not a target.
+
+### 3a. Run `wovenflow:scopecheck` (over-implementation guardrail)
+
+After the coverage report exists, invoke `wovenflow:scopecheck` to enforce that every committed line in the feature-branch diff is exercised by at least one test. Code without test coverage is by-construction not required by any spec behavior — it is over-implementation.
+
+- **Inputs:** the spec file path, the diff range (`<base>..HEAD`), the coverage command (`{{COVERAGE_CMD}}`).
+- **Verdicts:** CLEAN (no over-implementation; continue), VIOLATIONS (uncovered regions; per region either remove the code or formalize as a new behavior + test, then re-run), AMBIGUOUS (only untrackable regions; surface but don't block), BLOCKED (coverage tool failed; investigate).
+
+Loop until CLEAN or AMBIGUOUS before proceeding to the next verify step. The skill's report drafts the new-behavior prose for each "formalize" choice.
+
+If the project has no `.spec.md` for this work (e.g., one-off scripts), skip — `scopecheck` requires a spec to compare against.
 {{ENDIF}}
 
 {{IF UI_TEST_TOOL}}
