@@ -15,7 +15,7 @@ export async function runTrial({ system_prompt, user_message, signal, options = 
   // (100ms) but doesn't make the test suite hang if something goes wrong.
   const sleepMs = options.slow_response_ms ?? 5_000;
 
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve) => {
     if (signal?.aborted) {
       // Honour an already-aborted signal immediately.
       conversation.push({ role: 'system', content: '[mock-openai-slow] aborted before request' });

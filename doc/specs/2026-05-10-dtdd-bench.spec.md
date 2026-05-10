@@ -184,7 +184,7 @@ test('B6: returns per-label boolean coverage map using blind-authored predicates
     tests_dir: 'bench/test/fixtures/tests-with-edge-cases/',
   });
   assert.ok(result.per_label && typeof result.per_label === 'object');
-  for (const label of ['empty-input', 'unicode', 'off-by-one']) {
+  for (const label of ['empty-input', 'whitespace-only', 'unicode-non-ascii']) {
     assert.equal(typeof result.per_label[label], 'boolean', `missing label ${label}`);
   }
   assert.equal(result.predicates_path, 'bench/tasks/slugify/coverage_predicates/');
