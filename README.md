@@ -30,7 +30,7 @@ Seven skills cover the cycle:
 
 | # | Phase | Job | Default | Alternatives the setup wizard surfaces |
 |---|---|---|---|---|
-| 0 | Session bootstrap | Sync worktree, surface instruction-file changes, refresh architecture context, identify task | `wovenflow:setup` startup template | `gstack:context-restore`; Browse Session Lifecycle category on buildwithclaude.com; none (cold-start projects) |
+| 0 | Session bootstrap | Sync worktree, surface instruction-file changes, refresh architecture context, identify task | `wovenflow:setup` startup template | Browse Session Lifecycle category on buildwithclaude.com; none (cold-start projects). `gstack:context-restore` *supplements* the startup template (loads prior session's thinking after the sync) when paired with `gstack:context-save` in Phase 10 — it is not a substitute. |
 | 1 | Claim | Pick up an issue or task; mark in-progress | `wovenflow:setup` claim template (GitHub Issues or `tasks.md` + bundled `tasks.py` helper) | `atlassian@claude-plugins-official`; `linear@claude-plugins-official`; `asana@claude-plugins-official`; `notion@claude-plugins-official`; `gh issue` CLI; Claude Code's TodoWrite; craft custom via `skill-creator` |
 | 2 | Clarify and challenge | Pressure-test the issue's premise; brainstorm before locking design | `gstack:office-hours` | `superpowers:brainstorming`; `great_cto` (7 SDLC subagents); `gstack:design-shotgun` (UI variants); craft custom via `skill-creator` |
 | 3 | Survey outside context | Surface real references via composable researcher profiles (academic, competitive-landscape, custom) | **`wovenflow:researchflow`** + profiles | Custom researcher profile materialized from `researcher.md.tmpl` (security, clinical, data-science, hardware, etc.); skip when work is mechanical |
@@ -40,7 +40,7 @@ Seven skills cover the cycle:
 | 7 | Verify | Cleanup + review chain (tests, coverage, UI walk-through, adversarial review) | `wovenflow:setup` verify template | `gstack:simplify`; `gstack:codex review`; `gstack:design-review`; `gstack:health`; `gstack:qa`; `gstack:benchmark`; `gstack:cso`; `wovenflow:redteam`; `test-writer-fixer`; Browse Code Quality category; off-template skill via `skill-creator` |
 | 8 | Ship | Land the verified work via PR or direct push | `wovenflow:setup` ship-pr or ship-direct template | `gstack:ship`; `gstack:land-and-deploy`; Browse Git & Version Control category (`commit`, `create-pr`); off-template skill via `skill-creator` |
 | 9 | Post-ship | Update docs, capture learnings | `gstack:document-release` | `gstack:retro`; `gstack:learn`; `claude-md-management:claude-md-improver`; Browse Documentation category |
-| 10 | Close out | Session hygiene; persist state for the next session | `wovenflow:setup` wrap-up template | `gstack:context-save`; off-template skill via `skill-creator` |
+| 10 | Close out | Session hygiene; persist state for the next session | `wovenflow:setup` wrap-up template | Off-template skill via `skill-creator`. `gstack:context-save` *supplements* the wrap-up template (saves a structured checkpoint of the session's thinking for the next session's `gstack:context-restore`) — it is not a substitute for the dangling-commit audit, status reconciliation, and next-task reservation. |
 
 Bold rows are wovenflow's DTDD core. The other phases use companion skills the wizard surfaces from a per-phase catalog (gstack, superpowers, `claude-plugins-official`, community marketplaces) or scaffold templates wovenflow ships for the universal patterns. See `plugins/wovenflow/skills/setup/SKILL.md` for the full catalog.
 
