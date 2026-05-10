@@ -122,7 +122,7 @@ Skip the whole phase when the work is mechanical, the domain is well-understood,
 
 **Job:** Write the prose `.spec.md` with user stories + if/when/then behaviors.
 
-- [**`wovenflow:designflow`**](https://github.com/wovenflow/wovenflow) — **default**. The canonical DTDD design phase.
+- [**`wovenflow:designflow`**](https://github.com/wovenflow/wovenflow) — **default**. The canonical DTDD design phase. Includes a built-in red-team check (`wovenflow:redteam`) as the last step before locking the spec.
 
 Override only if you're explicitly using a different methodology. If you override all of Phases 3-5, you're not using wovenflow — pick a different plugin.
 
@@ -151,6 +151,7 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`test-writer-fixer`**](https://github.com/ComposioHQ/awesome-claude-plugins) — generate / repair unit tests for legacy code (community plugin; discover via awesome-list)
 - [**Browse Code Quality category**](https://buildwithclaude.com/) — discover debugger, security audit, performance, and other review-flavored skills
 - [**`wovenflow:setup` verify template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `verify.md.tmpl` into `<repo>/.claude/skills/verify/SKILL.md`. Parameterized for test command, UI testing tool, and coverage command. Independent of how the project ships — pairs with `ship-pr` or `ship-direct`. Step 1 surveys the change and proposes a verification chain at run time (lists every installed verify-flavored skill — gstack:simplify, codex review, design-review, qa, health, benchmark, cso, etc. — marks each applies/skip per the diff, recommends a subset, and confirms with the user before dispatching). Then runs the gate (tests, coverage audit, criterion walkthrough, adversarial review, user re-test).
+- [**`wovenflow:redteam`**](https://github.com/wovenflow/wovenflow) — optional decision-quality gate inside the verify chain. Runs against the proposed verify chain itself (or against the change as a whole) with the question "list the top three reasons shipping this as-is is not the right call." Useful for architecturally significant changes; skip for mechanical work.
 - **Off-template verification skill** — for projects whose verification gate doesn't fit the wovenflow template, craft via [`skill-creator`](https://github.com/anthropics/claude-plugins-official).
 
 ### Phase 8 — Ship

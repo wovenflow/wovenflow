@@ -114,9 +114,25 @@ It's fine to spec a behavior whose precondition you only fully understood after 
 - **Behaviors are independent.** If B2 depends on B1's outcome, encode that in B2's ∵ IF precondition explicitly.
 - **User stories describe what the user wants and why** — not how the system implements it.
 
+## Red-team check before locking
+
+Before saving the spec as the final draft, run `wovenflow:redteam` against it:
+
+- **Artifact:** the in-progress `.spec.md`
+- **Decision under test:** "If we proceed, this project commits to building feature `<name>` as <N> behaviors per this spec."
+- **Stakes:** one line on what the cost of being wrong is — at minimum, "Phase 5 (testflow) and Phase 6 (subflow) cost will be sunk if we have to revise the direction after this."
+
+Possible verdicts:
+
+- **PROCEED** — the redteam surfaced three real objections, none load-bearing. Append the redteam block to the spec (as a `## Red-team check` section near the end) and continue to handoff. The objections become design context for the testflow + subflow phases.
+- **REVISE** — at least one load-bearing objection. Update the spec to address it, then re-run redteam. Don't proceed to testflow on a spec with an open load-bearing objection.
+- **PAUSE** — at least one load-bearing objection that the spec alone can't resolve. Return to Phase 2 (clarify-and-challenge) or Phase 3 (researchflow) with the specific question the redteam surfaced. Re-enter designflow when the upstream question is answered.
+
+Skip the redteam check only when the spec is for clearly-mechanical work (small bug fix, single behavior, well-understood pattern). When in doubt, run it — it's a 2-5 minute pass.
+
 ## Handoff to testflow
 
-Once the prose is locked, invoke `testflow` to insert `test('...', () => {})` blocks alongside each behavior. The same `.spec.md` file is appended to; both phases produce one artifact.
+Once the prose is locked **and** the red-team check returns PROCEED, invoke `testflow` to insert `test('...', () => {})` blocks alongside each behavior. The same `.spec.md` file is appended to; both phases produce one artifact.
 
 ## Anti-patterns
 

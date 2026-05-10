@@ -12,15 +12,17 @@ The methodology in one paragraph:
 
 ## Skills
 
-Five skills cover the cycle:
+Seven skills cover the cycle:
 
 | Skill | Phase | Job |
 |---|---|---|
-| `wovenflow:researchflow` | Phase 3 — Survey outside context | Bridge the agent's training-cutoff gap to current reality. Surface real papers, prior systems, design patterns, current library versions, current API shapes, RFCs, and ecosystem conventions before drafting the spec. |
-| `wovenflow:designflow` | Phase 4 — Design | Write a `.spec.md` with user stories + if/when/then behaviors — prose only, no code. |
+| `wovenflow:researchflow` | Phase 3 — Survey outside context | Bridge the agent's training-cutoff gap to current reality. Surface real papers, prior systems, design patterns, current library versions, current API shapes, RFCs, and ecosystem conventions before drafting the spec. Composes one or more researcher profiles (academic, competitive-landscape, custom). |
+| `wovenflow:designflow` | Phase 4 — Design | Write a `.spec.md` with user stories + if/when/then behaviors — prose only, no code. Last step invokes `wovenflow:redteam` against the spec before locking. |
 | `wovenflow:testflow` | Phase 5 — Test | Insert inline test blocks alongside each behavior. Bundled `extract.mjs` produces derived `.test.ts` files at pretest time. Runner-agnostic — works with `node:test`, Mocha, Vitest, Jest. |
-| `wovenflow:subflow` | Phase 6 — Build | Dispatch implementer subagents in parallel — each in its own git worktree on its own branch, with spec-compliance and code-quality review per behavior. Bundled `worktree.mjs` (worktree lifecycle + automatic `node_modules` symlink to avoid per-subagent re-installs) and `run-suite.mjs` / `run-behavior.mjs` for ad-hoc test runs. Subagents read `.spec.md` by file path — never paste-text. |
-| `wovenflow:setup` | Workflow wizard | Interactive walk-through to define a project's full 10-phase development cycle (claim → … → close-out), suggesting existing skills or materializing wovenflow's bundled scaffold templates (`claim`, `startup`, `wrap-up`, `pre-pr`) for the four universal patterns. Writes the settled workflow to the project's `CLAUDE.md`. |
+| `wovenflow:subflow` | Phase 6 — Build | Dispatch implementer subagents per behavior, with spec-compliance and code-quality review. Three modes: Team mode (when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set — persistent named teammates, mid-flight messaging, shared task list), Parallel mode (one-shot dispatch into per-behavior worktrees), Sequential mode (rare fallback). Bundled `worktree.mjs` (worktree lifecycle + automatic `node_modules` symlink). Subagents read `.spec.md` by file path — never paste-text. |
+| `wovenflow:redteam` | Cross-phase decision gate | Adversarial-question runner — "list the top three reasons this is not the right call." Invocable before any commit-shaped artifact gets locked: pre-spec save, pre-verify approval, pre-merge, pre-direction-lock. Forces specific, artifact-rooted, steel-manned objections; banned generic vibes (over-engineering, scope creep) without anchoring evidence. |
+| `wovenflow:setup` | Workflow wizard | Interactive walk-through to define a project's full 10-phase development cycle (claim → … → close-out), suggesting existing skills or materializing wovenflow's bundled scaffold templates (`claim`, `startup`, `verify`, `ship-pr`, `ship-direct`, `wrap-up`, `researcher`, `tasks.py`) for the universal patterns. Writes the settled workflow to the project's `CLAUDE.md`. |
+| `wovenflow:flowtune` | Workflow self-tuning | Reviews the session for friction signals — skipped phases, repeated manual additions, override patterns, missing-skill complaints — and proposes specific updates to `CLAUDE.md`'s Standard workstream so future sessions have the right defaults. Wrap-up offers it when friction was observed. |
 
 ## The full cycle
 
@@ -32,7 +34,7 @@ Five skills cover the cycle:
 | 1 | Claim | Pick up an issue or task; mark in-progress | `wovenflow:setup` claim template (GitHub Issues or `tasks.md`) |
 | 2 | Clarify and challenge | Pressure-test the issue's premise; brainstorm before locking design | `gstack:office-hours` |
 | 3 | Survey outside context | Surface real references via composable researcher profiles (academic, competitive-landscape, custom) | **`wovenflow:researchflow`** + profiles |
-| 4 | Design | Write the prose `.spec.md` with user stories + if/when/then behaviors | **`wovenflow:designflow`** |
+| 4 | Design | Write the prose `.spec.md` with user stories + if/when/then behaviors; red-team check before locking | **`wovenflow:designflow`** + **`wovenflow:redteam`** |
 | 5 | Test | Insert inline test blocks alongside each behavior; bundled extractor produces derived test files at pretest time | **`wovenflow:testflow`** |
 | 6 | Build | Dispatch implementer subagents per behavior; spec-compliance + code-quality review | **`wovenflow:subflow`** |
 | 7 | Verify | Cleanup + review chain (tests, coverage, UI walk-through, adversarial review) | `wovenflow:setup` verify template |
