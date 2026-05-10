@@ -93,6 +93,8 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 
 - [**`gstack:office-hours`**](https://github.com/garrytan/gstack) — six forcing questions (demand reality, status quo, narrowest wedge, observation, future-fit). Default for most projects.
 - [**`superpowers:brainstorming`**](https://github.com/obra/superpowers) — exploratory requirements brainstorming for fuzzier problems
+- [**`compound-engineering:ce-brainstorm`**](https://github.com/EveryInc/compound-engineering-plugin) — interactive requirements gathering, part of the Compound Engineering plan-first methodology
+- [**`compound-engineering:ce-ideate`**](https://github.com/EveryInc/compound-engineering-plugin) — generate and evaluate big-picture ideas before committing to a direction
 - [**`great_cto`**](https://github.com/ComposioHQ/awesome-claude-plugins) — 7 SDLC subagents (tech-lead, senior-dev, qa-engineer, security-officer, devops, l3-support, project-auditor); useful when scope warrants architectural critique alongside ideation. Discover via the awesome-list.
 - [**`gstack:design-shotgun`**](https://github.com/garrytan/gstack) — UI-coded ideation: generate multiple design variants and compare
 - [**Browse marketplaces**](https://claudemarketplaces.com/) — other ideation / discovery skills
@@ -138,6 +140,7 @@ Override only if you're explicitly using a different methodology. If you overrid
 
 - [**`wovenflow:subflow`**](https://github.com/wovenflow/wovenflow) — **default**. DTDD-native dispatcher; subagents read `.spec.md` by file path.
 - [**`superpowers:subagent-driven-development`**](https://github.com/obra/superpowers) — fallback for non-DTDD work (no `.spec.md`)
+- [**`compound-engineering:ce-work`**](https://github.com/EveryInc/compound-engineering-plugin) — fallback for projects following Compound Engineering's plan-first methodology instead of DTDD; executes plans with task tracking
 
 ### Phase 7 — Verify
 
@@ -148,6 +151,8 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`gstack:design-review`**](https://github.com/garrytan/gstack) — UI polish / visual audit (skip for non-UI changes)
 - [**`gstack:health`**](https://github.com/garrytan/gstack) — repo health / quality scorecard
 - [**`gstack:qa`**](https://github.com/garrytan/gstack) — exploratory QA against the running app
+- [**`compound-engineering:ce-code-review`**](https://github.com/EveryInc/compound-engineering-plugin) — multi-agent pre-merge code review pass
+- [**`compound-engineering:ce-debug`**](https://github.com/EveryInc/compound-engineering-plugin) — systematic root-cause investigation when verification surfaces a failure
 - [**`test-writer-fixer`**](https://github.com/ComposioHQ/awesome-claude-plugins) — generate / repair unit tests for legacy code (community plugin; discover via awesome-list)
 - [**Browse Code Quality category**](https://buildwithclaude.com/) — discover debugger, security audit, performance, and other review-flavored skills
 - [**`wovenflow:setup` verify template (Recommended)**](https://github.com/wovenflow/wovenflow) — wizard materializes `verify.md.tmpl` into `<repo>/.claude/skills/verify/SKILL.md`. Parameterized for test command, UI testing tool, and coverage command. Independent of how the project ships — pairs with `ship-pr` or `ship-direct`. Step 1 surveys the change and proposes a verification chain at run time (lists every installed verify-flavored skill — gstack:simplify, codex review, design-review, qa, health, benchmark, cso, etc. — marks each applies/skip per the diff, recommends a subset, and confirms with the user before dispatching). Then runs the gate (tests, coverage audit, criterion walkthrough, adversarial review, user re-test).
@@ -172,6 +177,8 @@ Override only if you're explicitly using a different methodology. If you overrid
 - [**`gstack:document-release`**](https://github.com/garrytan/gstack) — sync docs with what shipped
 - [**`gstack:retro`**](https://github.com/garrytan/gstack) — periodic retro across recent shipped work
 - [**`gstack:learn`**](https://github.com/garrytan/gstack) — capture a single insight worth keeping
+- [**`compound-engineering:ce-compound`**](https://github.com/EveryInc/compound-engineering-plugin) — document learnings for reuse so each unit of work makes the next easier (parallels `gstack:learn` but with a structured re-use focus)
+- [**`compound-engineering:ce-product-pulse`**](https://github.com/EveryInc/compound-engineering-plugin) — time-windowed usage and performance reports against what just shipped
 - [**`claude-md-management:claude-md-improver`**](https://github.com/anthropics/claude-plugins-official) — audit + update `CLAUDE.md` to reflect the latest project state
 - [**Browse Documentation category**](https://buildwithclaude.com/) — auto-generators, changelog tooling, etc.
 
