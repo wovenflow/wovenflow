@@ -1,0 +1,4 @@
+{
+  "comment": "Test fixture: declares labels but the coverage_predicates/ directory is intentionally missing predicate files for all of them. scoreCoverage must reject this task with MissingPredicatesError.",
+  "labels": ["empty-input", "negative", "type-coercion"]
+}

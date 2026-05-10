@@ -1,0 +1,4 @@
+{
+  "comment": "Edge-case category labels covered by this task's hidden tests. Each label must have a corresponding predicate file under coverage_predicates/<label>.js. Hidden test files (named <label>.test.js or <label>.<n>.test.js) are run by scoreHidden against the produced source.",
+  "labels": ["empty-input", "unicode", "off-by-one"]
+}
