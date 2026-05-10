@@ -1,0 +1,14 @@
+{
+  "run_id": "run-multi-provider",
+  "protocol_sha": "abcdef0123456789abcdef0123456789abcdef01",
+  "model_id": "mixed (see per-provider reports)",
+  "temperature": 0.0,
+  "seed": 42,
+  "started_at": "2026-05-10T00:00:00Z",
+  "finished_at": "2026-05-10T01:00:00Z",
+  "total_cost_usd": 0.10,
+  "tasks": ["slugify"],
+  "styles": ["dtdd", "tdd"],
+  "topologies": ["single"],
+  "n_trials_per_cell": 1
+}

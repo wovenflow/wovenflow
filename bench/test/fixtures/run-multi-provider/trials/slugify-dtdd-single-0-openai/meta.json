@@ -1,0 +1,16 @@
+{
+  "run_id": "run-multi-provider",
+  "trial_id": "slugify-dtdd-single-0-openai",
+  "task_id": "slugify",
+  "style": "dtdd",
+  "topology": "single",
+  "trial_index": 0,
+  "tokens_input": 1200,
+  "tokens_output": 600,
+  "tokens_total": 1800,
+  "wall_clock_ms": 90000,
+  "stop_reason": "done",
+  "provider": "openai-compatible",
+  "endpoint_url": "http://localhost:11434/v1",
+  "model_id": "qwen2.5-coder:32b"
+}

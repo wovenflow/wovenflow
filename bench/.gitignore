@@ -11,3 +11,10 @@ test/fixtures/clean-tree/baseline.txt
 test/fixtures/dirty-tree/.git/
 test/fixtures/dirty-tree/baseline.txt
 test/fixtures/dirty-tree/uncommitted.txt
+
+# B4 of bench-provider spec writes reports straight into the run dir,
+# including into the run-multi-provider fixture during tests. The committed
+# fixture is the meta.json + trials/ inputs only — generated reports are
+# re-created on every run.
+test/fixtures/run-multi-provider/index.md
+test/fixtures/run-multi-provider/report-*.md
