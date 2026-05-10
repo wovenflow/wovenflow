@@ -1,0 +1,8 @@
+{
+  "per_label": {
+    "empty-input": true,
+    "large-input": false,
+    "off-by-one": true
+  },
+  "predicates_path": "bench/tasks/fizzbuzz/coverage_predicates/"
+}
