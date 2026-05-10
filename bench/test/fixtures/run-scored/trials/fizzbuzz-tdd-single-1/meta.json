@@ -1,0 +1,11 @@
+{
+  "task_id": "fizzbuzz",
+  "style": "tdd",
+  "topology": "single",
+  "trial_index": 1,
+  "tokens_input": 3841,
+  "tokens_output": 2560,
+  "tokens_total": 6401,
+  "wall_clock_ms": 61967,
+  "stop_reason": "done"
+}

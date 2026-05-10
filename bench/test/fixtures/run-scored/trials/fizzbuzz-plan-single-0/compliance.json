@@ -1,0 +1,9 @@
+{
+  "verdict": "non-compliant",
+  "graders": [
+    "rater_a",
+    "rater_b",
+    "rater_c"
+  ],
+  "evidence": "see conversation log"
+}

@@ -1,0 +1,8 @@
+{
+  "per_label": {
+    "empty-input": true,
+    "unicode": false,
+    "off-by-one": false
+  },
+  "predicates_path": "bench/tasks/slugify/coverage_predicates/"
+}

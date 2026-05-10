@@ -1,0 +1,14 @@
+{
+  "run_id": "test-run-001",
+  "protocol_sha": "0123456789abcdef0123456789abcdef01234567",
+  "model_id": "claude-sonnet-test",
+  "temperature": 0.0,
+  "seed": 42,
+  "started_at": "2026-05-10T00:00:00Z",
+  "finished_at": "2026-05-10T01:00:00Z",
+  "total_cost_usd": 12.34,
+  "tasks": ["slugify", "fizzbuzz"],
+  "styles": ["tdd", "dtdd", "plan", "freeform"],
+  "topologies": ["single"],
+  "n_trials_per_cell": 2
+}

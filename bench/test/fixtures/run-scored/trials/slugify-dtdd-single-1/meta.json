@@ -1,0 +1,11 @@
+{
+  "task_id": "slugify",
+  "style": "dtdd",
+  "topology": "single",
+  "trial_index": 1,
+  "tokens_input": 4684,
+  "tokens_output": 3122,
+  "tokens_total": 7806,
+  "wall_clock_ms": 65514,
+  "stop_reason": "done"
+}
