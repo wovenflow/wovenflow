@@ -40,26 +40,25 @@ Task tool (general-purpose):
 
       <REPO_WORKING_DIR>
 
-    In Team and Parallel modes, this is the implementer's per-behavior worktree (on branch `wovenflow/<behavior-id>`). In Sequential mode it's the project root. Run tests and read the diff from inside this directory.
+    In Named agents and Parallel modes, this is the implementer's per-behavior worktree (on branch `wovenflow/<behavior-id>`). In Sequential mode it's the project root. Run tests and read the diff from inside this directory.
 
-    ## Team mode (only if these inputs are filled in)
+    ## Named agents mode (only if these inputs are filled in)
 
-      Team name:        <TEAM_NAME>
-      Your name:        spec-reviewer
-      Your task id:     <TASK_ID>              (e.g., review-B1-spec)
+      Your name:                spec-reviewer
+      Orchestrator address:     <ORCHESTRATOR_NAME> (typically "orchestrator")
 
-    If those are filled in, you are a **persistent reviewer teammate** inside an Agent Team. You stay alive across all behaviors in this subflow run; the orchestrator assigns you a new `review-Bn-spec` task each time an implementer marks their work done. If they are blank, you are a one-shot reviewer — skip this section.
+    If those are filled in, you are a **persistent named reviewer** addressable by `SendMessage`. You stay alive across all behaviors in this subflow run; the orchestrator sends you a fresh review pointer each time an implementer reports DONE. If they are blank, you are a one-shot reviewer — skip this section.
 
-    Differences when running as a teammate:
+    Differences when running as a named reviewer:
 
-    - **Read your assigned task first.** Use `TaskList` to find the task assigned to you (`spec-reviewer`); read `<TASK_ID>` and the linked implementer task's notes to learn what was implemented and the implementer's commit range.
-    - **Verdict goes through `TaskUpdate`, not the return message.**
-      - APPROVED: `TaskUpdate({ task_id: "<TASK_ID>", status: "completed", notes: "APPROVED" })`
-      - NEEDS_FIX: `TaskUpdate({ status: "completed", notes: "NEEDS_FIX: <enumerated list>" })` plus `SendMessage({ to: "impl-B<N>", summary: "B<N> needs fixes", message: "<the fix list>" })` so the implementer wakes on the message.
-      - BLOCKED: `TaskUpdate({ status: "blocked", notes: "BLOCKED: <reason>" })` plus `SendMessage({ to: "team-lead", ... })` to escalate.
+    - **The orchestrator's `SendMessage` carries the pointer.** Each message tells you: the worktree path, the spec path, the behavior id, and the commit range to review (`BASE_SHA..HEAD_SHA`). Read those, then review in that worktree.
+    - **Reply with the verdict via `SendMessage`, not return message.**
+      - APPROVED: `SendMessage({ to: "<ORCHESTRATOR_NAME>", summary: "B<N> APPROVED", message: "APPROVED" })`
+      - NEEDS_FIX: `SendMessage({ to: "<ORCHESTRATOR_NAME>", summary: "B<N> needs fixes", message: "NEEDS_FIX: <enumerated list>" })`. The orchestrator forwards the fix list to `impl-B<N>`; you do not message the implementer directly unless instructed.
+      - BLOCKED: `SendMessage({ to: "<ORCHESTRATOR_NAME>", summary: "B<N> blocked", message: "BLOCKED: <reason>" })` to escalate.
     - **You may build pattern memory across behaviors.** When B3's review echoes a smell from B1, note it in your verdict — that's the persistence value.
-    - **After reporting, idle.** The orchestrator's next assignment wakes you; don't poll.
-    - **Don't originate `shutdown_request`** — the orchestrator manages teardown.
+    - **After reporting, idle.** The orchestrator's next message wakes you; don't poll.
+    - **Don't originate `shutdown` messages** — the orchestrator manages teardown.
 
     ## Four checks
 
@@ -99,7 +98,7 @@ Task tool (general-purpose):
 
     ## Return verdict
 
-    In **Team mode**, write the verdict via `TaskUpdate` on `<TASK_ID>` (see Team mode section above) and `SendMessage` the implementer if `NEEDS_FIX`. In **one-shot mode**, return the verdict as your message.
+    In **Named agents mode**, write the verdict via `SendMessage` to the orchestrator (see Named agents mode section above). In **one-shot mode**, return the verdict as your message.
 
     Report exactly one of:
 

@@ -24,23 +24,22 @@ Task tool (general-purpose):
 
   WORKING_DIR: <REPO_WORKING_DIR>
 
-  # Team mode inputs (fill in only when CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1)
-  TEAM_NAME: <TEAM_NAME>             # e.g., wovenflow-2026-05-04-feature
-  TEAMMATE_NAME: quality-reviewer    # persistent reviewer name
-  TASK_ID: <TASK_ID>                 # e.g., review-B1-quality
+  # Named agents mode inputs (fill in when spawning as a persistent named reviewer)
+  SUBAGENT_NAME: quality-reviewer    # spawned via Agent({ name: "quality-reviewer", ... })
+  ORCHESTRATOR_NAME: <ORCHESTRATOR_NAME>  # typically "orchestrator"
 ```
 
-## Team mode (only if the above team inputs are filled in)
+## Named agents mode (only if the above inputs are filled in)
 
-If `TEAM_NAME` etc. are filled in, you are a **persistent reviewer teammate** inside an Agent Team. You stay alive across all behaviors in this subflow run; the orchestrator assigns you a new `review-Bn-quality` task each time spec-compliance review approves. Differences:
+If `SUBAGENT_NAME` is filled in, you are a **persistent named reviewer** addressable by `SendMessage`. You stay alive across all behaviors in this subflow run; the orchestrator sends you a fresh review pointer each time spec-compliance review approves. Differences:
 
-- **Read your assigned task first** with `TaskList`; the implementer's `BASE_SHA..HEAD_SHA` and one-line summary are in the task notes.
-- **Verdict via `TaskUpdate`, not return message:**
-  - APPROVED: `TaskUpdate({ task_id: "<TASK_ID>", status: "completed", notes: "APPROVED" })`
-  - Issues: `TaskUpdate({ status: "completed", notes: "Critical: ...; Important: ...; Minor: ..." })` plus `SendMessage({ to: "impl-B<N>", ... })` with the issue list so the implementer wakes on it.
+- **The orchestrator's `SendMessage` carries the pointer.** Each message tells you the worktree path, the implementer's `BASE_SHA..HEAD_SHA`, and a one-line summary. Read those, then review in that worktree.
+- **Reply with the verdict via `SendMessage`, not return message:**
+  - APPROVED: `SendMessage({ to: "<ORCHESTRATOR_NAME>", summary: "B<N> quality APPROVED", message: "APPROVED" })`
+  - Issues: `SendMessage({ to: "<ORCHESTRATOR_NAME>", summary: "B<N> quality issues", message: "Critical: ...; Important: ...; Minor: ..." })`. The orchestrator forwards the issue list to `impl-B<N>`; you do not message the implementer directly unless instructed.
 - **Build pattern memory across behaviors.** Repeated smells across B1, B3, B5 are worth surfacing as a project-level concern, not just a per-behavior issue.
-- **After reporting, idle.** Don't poll; the next assignment wakes you.
-- **Don't originate `shutdown_request`** — the orchestrator manages teardown.
+- **After reporting, idle.** Don't poll; the next `SendMessage` wakes you.
+- **Don't originate `shutdown` messages** — the orchestrator manages teardown.
 
 ## In addition to standard code-quality concerns
 
