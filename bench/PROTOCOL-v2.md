@@ -202,6 +202,13 @@ Same as v1 PROTOCOL.md §5. Model ID pinned, temperature pinned, seed pinned, ra
 - [x] **`scoreHidden` extended to accept a non-default hidden-tests subdir for the post-edit suite** (commit `e5dfa81`)
 - [x] Stage-2 v2 commitment tag on the locked v2 protocol commit — `stage-2-v2-pre-registered-2026-05-11`
 
+### Discovered after tag: additional prerequisites
+
+The integration smoke against vLLM-served Qwen2.5-Coder-1.5B (2026-05-11) surfaced two gaps that §9 did not enumerate at tag time. The tag stays valid as the *Phase 2 dispatch + scoreHidden extension snapshot*, but the study cannot be run end-to-end until these two items also land. A separate amendment tag will be created when both are complete.
+
+- [ ] **Study orchestrator** — a script (e.g. `bench/study.mjs`) that composes real prompts per (condition, task), supplies `write_source` / `write_test` tool definitions, drives the per-cell loop over Phase 1 + Phase 2 + Phase 2-WD, scores each phase, and writes a per-run report. The harness's `dispatchTrial` defaults are testing placeholders; a real study run requires a caller that wires style card content + `intent.md` content + tool definitions into each dispatch.
+- [ ] **Baseline condition in the harness** — `bench/runner.js` `KNOWN_STYLES` must accept `'baseline'` (the "no style card / intent.md only" condition defined in §3.2). The condition is referenced by the protocol but not yet recognized by the harness.
+
 ## 10. Relationship to v1
 
 v1's Stage-2 pre-registration tag (`stage-2-pre-registered-2026-05-10`) remains valid for the v1 study should anyone want to run it. The harness commits, task set, style cards, topology helper, predicates, grading rubric, and kappa pre-check are all reused unchanged.
