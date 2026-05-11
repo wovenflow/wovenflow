@@ -25,6 +25,7 @@ import {
   existsSync,
   statSync,
   mkdirSync,
+  appendFileSync,
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +41,8 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 
 // Conditions the orchestrator recognizes for v2 Stage-2. The harness's
 // `KNOWN_STYLES` also accepts these strings (runner.js B1).
+// v2 deliberately narrows to three conditions; bench/runner.js's KNOWN_STYLES
+// remains permissive (plan, freeform) for v1 compatibility.
 const KNOWN_CONDITIONS = new Set(['baseline', 'tdd', 'dtdd']);
 
 // v2 task set per spec B9's default. Kept here as a single source of truth so
@@ -250,59 +253,145 @@ export async function runStudy({
     return { phase1_planned };
   }
 
+  // Compute the run_dir up front so the error-telemetry appender can write
+  // to it from the very first trial, even if every dispatch fails (each
+  // dispatchTrial would otherwise create the run_dir lazily as a side effect
+  // of writing its own trial_dir).
+  const run_dir = path.resolve(root, 'bench', 'results', run_id);
+  const errors = [];
+  // ensureRunDir + appendError isolate the I/O concern of telemetry so a
+  // write failure here can't cascade into a second exception inside the
+  // catch handler — appendError swallows its own I/O errors after one
+  // best-effort write.
+  const ensureRunDir = () => {
+    try {
+      mkdirSync(run_dir, { recursive: true });
+    } catch {
+      // mkdir failure is non-fatal here; the worst case is the in-memory
+      // errors[] is the only record, which is still correct telemetry.
+    }
+  };
+  const appendError = (record) => {
+    errors.push(record);
+    try {
+      ensureRunDir();
+      appendFileSync(path.join(run_dir, 'errors.jsonl'), JSON.stringify(record) + '\n');
+    } catch {
+      // Telemetry-of-telemetry would be turtles all the way down. The
+      // in-memory record in `errors` is the authoritative one for the caller.
+    }
+  };
+
   // --- Phase 1 dispatch -----------------------------------------------
+  // Sequential by design: simplifies rate-limit accounting and avoids
+  // interleaved disk writes. Do not "optimize" into Promise.all.
+  //
+  // Per-trial try/catch keeps a single transient failure (network blip,
+  // provider 5xx, dispatcher crash on one trial) from aborting the whole
+  // matrix. For a 450-trial v2 Stage-2 run, losing hours of compute to one
+  // bad trial is worse than the alternative: record the error, move on, let
+  // the operator decide whether to re-run the failed cell offline.
   const phase1_results = [];
   for (const entry of phase1_planned) {
-    const prompt = composePrompt({
-      condition: entry.condition,
-      task_id: entry.task_id,
-      repo_root: root,
-    });
-    const result = await dispatchTrial({
-      task_id: entry.task_id,
-      style: entry.condition,
-      topology: entry.topology,
-      trial_index: entry.trial_index,
-      run_id,
-      system_prompt: prompt.system_prompt,
-      user_message: prompt.user_message,
-      tools: prompt.tools,
-    });
-    phase1_results.push({ ...entry, ...result });
+    try {
+      const prompt = composePrompt({
+        condition: entry.condition,
+        task_id: entry.task_id,
+        repo_root: root,
+      });
+      const result = await dispatchTrial({
+        task_id: entry.task_id,
+        style: entry.condition,
+        topology: entry.topology,
+        trial_index: entry.trial_index,
+        run_id,
+        system_prompt: prompt.system_prompt,
+        user_message: prompt.user_message,
+        tools: prompt.tools,
+      });
+      phase1_results.push({ ...entry, ...result });
+    } catch (err) {
+      appendError({
+        trial_id: entry.trial_id,
+        task_id: entry.task_id,
+        condition: entry.condition,
+        trial_index: entry.trial_index,
+        phase: 'phase-1',
+        stage: 'dispatch',
+        error: err && err.message ? err.message : String(err),
+      });
+    }
   }
 
   // --- Phase 1 scoring -------------------------------------------------
+  // Scoring is fast and CPU-bound; we still wrap each scoring call so a
+  // surprise (e.g. malformed meta.json, scoreHidden internal error) doesn't
+  // skip Phase 2 for trials that were dispatched successfully.
   for (const r of phase1_results) {
     if (!r.trial_dir) continue;
-    await scoreTrialAndUpdateMeta({
-      trial_dir: r.trial_dir,
-      task_id: r.task_id,
-      phase: 'phase-1',
-    });
+    try {
+      await scoreTrialAndUpdateMeta({
+        trial_dir: r.trial_dir,
+        task_id: r.task_id,
+        phase: 'phase-1',
+      });
+    } catch (err) {
+      appendError({
+        trial_id: r.trial_id,
+        task_id: r.task_id,
+        phase: 'phase-1',
+        stage: 'score',
+        error: err && err.message ? err.message : String(err),
+      });
+    }
   }
 
   // --- Phase 2 planning + dispatch ------------------------------------
-  const run_dir = path.resolve(root, 'bench', 'results', run_id);
   const phase1_trial_dirs = phase1_results
     .map((r) => r.trial_dir)
     .filter((d) => typeof d === 'string' && existsSync(d));
   const phase2_plan = planPhase2({ run_id, run_dir, phase1_trial_dirs });
 
+  // Sequential by design: same rationale as Phase 1. Each Phase 2 trial also
+  // gets its own try/catch so a single editTrial failure doesn't lose the
+  // remaining Phase 2 slots.
   const phase2_results = [];
   for (const entry of phase2_plan.phase2_planned) {
-    const result = await dispatchEditTrial({
-      phase1_trial_dir: entry.phase1_trial_dir,
-      task_id: entry.task_id,
-      include_original_description: entry.include_original_description,
-      run_id,
-    });
-    phase2_results.push({ ...entry, ...result });
-    if (result?.trial_dir) {
-      await scoreTrialAndUpdateMeta({
-        trial_dir: result.trial_dir,
+    let result;
+    try {
+      result = await dispatchEditTrial({
+        phase1_trial_dir: entry.phase1_trial_dir,
+        task_id: entry.task_id,
+        include_original_description: entry.include_original_description,
+        run_id,
+      });
+      phase2_results.push({ ...entry, ...result });
+    } catch (err) {
+      appendError({
+        trial_id: entry.trial_id,
         task_id: entry.task_id,
         phase: entry.include_original_description ? 'phase-2-wd' : 'phase-2',
+        stage: 'dispatch',
+        error: err && err.message ? err.message : String(err),
       });
+      continue;
+    }
+    if (result?.trial_dir) {
+      try {
+        await scoreTrialAndUpdateMeta({
+          trial_dir: result.trial_dir,
+          task_id: entry.task_id,
+          phase: entry.include_original_description ? 'phase-2-wd' : 'phase-2',
+        });
+      } catch (err) {
+        appendError({
+          trial_id: entry.trial_id,
+          task_id: entry.task_id,
+          phase: entry.include_original_description ? 'phase-2-wd' : 'phase-2',
+          stage: 'score',
+          error: err && err.message ? err.message : String(err),
+        });
+      }
     }
   }
 
@@ -322,6 +411,7 @@ export async function runStudy({
     phase2_planned: phase2_plan.phase2_planned,
     phase2_results,
     skipped: phase2_plan.skipped,
+    errors,
   };
 }
 
@@ -420,11 +510,9 @@ function deriveTaskIdFromTrialId(trial_id) {
   if (!/^\d+$/.test(parts[parts.length - 1])) return trial_id;
   const topology = parts[parts.length - 2];
   if (topology !== 'single' && topology !== 'multi') return trial_id;
-  const condition = parts[parts.length - 3];
-  if (!KNOWN_CONDITIONS.has(condition) && condition !== 'plan' && condition !== 'freeform') {
-    // Be permissive: caller may use a condition not in KNOWN_CONDITIONS (e.g.
-    // a v1 trial). Fall back to joining all but the last three parts.
-  }
+  // Be permissive on the condition slot: a v1 trial may carry a condition not
+  // in v2's KNOWN_CONDITIONS, but the task name still occupies the leading
+  // parts. Join all but the trailing condition+topology+index segments.
   return parts.slice(0, parts.length - 3).join('-');
 }
 
@@ -669,7 +757,8 @@ async function main() {
     `Completed run "${effective_run_id}": ` +
       `${plan.phase1_results.length} Phase 1, ` +
       `${plan.phase2_results.length} Phase 2, ` +
-      `${plan.skipped.length} skipped.\n`,
+      `${plan.skipped.length} skipped, ` +
+      `${(plan.errors ?? []).length} errors.\n`,
   );
   process.exit(0);
 }
