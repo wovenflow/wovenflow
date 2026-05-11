@@ -95,12 +95,29 @@ const TEST_FILE_RE = /\.test\.(m?js|cjs|ts)$/;
 
 // --- B4: scoreHidden --------------------------------------------------------
 
-// Static-check a source tree for any literal reference to 'hidden_tests/'.
-// Throws HiddenTestLeakError on the first hit. The check is deliberately
-// blunt (substring match in code/comments) — a producing agent that needs to
-// import test infrastructure should arrange a path through the harness, not
-// through the held-out test directory.
-function staticLeakCheck(sourceDir) {
+// Static-check a source tree for any literal reference to the active hidden-
+// tests directory. Throws HiddenTestLeakError on the first hit.
+//
+// Phase 2 (v2) note: the check is **path-scoped**, not substring-scoped. It
+// matches one of two exact path strings naming the active hidden-tests
+// directory for this call:
+//
+//   - `bench/tasks/<task_id>/<subdir>/` (the bench-relative spelling — what
+//     a producing agent would write)
+//   - the absolute resolved path with a trailing slash (defense-in-depth for
+//     pathologically resolved leaks)
+//
+// Bare references to the substring `hidden_tests` without surrounding path
+// context (e.g. a docstring that mentions "the hidden_tests directory") do
+// NOT trip the check. This is load-bearing for v2: when the alternate suite
+// is `hidden_tests_after_edit/`, a path-rooted reference to the default
+// `hidden_tests/` would still be a leak (and vice-versa), but unscoped
+// substring mentions of either name are fine.
+function staticLeakCheck(sourceDir, taskId, hiddenSubdir, resolvedHiddenDir) {
+  const benchRelativePath = `bench/tasks/${taskId}/${hiddenSubdir}/`;
+  const absolutePath = resolvedHiddenDir.endsWith('/')
+    ? resolvedHiddenDir
+    : resolvedHiddenDir + '/';
   for (const file of walkFiles(sourceDir, (name) => SOURCE_FILE_RE.test(name))) {
     let body;
     try {
@@ -108,9 +125,9 @@ function staticLeakCheck(sourceDir) {
     } catch {
       continue;
     }
-    if (body.includes('hidden_tests/')) {
+    if (body.includes(benchRelativePath) || body.includes(absolutePath)) {
       throw new HiddenTestLeakError(
-        `static leak: ${file} references hidden_tests/`,
+        `static leak: ${file} references the active hidden-tests path ${benchRelativePath}`,
       );
     }
   }
@@ -122,12 +139,21 @@ function staticLeakCheck(sourceDir) {
 // that's out of scope per the implementer brief — but we do (a) refuse to
 // run if the source statically referenced the path, and (b) execute under a
 // scratch cwd so the source can't relative-resolve into hidden_tests/.
-export async function scoreHidden({ task_id, source_dir }) {
+//
+// `hidden_tests_subdir` (v2 / Phase 2 spec B1): names the subdirectory under
+// `bench/tasks/<task_id>/` that holds the active suite. Defaults to
+// `'hidden_tests'` to preserve v1 behavior — the original held-out suite is
+// scored exactly as before when the caller omits the parameter. The Phase 2
+// study passes `'hidden_tests_after_edit'` to score against the extended
+// suite that includes assertions for the post-edit behavior.
+export async function scoreHidden({ task_id, source_dir, hidden_tests_subdir }) {
+  const subdir = hidden_tests_subdir ?? 'hidden_tests';
   const resolvedSource = resolvePath(source_dir);
-  staticLeakCheck(resolvedSource);
 
   const taskDir = resolvePath(`bench/tasks/${task_id}`);
-  const hiddenDir = join(taskDir, 'hidden_tests');
+  const hiddenDir = join(taskDir, subdir);
+
+  staticLeakCheck(resolvedSource, task_id, subdir, hiddenDir);
 
   if (!existsSync(hiddenDir)) {
     // No hidden suite configured yet — return an empty result rather than

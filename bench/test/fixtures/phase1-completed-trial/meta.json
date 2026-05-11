@@ -1,0 +1,16 @@
+{
+  "run_id": "phase1-fixture-run",
+  "trial_id": "phase1-completed-trial",
+  "task_id": "slugify",
+  "style": "dtdd",
+  "topology": "single",
+  "trial_index": 0,
+  "tokens_input": 1234,
+  "tokens_output": 567,
+  "wall_clock_ms": 12345,
+  "stop_reason": "done",
+  "captured_at": "2026-05-11T00:00:00.000Z",
+  "provider": "mock",
+  "endpoint_url": null,
+  "model_id": "mock-phase1"
+}

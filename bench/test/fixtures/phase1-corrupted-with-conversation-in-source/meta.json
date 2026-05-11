@@ -1,0 +1,13 @@
+{
+  "run_id": "phase1-corrupted-fixture",
+  "trial_id": "phase1-corrupted-with-conversation-in-source",
+  "task_id": "slugify",
+  "style": "tdd",
+  "topology": "single",
+  "trial_index": 0,
+  "tokens_input": 100,
+  "tokens_output": 50,
+  "wall_clock_ms": 1000,
+  "stop_reason": "done",
+  "captured_at": "2026-05-11T00:00:00.000Z"
+}

@@ -1,0 +1,23 @@
+{
+  "run_id": "phase2-fixture-run",
+  "trial_id": "slugify-tdd-single-0",
+  "task_id": "slugify",
+  "style": "tdd",
+  "topology": "single",
+  "trial_index": 0,
+  "source_files": {
+    "index.js": "export function slugify(s, maxLength) { return String(s).toLowerCase(); }\n"
+  },
+  "test_files": {
+    "slugify.test.js": "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { slugify } from './index.js';\ntest('slugify accepts maxLength', () => assert.equal(typeof slugify, 'function'));\n"
+  },
+  "conversation": [
+    {"role": "system", "content": "phase-2 mock"},
+    {"role": "user", "content": "apply edit.md"},
+    {"role": "assistant", "content": "done"}
+  ],
+  "tokens_input": 800,
+  "tokens_output": 300,
+  "wall_clock_ms": 5000,
+  "stop_reason": "done"
+}
