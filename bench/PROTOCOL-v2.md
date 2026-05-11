@@ -196,11 +196,11 @@ Same as v1 PROTOCOL.md §5. Model ID pinned, temperature pinned, seed pinned, ra
 - [x] 5 tasks under `bench/tasks/` with `intent.md`, `hidden_tests/`, `coverage_predicates/`, `provenance.md` (inherited from v1)
 - [x] Grading rubric (inherited from v1; Phase 2 addendum drafted in §3.7 above)
 - [x] Coverage predicate inter-rater check (inherited from v1's kappa pre-check)
-- [ ] **`edit.md` per task — blind-authored from `intent.md` only**
-- [ ] **`hidden_tests_after_edit/` per task — extends `hidden_tests/` with new-behavior assertions**
-- [ ] **Phase 2 dispatch logic in the bench harness — takes a Phase 1 trial dir, runs a fresh agent against the trial's artifacts + edit prompt (optionally + original description for the WD control arm)**
-- [ ] **`scoreHidden` extended to accept a non-default hidden-tests subdir for the post-edit suite**
-- [ ] Stage-2 v2 commitment tag on the locked v2 protocol commit
+- [x] **`edit.md` per task — blind-authored from `intent.md` only** (commits `1220d57`, `e5dfa81` for slugify)
+- [x] **`hidden_tests_after_edit/` per task — extends `hidden_tests/` with new-behavior assertions** (commits `abec799`, `e5dfa81` for slugify)
+- [x] **Phase 2 dispatch logic in the bench harness — takes a Phase 1 trial dir, runs a fresh agent against the trial's artifacts + edit prompt (optionally + original description for the WD control arm)** (commits `e5dfa81` + `07cd8fd` review-fix; spec at `doc/specs/2026-05-11-bench-phase2.spec.md`)
+- [x] **`scoreHidden` extended to accept a non-default hidden-tests subdir for the post-edit suite** (commit `e5dfa81`)
+- [x] Stage-2 v2 commitment tag on the locked v2 protocol commit — `stage-2-v2-pre-registered-2026-05-11`
 
 ## 10. Relationship to v1
 
