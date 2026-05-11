@@ -166,7 +166,7 @@ export function loadProtocol(protocolPath) {
 
 // --- B2 -----------------------------------------------------------------
 
-const KNOWN_STYLES = new Set(['tdd', 'dtdd', 'plan', 'freeform']);
+const KNOWN_STYLES = new Set(['tdd', 'dtdd', 'plan', 'freeform', 'baseline']);
 const KNOWN_TOPOLOGIES = new Set(['single', 'multi']);
 
 function rejectStyleSpecificTopology(helperPath, style) {

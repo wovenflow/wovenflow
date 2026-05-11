@@ -7,13 +7,17 @@
 // for a fence the reader is supposed to understand on its own — but causes
 // `Identifier 'X' has already been declared` once concatenated.
 //
-// This script collapses duplicate top-level `import` statements (anything
-// matching the basic single-line form `import ... from '...';`) to a single
+// This script collapses duplicate top-level `import` statements to a single
 // occurrence at the top of the file, preserving the rest of the source order.
 //
-// Scope is intentionally narrow: only single-line static imports. Multi-line
-// imports, dynamic imports, and side-effect imports beyond exact-text dupes
-// are left alone.
+// Two forms are recognized:
+//   1. Default / namespace / side-effect / non-named imports collapsed by
+//      exact text.
+//   2. Named imports from the same module: their name lists are MERGED, so
+//      `import { a } from 'x'; import { a, b } from 'x';` becomes a single
+//      `import { a, b } from 'x';`. This is load-bearing for specs whose
+//      individual test fences self-document their imports but overlap on
+//      named bindings (which would otherwise re-declare identifiers).
 //
 // In addition, this script rewrites bench-relative module specifiers that
 // were authored assuming the test would run from the repo root (e.g.
@@ -43,25 +47,53 @@ source = source.replace(
 
 const lines = source.split('\n');
 
-const seenImports = new Set();
-const importLines = [];
-const otherLines = [];
-
+// A named-import line: `import { a, b as c } from 'x';`. (No default-with-named
+// form like `import x, { y } from 'm'` — the bench specs only use the pure
+// named form, so we keep the parser narrow rather than risk a wrong rewrite.)
+const NAMED_IMPORT_RE =
+  /^\s*import\s*\{\s*([^}]+)\s*\}\s*from\s*['"]([^'"]+)['"]\s*;?\s*$/;
+// Any single-line static import. Matches when NAMED_IMPORT_RE does not.
 const IMPORT_RE = /^\s*import\s+[^;]*from\s+['"][^'"]+['"]\s*;?\s*$/;
 
+// Merged named-import sets keyed by module specifier. Preserves insertion
+// order of specifiers AND of names within each specifier.
+const namedBySpec = new Map(); // spec -> ordered Set of name tokens
+const otherImports = []; // non-named imports in first-seen order
+const seenOther = new Set();
+const otherLines = [];
+
 for (const line of lines) {
+  const named = line.match(NAMED_IMPORT_RE);
+  if (named) {
+    const names = named[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const spec = named[2];
+    if (!namedBySpec.has(spec)) namedBySpec.set(spec, new Set());
+    const set = namedBySpec.get(spec);
+    for (const n of names) set.add(n);
+    continue;
+  }
   if (IMPORT_RE.test(line)) {
     const key = line.trim();
-    if (!seenImports.has(key)) {
-      seenImports.add(key);
-      importLines.push(line);
+    if (!seenOther.has(key)) {
+      seenOther.add(key);
+      otherImports.push(line);
     }
-    // Drop duplicate import lines.
-  } else {
-    otherLines.push(line);
+    continue;
   }
+  otherLines.push(line);
 }
 
-// Write imports first, then a blank line, then the rest.
-const out = [...importLines, '', ...otherLines].join('\n');
+const mergedNamedLines = [];
+for (const [spec, names] of namedBySpec.entries()) {
+  mergedNamedLines.push(
+    `import { ${[...names].join(', ')} } from '${spec}';`,
+  );
+}
+
+// Write imports first (non-named, then merged named), then a blank line, then
+// the rest.
+const out = [...otherImports, ...mergedNamedLines, '', ...otherLines].join('\n');
 writeFileSync(path, out);

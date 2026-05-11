@@ -179,17 +179,27 @@ export async function scoreHidden({ task_id, source_dir, hidden_tests_subdir }) 
 
   try {
     for (const testFile of testFiles) {
+      // When scoreHidden is itself called from within a `node --test` parent,
+      // the parent sets NODE_TEST_CONTEXT in the child's env via {...process.env},
+      // which triggers Node's recursive-test-runner detection — the child sees
+      // an active test context, refuses to enumerate test files, and emits the
+      // "node:test run() is being called recursively" warning while writing
+      // zero TAP. We strip that var so the child runs a fresh, top-level test
+      // session and produces normal TAP output regardless of how the parent
+      // process is invoked.
+      const childEnv = {
+        ...process.env,
+        // Pass the resolved source root so hidden tests can import it
+        // without needing to know the producing-source layout.
+        BENCH_SOURCE_DIR: resolvedSource,
+      };
+      delete childEnv.NODE_TEST_CONTEXT;
       const result = spawnSync(
         process.execPath,
         ['--test', '--test-reporter=tap', testFile],
         {
           cwd: sandbox,
-          env: {
-            ...process.env,
-            // Pass the resolved source root so hidden tests can import it
-            // without needing to know the producing-source layout.
-            BENCH_SOURCE_DIR: resolvedSource,
-          },
+          env: childEnv,
           encoding: 'utf8',
         },
       );
@@ -320,6 +330,10 @@ export async function scoreSelf({ source_dir, tests_dir }) {
   let totalCount = 0;
 
   for (const testFile of testFiles) {
+    // Same NODE_TEST_CONTEXT scrub as in scoreHidden — see the comment there
+    // for the recursive-test-runner trap this avoids.
+    const childEnv = { ...process.env, BENCH_SOURCE_DIR: resolvedSource };
+    delete childEnv.NODE_TEST_CONTEXT;
     const result = spawnSync(
       process.execPath,
       ['--test', '--test-reporter=tap', testFile],
@@ -327,7 +341,7 @@ export async function scoreSelf({ source_dir, tests_dir }) {
         // Run the test from its own directory so the agent's relative
         // imports (e.g. `../source-clean/index.js`) resolve as authored.
         cwd: dirname(testFile),
-        env: { ...process.env, BENCH_SOURCE_DIR: resolvedSource },
+        env: childEnv,
         encoding: 'utf8',
       },
     );
