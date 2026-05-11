@@ -24,10 +24,100 @@ The existing harness implements Phase 1 (B1-B10 of the main bench spec, plus pro
 ↦ **WHEN** the scorer runs the held-out suite against the produced source
 ∴ **THEN** it runs the test files under `bench/tasks/<task_id>/<hidden_tests_subdir>/` instead of the default `hidden_tests/`, applies a path-scoped static-leak check (rejects sources that reference the **exact path string** of the active hidden-tests directory for this call — `bench/tasks/<task_id>/hidden_tests/` for default scoring, `bench/tasks/<task_id>/hidden_tests_after_edit/` for the v2 alternate — bare references to the substring `hidden_tests` without surrounding path context do **not** trip the check), preserves the existing return shape (`{pass_count, total_count, per_test, runtime_errors}`), and throws the same `HiddenTestLeakError` shape on leak
 
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { scoreHidden, HiddenTestLeakError } from '../bench/scorer.js';
+
+test('B1: hidden_tests_subdir routes scoring to the named alternate suite', async () => {
+  const result = await scoreHidden({
+    task_id: 'slugify',
+    source_dir: 'bench/test/fixtures/source-clean/',
+    hidden_tests_subdir: 'hidden_tests_after_edit',
+  });
+  assert.equal(typeof result.pass_count, 'number');
+  assert.equal(typeof result.total_count, 'number');
+  assert.ok(result.pass_count <= result.total_count);
+  assert.ok(result.per_test && typeof result.per_test === 'object');
+});
+
+test('B1: omitting hidden_tests_subdir preserves v1 default behavior (hidden_tests/)', async () => {
+  const result = await scoreHidden({
+    task_id: 'slugify',
+    source_dir: 'bench/test/fixtures/source-clean/',
+  });
+  assert.equal(typeof result.pass_count, 'number');
+  assert.equal(typeof result.total_count, 'number');
+});
+
+test('B1: path-scoped static-leak check matches the EXACT active hidden-tests path', async () => {
+  await assert.rejects(
+    scoreHidden({
+      task_id: 'slugify',
+      source_dir: 'bench/test/fixtures/source-leak-exact-after-edit/',
+      hidden_tests_subdir: 'hidden_tests_after_edit',
+    }),
+    HiddenTestLeakError,
+  );
+});
+
+test('B1: path-scoped static-leak check does NOT trip on bare substring "hidden_tests"', async () => {
+  const result = await scoreHidden({
+    task_id: 'slugify',
+    source_dir: 'bench/test/fixtures/source-mentions-hidden-tests-incidentally/',
+    hidden_tests_subdir: 'hidden_tests_after_edit',
+  });
+  assert.equal(typeof result.pass_count, 'number');
+});
+```
+
 ### B2: Trial directory layout supports phase-scoped subdirs
 ∵ **IF** `captureTrial({run_id, trial_id, fixture, phase})` is invoked with an optional `phase` argument naming a subdirectory under the trial directory (one of `"phase-1"`, `"phase-2"`, `"phase-2-wd"`, with `phase: undefined` preserving the existing single-level layout for back-compat with v1 trials)
 ↦ **WHEN** the runner records the trial output
 ∴ **THEN** when `phase` is set, all six artifacts from main-spec B3 (`source/`, `tests/`, `conversation.jsonl`, `meta.json` with tokens/time/stop_reason, and the produced trial dir layout) are written under `bench/results/<run_id>/<trial_id>/<phase>/` instead of `bench/results/<run_id>/<trial_id>/`. The trial-id itself is shared across the trial's phases so per-trial joins are mechanical. When `phase` is undefined, the existing flat layout is preserved.
+
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { captureTrial } from '../bench/runner.js';
+
+test('B2: phase: "phase-1" writes artifacts under <trial-id>/phase-1/', async () => {
+  const trialDir = await captureTrial({
+    run_id: 'b2-test',
+    trial_id: 'slugify-tdd-single-0',
+    fixture: 'bench/test/fixtures/completed-trial.json',
+    phase: 'phase-1',
+  });
+  assert.ok(fs.existsSync(`${trialDir}/source`), 'phase-1/source/ missing');
+  assert.ok(fs.existsSync(`${trialDir}/tests`), 'phase-1/tests/ missing');
+  assert.ok(fs.existsSync(`${trialDir}/conversation.jsonl`), 'phase-1/conversation.jsonl missing');
+  assert.ok(fs.existsSync(`${trialDir}/meta.json`), 'phase-1/meta.json missing');
+  assert.match(trialDir, /\/phase-1$/);
+});
+
+test('B2: phase: "phase-2" writes artifacts under <trial-id>/phase-2/ sibling of phase-1', async () => {
+  const trialDir = await captureTrial({
+    run_id: 'b2-test',
+    trial_id: 'slugify-tdd-single-0',
+    fixture: 'bench/test/fixtures/completed-edit-trial.json',
+    phase: 'phase-2',
+  });
+  assert.match(trialDir, /\/phase-2$/);
+  // Sibling of phase-1 with the same trial_id
+  assert.ok(fs.existsSync(trialDir.replace(/phase-2$/, 'phase-1')));
+});
+
+test('B2: phase: undefined preserves the v1 flat layout (no phase subdir)', async () => {
+  const trialDir = await captureTrial({
+    run_id: 'b2-flat-test',
+    trial_id: 'slugify-tdd-single-0',
+    fixture: 'bench/test/fixtures/completed-trial.json',
+  });
+  assert.doesNotMatch(trialDir, /\/phase-/);
+  assert.ok(fs.existsSync(`${trialDir}/source`));
+});
+```
 
 ### B3: dispatchEditTrial spawns a fresh agent against Phase 1 artifacts
 ∵ **IF** `dispatchEditTrial({phase1_trial_dir, task_id, include_original_description, dry_run})` is invoked, where `phase1_trial_dir` points at a completed Phase 1 trial directory (containing `source/`, optionally `tests/` and a `*.spec.md`, and `meta.json`), `task_id` names the task whose `edit.md` will drive the edit, and `include_original_description` is a boolean (`false` for Phase 2, `true` for Phase 2-WD)
@@ -38,10 +128,146 @@ The existing harness implements Phase 1 (B1-B10 of the main bench spec, plus pro
   (c) the Phase 2 agent's input context **does not include** the Phase 1 agent's `conversation.jsonl`, `meta.json`, or any other run-state artifact — only the produced artifacts and the edit/intent prompts.
 ∴ **THEN** the agent receives, as input context: the Phase 1 source files, any tests the Phase 1 agent wrote, any `.spec.md` it wrote, and `bench/tasks/<task_id>/edit.md` as the edit prompt. Additionally passes `bench/tasks/<task_id>/intent.md` when and only when `include_original_description` is true. Dispatches via the same provider routing as `dispatchTrial` (per provider-extension B2), enforces the same stop conditions (per provider-extension B5), and writes the trial output to `phase-2/` (when `include_original_description` is false) or `phase-2-wd/` (when true) under the original trial directory via the B2 phase-scoped layout. A harness-side unit test verifies invariants (a), (b), and (c) on every `dispatchEditTrial` call — if any invariant is violated, the call throws before any model call is made.
 
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { dispatchEditTrial } from '../bench/runner.js';
+
+test('B3: Phase 2 dispatch routes to phase-2/ when include_original_description is false', async () => {
+  const result = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: false,
+    dry_run: true,
+  });
+  assert.match(result.trial_dir, /\/phase-2$/);
+  assert.ok(result.name.startsWith('edit-'));
+});
+
+test('B3: Phase 2-WD dispatch routes to phase-2-wd/ when include_original_description is true', async () => {
+  const result = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: true,
+    dry_run: true,
+  });
+  assert.match(result.trial_dir, /\/phase-2-wd$/);
+});
+
+test('B3: invariant (a) — Phase 2 name distinct from any Phase 1 name', async () => {
+  const result = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: false,
+    dry_run: true,
+  });
+  assert.ok(!result.name.startsWith('impl-'), `expected distinct name; got ${result.name}`);
+});
+
+test('B3: invariant (b) — Phase 2 worktree is fresh, NOT the Phase 1 worktree', async () => {
+  const phase1Dir = 'bench/test/fixtures/phase1-completed-trial/';
+  const result = await dispatchEditTrial({
+    phase1_trial_dir: phase1Dir,
+    task_id: 'slugify',
+    include_original_description: false,
+    dry_run: true,
+  });
+  assert.notEqual(
+    fs.realpathSync(result.worktree_path),
+    fs.realpathSync(phase1Dir),
+    'Phase 2 worktree must not be the Phase 1 worktree',
+  );
+});
+
+test('B3: invariant (c) — Phase 2 input context excludes Phase 1 conversation.jsonl and meta.json', async () => {
+  const result = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: false,
+    dry_run: true,
+  });
+  // dry_run echoes the resolved input set; runtime files copied to the worktree
+  // must include source/, tests/, edit.md but NOT conversation.jsonl or meta.json
+  assert.ok(result.input_context_files.includes('source/index.js') || result.input_context_files.some(f => f.startsWith('source/')));
+  assert.ok(result.input_context_files.some(f => f === 'edit.md' || f.endsWith('/edit.md')));
+  assert.ok(!result.input_context_files.includes('conversation.jsonl'));
+  assert.ok(!result.input_context_files.includes('meta.json'));
+});
+
+test('B3: invariant violation throws BEFORE any model call', async () => {
+  // Fixture has the Phase 1 conversation.jsonl forcibly placed where the
+  // Phase 2 input-context resolver would pick it up — invariant (c) check
+  // must fire and throw.
+  await assert.rejects(
+    dispatchEditTrial({
+      phase1_trial_dir: 'bench/test/fixtures/phase1-corrupted-with-conversation-in-source/',
+      task_id: 'slugify',
+      include_original_description: false,
+      dry_run: false, // would call a model if the guard didn't fire
+    }),
+    /invariant/i,
+  );
+});
+
+test('B3: include_original_description=true puts intent.md into Phase 2 input context', async () => {
+  const wd = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: true,
+    dry_run: true,
+  });
+  assert.ok(wd.input_context_files.some(f => f === 'intent.md' || f.endsWith('/intent.md')));
+
+  const noWd = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: false,
+    dry_run: true,
+  });
+  assert.ok(!noWd.input_context_files.some(f => f === 'intent.md' || f.endsWith('/intent.md')));
+});
+```
+
 ### B4: Phase 2 metadata captures the link to Phase 1
 ∵ **IF** a Phase 2 (or Phase 2-WD) trial completes
 ↦ **WHEN** the runner writes the phase-scoped `meta.json`
 ∴ **THEN** the Phase 2 `meta.json` additionally includes `phase` (string: `"phase-2"` or `"phase-2-wd"`), `phase1_trial_dir` (relative path to the parent Phase 1 trial), `edit_prompt_path` (relative path to the `edit.md` used), and `included_original_description` (boolean), so downstream analysis can join Phase 1 and Phase 2 results without inferring the linkage from directory structure
+
+```javascript
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { dispatchEditTrial } from '../bench/runner.js';
+
+test('B4: Phase 2 meta.json includes phase, phase1_trial_dir, edit_prompt_path, included_original_description', async () => {
+  const result = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: false,
+    dry_run: false,
+    provider: { name: 'mock', script: 'bench/test/fixtures/mock-provider-completes.mjs' },
+  });
+  const meta = JSON.parse(fs.readFileSync(`${result.trial_dir}/meta.json`, 'utf8'));
+  assert.equal(meta.phase, 'phase-2');
+  assert.ok(typeof meta.phase1_trial_dir === 'string' && meta.phase1_trial_dir.length > 0);
+  assert.ok(meta.edit_prompt_path.endsWith('/edit.md'));
+  assert.equal(meta.included_original_description, false);
+});
+
+test('B4: Phase 2-WD meta.json sets included_original_description=true and phase=phase-2-wd', async () => {
+  const result = await dispatchEditTrial({
+    phase1_trial_dir: 'bench/test/fixtures/phase1-completed-trial/',
+    task_id: 'slugify',
+    include_original_description: true,
+    dry_run: false,
+    provider: { name: 'mock', script: 'bench/test/fixtures/mock-provider-completes.mjs' },
+  });
+  const meta = JSON.parse(fs.readFileSync(`${result.trial_dir}/meta.json`, 'utf8'));
+  assert.equal(meta.phase, 'phase-2-wd');
+  assert.equal(meta.included_original_description, true);
+});
+```
 
 ## Where it lives
 
