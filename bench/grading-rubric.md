@@ -78,9 +78,35 @@ When you grade, cite specific evidence — a conversation turn number, an artifa
 
 **Always compliant.** Freeform's "methodology" is the absence of one. The agent had explicit permission to use any approach. Don't grade.
 
+## Phase 2 (artifact-survival study, v2 only)
+
+The v2 study (`bench/PROTOCOL-v2.md`) introduces a second phase per trial: a fresh agent receives the Phase 1 artifacts (source + tests, optionally + original `intent.md`) plus a blind-authored `edit.md` and extends the implementation. For Phase 2 trials, apply **one additional rubric line on top of the per-style rubric above**:
+
+> **Did the edit agent respect the methodology of the inherited artifacts?**
+
+The interpretation is style-specific:
+
+- **DTDD (Phase 2).** The Phase 1 artifacts include a `.spec.md` plus tests derived from it. A compliant Phase 2 edit updates the `.spec.md` for the new behavior, then updates / adds tests, then implements. Letting the spec drift (writing new code or tests without updating the spec) is a methodology failure for DTDD specifically — it breaks the canonical-source-of-truth contract that distinguishes DTDD from plain TDD.
+- **TDD (Phase 2).** Phase 1 artifacts include tests but no spec. Compliant: write a failing test for the new behavior, then implement. Non-compliant: implement first, then add tests after.
+- **Baseline (Phase 2).** Phase 1 artifacts include neither tests nor a spec — just source. Baseline has no methodology to violate; the Phase 2 line is **automatically compliant**.
+- **Phase 2-WD (with description).** The agent additionally received Phase 1's `intent.md`. Same rules per style; the description doesn't relax methodology compliance.
+
+Record the Phase 2 verdict as a second key in the verdict object:
+
+```json
+{
+  "phase_1_compliant": true,
+  "phase_1_evidence": "...",
+  "phase_2_compliant": false,
+  "phase_2_evidence": "Conversation turns 1-8 show the DTDD edit agent writing new tests and new source for the maxLength extension. The .spec.md was never opened or modified. Spec drift: non-compliant."
+}
+```
+
+The two phases are graded independently — Phase 1 compliance is a Phase 1 trial property, Phase 2 compliance is a Phase 2 trial property. The compliance-only sensitivity analysis in `bench/PROTOCOL-v2.md §4` filters on the corresponding phase's flag.
+
 ## Recording your verdict
 
-Per trial, record:
+Per Phase 1 trial, record:
 
 ```json
 {
