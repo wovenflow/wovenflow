@@ -150,6 +150,7 @@ export async function runTrial({
             content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
           })),
           tools: tools.length > 0 ? tools : undefined,
+          tool_choice: tools.length > 0 ? 'required' : undefined,
         }),
         signal: perReqController.signal,
       });
