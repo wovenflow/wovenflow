@@ -635,7 +635,7 @@ export async function captureTrial(options) {
   if (!options || typeof options !== 'object') {
     throw new Error('captureTrial requires an options object');
   }
-  const { run_id, trial_id, fixture, phase, extra_meta } = options;
+  const { run_id, trial_id, fixture, phase } = options;
   if (typeof run_id !== 'string' || run_id.length === 0) {
     throw new Error('captureTrial: run_id must be a non-empty string');
   }
@@ -711,9 +711,6 @@ export async function captureTrial(options) {
   // field, which is the right back-compat shape.
   if (phase) {
     meta.phase = phase;
-  }
-  if (extra_meta && typeof extra_meta === 'object') {
-    Object.assign(meta, extra_meta);
   }
   writeFileSync(
     path.join(trialDir, 'meta.json'),
@@ -851,21 +848,24 @@ export async function dispatchEditTrial(options) {
   const phase1TestsDir = path.join(phase1Resolved, 'tests');
   const phase1SpecMd = findSpecMd(phase1Resolved);
 
-  // Invariant (c) check: Phase 1 run-state must not be inside the source/ or
-  // tests/ directories — those are what we'll copy into the Phase 2 worktree.
-  // If conversation.jsonl or meta.json is found in source/ or tests/, this
-  // is a corrupted Phase 1 trial; the fresh-agent guarantee would be violated
-  // by a naive copy. Refuse the dispatch.
-  for (const guardedName of ['conversation.jsonl', 'meta.json']) {
-    for (const guardedDir of [phase1SourceDir, phase1TestsDir]) {
-      if (!existsSync(guardedDir)) continue;
-      const candidate = path.join(guardedDir, guardedName);
-      if (existsSync(candidate)) {
+  // Invariant (c) check: Phase 1 run-state must not be ANYWHERE inside the
+  // source/ or tests/ directories — those are what we'll cpSync-recursive into
+  // the Phase 2 worktree, so a nested file like source/nested/conversation.jsonl
+  // would otherwise slip past a shallow check and leak into the fresh agent's
+  // view. Walk both trees and reject if ANY file whose basename matches a
+  // run-state name appears at any depth. Refuse the dispatch (throws before
+  // any model call).
+  const GUARDED_NAMES = new Set(['conversation.jsonl', 'meta.json']);
+  for (const guardedDir of [phase1SourceDir, phase1TestsDir]) {
+    if (!existsSync(guardedDir)) continue;
+    for (const filePath of listFilesRecursive(guardedDir)) {
+      const basename = path.basename(filePath);
+      if (GUARDED_NAMES.has(basename)) {
         throw new Error(
           `dispatchEditTrial: invariant (c) violated — Phase 1 run-state file ` +
-            `${guardedName} found inside ${guardedDir}. The Phase 2 agent must ` +
-            `not see Phase 1 conversation history or metadata; refusing to ` +
-            `dispatch a corrupted trial.`,
+            `${basename} found at ${path.join(guardedDir, filePath)}. The Phase 2 ` +
+            `agent must not see Phase 1 conversation history or metadata at any ` +
+            `depth under source/ or tests/; refusing to dispatch a corrupted trial.`,
         );
       }
     }
