@@ -204,10 +204,24 @@ Same as v1 PROTOCOL.md §5. Model ID pinned, temperature pinned, seed pinned, ra
 
 ### Discovered after tag: additional prerequisites
 
-The integration smoke against vLLM-served Qwen2.5-Coder-1.5B (2026-05-11) surfaced two gaps that §9 did not enumerate at tag time. The tag stays valid as the *Phase 2 dispatch + scoreHidden extension snapshot*, but the study cannot be run end-to-end until these two items also land. A separate amendment tag will be created when both are complete.
+The integration smoke against vLLM-served Qwen2.5-Coder-1.5B (2026-05-11) surfaced two gaps that §9 did not enumerate at tag time. The original tag stays valid as the *Phase 2 dispatch + scoreHidden extension snapshot*; a separate amendment tag was created when both new items landed.
 
-- [ ] **Study orchestrator** — a script (e.g. `bench/study.mjs`) that composes real prompts per (condition, task), supplies `write_source` / `write_test` tool definitions, drives the per-cell loop over Phase 1 + Phase 2 + Phase 2-WD, scores each phase, and writes a per-run report. The harness's `dispatchTrial` defaults are testing placeholders; a real study run requires a caller that wires style card content + `intent.md` content + tool definitions into each dispatch.
-- [ ] **Baseline condition in the harness** — `bench/runner.js` `KNOWN_STYLES` must accept `'baseline'` (the "no style card / intent.md only" condition defined in §3.2). The condition is referenced by the protocol but not yet recognized by the harness.
+- [x] **Study orchestrator** (`bench/study.mjs`) — composes real prompts per (condition, task), supplies `write_source` / `write_test` tool definitions, drives the per-cell loop over Phase 1 + Phase 2 + Phase 2-WD, scores each phase, records errors in `errors.jsonl` and empty-source trials in `skipped.jsonl`. Commits: `dadb463` (initial B1-B9), `0c83637` (review-fix: per-trial try/catch + cleanup). Spec: `doc/specs/2026-05-11-bench-study-orchestrator.spec.md`.
+- [x] **Baseline condition in the harness** — `bench/runner.js` `KNOWN_STYLES` now accepts `'baseline'` (the "no style card / intent.md only" condition defined in §3.2). Commit: `dadb463`.
+
+#### Provider-shape follow-ups added during the smoke (2026-05-11)
+
+The end-to-end smoke against `Qwen/Qwen2.5-Coder-14B-Instruct` (vLLM, `--enable-auto-tool-choice --tool-call-parser hermes`) revealed two additional provider-shape gaps that needed to land before the orchestrator could produce scoreable artifacts. Both shipped as small DTDD micro-cycles:
+
+- [x] **JSON-code-block tool-call fallback** in `bench/providers/openai-compatible.js` — when `message.tool_calls` is empty AND content contains a fenced `` ```json `` block with `{name, arguments}` shape, extract as a tool call. Many capable open-weights models emit this shape rather than the parser-expected `<tool_call>` XML markers; without this fallback their output is unrecoverable. Spec: `doc/specs/2026-05-11-bench-provider-jsoncode-fallback.spec.md`. Commit: `9ad68bc`.
+- [x] **`tool_choice="required"` when tools are provided** — the openai-compatible provider now sends `tool_choice: "required"` in the request body whenever `tools.length > 0`, forcing the model to invoke a tool rather than emitting a natural-language response. Without this, Qwen2.5-Coder-14B-Instruct sometimes returned prose only and skipped tool calls entirely. Spec: `doc/specs/2026-05-11-bench-provider-tool-choice-required.spec.md`. Commit: `c55b4fb`.
+
+### Open follow-ups discovered during the smoke (not blocking the amendment tag)
+
+These were observed in the live smoke but are model-choice / measurement concerns rather than orchestrator-readiness concerns. Track and address before declaring the actual Stage-2 run results valid, not before tagging.
+
+- [ ] **Model quality under forced tool use.** Qwen2.5-Coder-14B-Instruct, under `tool_choice="required"` + the DTDD-composed prompt, emitted stub implementations (e.g. `function slugify(input) { /* Implementation goes here */ }`) rather than completed code. The model wrote tests at non-canonical paths (`tests/test.spec.js`, `tests/test/index.spec.js`) instead of the expected `tests/slugify.test.js`. Implication: production Stage-2 needs either a more capable model (Claude Sonnet, larger Qwen, etc.) or a refined prompt/contract that pins file paths. Investigate before running for real.
+- [ ] **scoreHidden unit-of-measurement on slugify.** The smoke recorded `hidden_pass: { pass_count: 0, total_count: 1 }` for trials against slugify, which has 8 hidden test assertions. Possible explanations: scoring counts test files (1) rather than `test(...)` calls (8); or the test file failed to load entirely and was counted as a single failed unit. Inspect `bench/scorer.js` `scoreHidden` and confirm the contract — if it's counting files, that may be intentional but should be documented in the v2 protocol's analysis plan.
 
 ## 10. Relationship to v1
 
