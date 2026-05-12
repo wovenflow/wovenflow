@@ -57,6 +57,15 @@ const DEFAULT_TASKS = [
 
 const DEFAULT_CONDITIONS = ['baseline', 'tdd', 'dtdd'];
 
+// Per-trial turn budget for the study workflow. Deliberately above the
+// provider's floor of `DEFAULT_TURN_CAP = 20` (see bench/runner.js): the DTDD
+// workflow runs spec → tests → implementation across multiple `write_test` /
+// `write_source` calls, and 20 turns was empirically too tight — models spent
+// the budget on small test writes and then stubbed `write_source` on the last
+// turn. 35 gives that workflow headroom while still acting as a ceiling, not a
+// target; callers can override per `runStudy` invocation.
+const STUDY_DEFAULT_TURN_CAP = 35;
+
 // Tool-usage preamble appended to every system prompt regardless of condition.
 // Describes what `write_source` and `write_test` do so the model knows to call
 // them. Stays condition-agnostic — methodology guidance lives in the style card
@@ -73,6 +82,13 @@ const TOOL_USAGE_INSTRUCTIONS = [
   '- `write_test(path, content)` — write a test file. `path` is relative to',
   '  the project root. Use this for any test files you author. Implementation',
   '  belongs in `write_source`, not here.',
+  '',
+  'When you call `write_source`, the file you write must be a real, working',
+  'implementation — not a placeholder. Do not write TODO stubs or placeholder',
+  'comments in function bodies (e.g. `// TODO: implement this`). Do not write',
+  '`throw new Error("not implemented")` or empty function bodies and call it',
+  'done. If you cannot complete the task, say so explicitly rather than',
+  'shipping a stub. A complete-but-empty function is worse than no submission.',
   '',
   'Files are loaded as ES modules (the project `package.json` declares',
   '`"type": "module"`). Expose functions with `export function name(...)` or',
@@ -209,6 +225,7 @@ export async function runStudy({
   tasks,
   conditions,
   trials,
+  turn_cap,
   dry_run = false,
   repo_root,
 } = {}) {
@@ -230,6 +247,16 @@ export async function runStudy({
   }
   if (!Number.isInteger(trials) || trials <= 0) {
     throw new Error('runStudy: trials must be a positive integer');
+  }
+  // Resolve the per-trial turn cap: explicit override wins, else the
+  // study-tuned default (above the provider floor of 20). A non-positive or
+  // non-integer override is rejected rather than silently coerced.
+  let resolved_turn_cap = STUDY_DEFAULT_TURN_CAP;
+  if (turn_cap !== undefined) {
+    if (!Number.isInteger(turn_cap) || turn_cap <= 0) {
+      throw new Error('runStudy: turn_cap must be a positive integer when provided');
+    }
+    resolved_turn_cap = turn_cap;
   }
   const root = typeof repo_root === 'string' && repo_root.length > 0
     ? repo_root
@@ -255,7 +282,7 @@ export async function runStudy({
   }
 
   if (dry_run) {
-    return { phase1_planned };
+    return { phase1_planned, turn_cap: resolved_turn_cap };
   }
 
   // Compute the run_dir up front so the error-telemetry appender can write
@@ -313,6 +340,7 @@ export async function runStudy({
         system_prompt: prompt.system_prompt,
         user_message: prompt.user_message,
         tools: prompt.tools,
+        turn_cap: resolved_turn_cap,
       });
       phase1_results.push({ ...entry, ...result });
     } catch (err) {
@@ -369,6 +397,7 @@ export async function runStudy({
         task_id: entry.task_id,
         include_original_description: entry.include_original_description,
         run_id,
+        turn_cap: resolved_turn_cap,
       });
       phase2_results.push({ ...entry, ...result });
     } catch (err) {
@@ -417,6 +446,7 @@ export async function runStudy({
     phase2_results,
     skipped: phase2_plan.skipped,
     errors,
+    turn_cap: resolved_turn_cap,
   };
 }
 
