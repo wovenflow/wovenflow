@@ -291,7 +291,11 @@ export async function runStudy({
   }
 
   if (dry_run) {
-    return { phase1_planned, turn_cap: resolved_turn_cap };
+    return {
+      phase1_planned,
+      turn_cap: resolved_turn_cap,
+      phase2_inherits_prompt_from_phase1: true,
+    };
   }
 
   // Compute the run_dir up front so the error-telemetry appender can write
@@ -401,12 +405,32 @@ export async function runStudy({
   for (const entry of phase2_plan.phase2_planned) {
     let result;
     try {
+      // Per the 2026-05-12 edittrial-prompt-passthrough spec: the Phase 2 fresh
+      // agent must receive the same composed style card + tool-usage directives
+      // + write_source/write_test tool definitions that Phase 1 received. We
+      // re-derive the condition from the trial_id (planPhase2 doesn't carry it)
+      // and use that to recompose the prompt. If the condition can't be parsed,
+      // dispatchEditTrial's own back-compat defaults still apply.
+      const condition = deriveConditionFromTrialId(entry.trial_id);
+      let phase2_system_prompt;
+      let phase2_tools;
+      if (condition && KNOWN_CONDITIONS.has(condition)) {
+        const prompt = composePrompt({
+          condition,
+          task_id: entry.task_id,
+          repo_root: root,
+        });
+        phase2_system_prompt = prompt.system_prompt;
+        phase2_tools = prompt.tools;
+      }
       result = await dispatchEditTrial({
         phase1_trial_dir: entry.phase1_trial_dir,
         task_id: entry.task_id,
         include_original_description: entry.include_original_description,
         run_id,
         turn_cap: resolved_turn_cap,
+        system_prompt: phase2_system_prompt,
+        tools: phase2_tools,
       });
       phase2_results.push({ ...entry, ...result });
     } catch (err) {
@@ -558,6 +582,22 @@ function deriveTaskIdFromTrialId(trial_id) {
   // in v2's KNOWN_CONDITIONS, but the task name still occupies the leading
   // parts. Join all but the trailing condition+topology+index segments.
   return parts.slice(0, parts.length - 3).join('-');
+}
+
+// Recover the condition slot from a trial_id of the form
+// `<task>-<condition>-<topology>-<trial_index>`. Mirrors
+// deriveTaskIdFromTrialId's right-anchored parsing: trial_index lives at the
+// tail, topology one slot in, condition one slot before that. Returns null when
+// the shape doesn't match so the caller can fall back to the back-compat
+// defaults in dispatchEditTrial.
+function deriveConditionFromTrialId(trial_id) {
+  if (typeof trial_id !== 'string') return null;
+  const parts = trial_id.split('-');
+  if (parts.length < 4) return null;
+  if (!/^\d+$/.test(parts[parts.length - 1])) return null;
+  const topology = parts[parts.length - 2];
+  if (topology !== 'single' && topology !== 'multi') return null;
+  return parts[parts.length - 3];
 }
 
 function hasAnyFile(dir) {

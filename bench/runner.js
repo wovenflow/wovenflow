@@ -789,6 +789,8 @@ export async function dispatchEditTrial(options) {
     grace_ms,
     env,
     protocol_model_id,
+    system_prompt: callerSystemPrompt,
+    tools: callerTools,
   } = options;
 
   if (typeof phase1_trial_dir !== 'string' || phase1_trial_dir.length === 0) {
@@ -1040,7 +1042,8 @@ export async function dispatchEditTrial(options) {
   }
   userMessageParts.push('# Edit instructions (edit.md)\n\n' + editPromptBody);
   const userMessage = userMessageParts.join('\n\n---\n\n');
-  const systemPrompt = `phase: ${phase}\ntask: ${task_id}\nname: ${name}`;
+  const systemPrompt =
+    callerSystemPrompt ?? `phase: ${phase}\ntask: ${task_id}\nname: ${name}`;
 
   // Effective run id — derive from the Phase 1 trial dir's parent path so the
   // Phase 2 trial sits under the same run as Phase 1. For out-of-tree
@@ -1085,7 +1088,7 @@ export async function dispatchEditTrial(options) {
       run_id: effectiveRunId,
       system_prompt: systemPrompt,
       user_message: userMessage,
-      tools: [],
+      tools: callerTools ?? [],
       signal: controller.signal,
       options: {
         turn_cap: effectiveTurnCap,
