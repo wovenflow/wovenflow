@@ -97,6 +97,15 @@ const TOOL_USAGE_INSTRUCTIONS = [
   '',
   'Call the tools rather than printing file contents inline. When you are',
   'finished, stop generating tool calls; the harness will end the turn.',
+  '',
+  'Wrap each function call in `<tool_call>...</tool_call>` XML tags, with a',
+  'single JSON object inside containing `name` and `arguments` fields. Example:',
+  '',
+  '```',
+  '<tool_call>',
+  '{"name": "write_source", "arguments": {"path": "index.js", "content": "..."}}',
+  '</tool_call>',
+  '```',
 ].join('\n');
 
 // --- B2 / B3 / B4 / B5: composePrompt --------------------------------------
