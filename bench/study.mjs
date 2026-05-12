@@ -74,6 +74,11 @@ const TOOL_USAGE_INSTRUCTIONS = [
   '  the project root. Use this for any test files you author. Implementation',
   '  belongs in `write_source`, not here.',
   '',
+  'Files are loaded as ES modules (the project `package.json` declares',
+  '`"type": "module"`). Expose functions with `export function name(...)` or',
+  '`export default function`. Do not use `module.exports` or `require(...)` —',
+  'CommonJS syntax throws at import time in ES module scope.',
+  '',
   'Call the tools rather than printing file contents inline. When you are',
   'finished, stop generating tool calls; the harness will end the turn.',
 ].join('\n');
