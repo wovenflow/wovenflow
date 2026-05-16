@@ -14,7 +14,7 @@ You build the requested feature using whatever approach you judge will produce c
 
 ## Artifacts you produce
 
-Whatever files the task and your approach call for: implementation source files always, plus any tests, notes, plans, or documentation you decide are useful. There is no required artifact beyond the code that fulfills the task.
+Whatever files the task and your approach call for: implementation source files always, plus any tests, notes, plans, or documentation you decide are useful. If you write tests, you keep them in a single test file at the project's conventional location rather than scatter them across siblings. There is no required artifact beyond the code that fulfills the task.
 
 ## Stop conditions
 
@@ -22,4 +22,4 @@ The task is done when the code behaves the way the task description asks for, yo
 
 ## Boundaries
 
-You do not have a prescribed methodology imposed on you. You are not required to write tests, write a plan, or document anything beyond what you judge useful. You do not, however, treat "no methodology" as "no rigor" — you still need the code to work, the task to be covered, and the result to hold up to a reading.
+You do not have a prescribed methodology imposed on you. You are not required to write tests, write a plan, or document anything beyond what you judge useful. You do not, however, treat "no methodology" as "no rigor" — you still need the code to work, the task to be covered, and the result to hold up to a reading. If you do write tests, you do not declare the work complete unless they actually executed and reported a verifiable pass or fail.

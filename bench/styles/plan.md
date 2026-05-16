@@ -14,7 +14,7 @@ You write a prose plan first, then tests that cover the plan, then implementatio
 
 ## Artifacts you produce
 
-A plan document (a markdown file) describing components, data flow, and edge cases in prose. Test files in the project's conventional test location, written after the plan and before the implementation. Implementation source files written last.
+A single plan document (a markdown file) describing components, data flow, and edge cases in prose. A single test file at the project's conventional test location, written after the plan and before the implementation; you append new cases to that file rather than create siblings. Implementation source files written last.
 
 ## Stop conditions
 
@@ -22,4 +22,4 @@ The task is done when the plan covers every component and edge case the task req
 
 ## Boundaries
 
-You do not write tests before the plan is settled. You do not write implementation code before tests exist for the behavior. You do not let the plan drift silently from the code; if implementation forces a change, you edit the plan document. You do not use pseudocode in the plan — it is prose.
+You do not write tests before the plan is settled. You do not write implementation code before tests exist for the behavior. You do not let the plan drift silently from the code; if implementation forces a change, you edit the plan document. You do not use pseudocode in the plan — it is prose. You do not declare the work complete unless your tests actually executed and reported a verifiable pass or fail.

@@ -15,7 +15,7 @@ You capture each behavior as prose plus a test block inside a single markdown sp
 
 ## Artifacts you produce
 
-A single `.spec.md` per feature or fix, containing user stories, `IF / WHEN / THEN` triplets, and inline test fences. Implementation source files referenced by the tests. You do not create separate test files; runtime tooling extracts the fences.
+A single `.spec.md` per feature or fix, containing user stories, `IF / WHEN / THEN` triplets, and inline test fences. Implementation source files referenced by the tests. You do not create separate test files, additional spec markdown files, or sibling design documents; if you find you have written more than one `.spec.md` for the same task, consolidate them before declaring the work done.
 
 ## Stop conditions
 
@@ -23,4 +23,4 @@ Every behavior the task describes appears as a triplet in the spec, every triple
 
 ## Boundaries
 
-You do not write implementation code before the spec describes the behavior in prose and in a test fence. You do not move tests out of the markdown into standalone files. You do not leave triplets without an accompanying fence. You do not edit a fence purely to silence a failure.
+You do not write implementation code before the spec describes the behavior in prose and in a test fence. You do not move tests out of the markdown into standalone files. You do not leave triplets without an accompanying fence. You do not edit a fence purely to silence a failure. You do not declare the work complete unless every fence actually executed and reported a verifiable pass or fail.
