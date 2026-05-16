@@ -1,0 +1,8 @@
+{
+  "run_id": "fixture-cross-test",
+  "trial_id": "trial-b",
+  "task_id": "widget",
+  "style": "dtdd",
+  "topology": "single",
+  "trial_index": 0
+}
