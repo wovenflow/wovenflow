@@ -1,0 +1,52 @@
+// Reference probe: timeseries panel.
+//
+// Loads (x, y) points from a JSONL or CSV file and ships them to the SPA
+// for SVG rendering. Source: {{TIMESERIES_SOURCE}}, x key/column:
+// {{TIMESERIES_X}}, y key/column: {{TIMESERIES_Y}}.
+//
+// Why this exists: "your tests passed today" is text. "your pass rate over
+// the last 30 commits" is a chart that tells you whether you're trending
+// or thrashing. Use this for: pass-rate over time, build-duration trend,
+// token-cost-per-session, model-eval-score, anything that varies with time.
+//
+// Returns: { source, x_label, y_label, points: [{x,y}], last }
+
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const SRC = '{{TIMESERIES_SOURCE}}';
+const X_KEY = '{{TIMESERIES_X}}';
+const Y_KEY = '{{TIMESERIES_Y}}';
+
+export function probeTimeseries(repoRoot) {
+  const src = join(repoRoot, SRC);
+  if (!existsSync(src)) return { error: 'source not found: ' + SRC };
+  let txt = ''; try { txt = readFileSync(src, 'utf8'); } catch (e) { return { error: e.message }; }
+  const points = [];
+  if (src.endsWith('.csv')) {
+    const lines = txt.split('\n').filter(Boolean);
+    if (lines.length < 2) return { points: [], note: 'no data rows' };
+    const headers = lines[0].split(',').map((h) => h.trim());
+    const ix = headers.indexOf(X_KEY);
+    const iy = headers.indexOf(Y_KEY);
+    if (ix < 0 || iy < 0) return { error: `columns ${X_KEY}/${Y_KEY} missing; got ${headers.join(',')}` };
+    for (const line of lines.slice(1)) {
+      const cols = line.split(',');
+      const x = cols[ix]?.trim();
+      const y = Number(cols[iy]);
+      if (x != null && Number.isFinite(y)) points.push({ x, y });
+    }
+  } else {
+    for (const line of txt.split('\n')) {
+      if (!line.trim()) continue;
+      let obj; try { obj = JSON.parse(line); } catch { continue; }
+      const x = obj[X_KEY];
+      const y = Number(obj[Y_KEY]);
+      if (x != null && Number.isFinite(y)) points.push({ x, y });
+    }
+  }
+  return {
+    source: SRC, x_label: X_KEY, y_label: Y_KEY,
+    points: points.slice(-200), last: points[points.length - 1] || null,
+  };
+}

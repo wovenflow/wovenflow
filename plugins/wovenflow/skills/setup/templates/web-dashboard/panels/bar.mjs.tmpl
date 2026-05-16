@@ -1,0 +1,33 @@
+// Reference probe: bar chart panel.
+//
+// Loads comparison-shaped data from a JSON file. Accepts two shapes:
+//   - Array: [{x: "label", y: 5}, ...]
+//   - Object: {"label": 5, "other": 9}
+//
+// Use this for: test counts per file, coverage per module, token cost per
+// phase, latency per endpoint — anything where the shape is "category vs
+// scalar."
+//
+// Returns: { source, x_label, y_label, bars: [{x,y}] }
+
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const SRC = '{{BAR_SOURCE}}';
+const X_LABEL = '{{BAR_X_LABEL}}';
+const Y_LABEL = '{{BAR_Y_LABEL}}';
+
+export function probeBar(repoRoot) {
+  const src = join(repoRoot, SRC);
+  if (!existsSync(src)) return { error: 'source not found: ' + SRC };
+  let data; try { data = JSON.parse(readFileSync(src, 'utf8')); } catch (e) { return { error: 'parse failed: ' + e.message }; }
+  let bars = [];
+  if (Array.isArray(data)) {
+    bars = data
+      .map((d) => ({ x: String(d.x ?? d.label ?? ''), y: Number(d.y ?? d.value) }))
+      .filter((d) => d.x && Number.isFinite(d.y));
+  } else if (typeof data === 'object') {
+    bars = Object.entries(data).map(([x, y]) => ({ x, y: Number(y) })).filter((d) => Number.isFinite(d.y));
+  }
+  return { source: SRC, x_label: X_LABEL, y_label: Y_LABEL, bars };
+}

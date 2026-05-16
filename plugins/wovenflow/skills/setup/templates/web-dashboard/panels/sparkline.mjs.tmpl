@@ -1,0 +1,33 @@
+// Reference probe: sparkline panel.
+//
+// Tiny inline trend line — last 50 values from a JSONL source. Other panels
+// (commits, tests) embed their own sparklines inline; this top-level
+// sparkline panel surfaces a standalone trend you don't want to bury.
+//
+// Source: {{SPARKLINE_SOURCE}}, y key: {{SPARKLINE_Y}}, label: {{SPARKLINE_LABEL}}.
+//
+// Returns: { source, label, y_label, points: [number], last }
+
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const SRC = '{{SPARKLINE_SOURCE}}';
+const Y_KEY = '{{SPARKLINE_Y}}';
+const LABEL = '{{SPARKLINE_LABEL}}';
+
+export function probeSparkline(repoRoot) {
+  const src = join(repoRoot, SRC);
+  if (!existsSync(src)) return { error: 'source not found: ' + SRC };
+  let txt = ''; try { txt = readFileSync(src, 'utf8'); } catch { return { error: 'read failed' }; }
+  const points = [];
+  for (const line of txt.split('\n')) {
+    if (!line.trim()) continue;
+    let obj; try { obj = JSON.parse(line); } catch { continue; }
+    const y = Number(obj[Y_KEY]);
+    if (Number.isFinite(y)) points.push(y);
+  }
+  return {
+    source: SRC, label: LABEL, y_label: Y_KEY,
+    points: points.slice(-50), last: points[points.length - 1] ?? null,
+  };
+}

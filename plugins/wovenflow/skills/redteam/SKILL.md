@@ -55,6 +55,7 @@ Banned objection patterns (these are noise unless rooted in a specific clause):
 - "This adds technical debt" — name the specific debt and what it blocks
 - "Maintainability concerns" — name the specific maintenance burden and who pays it
 - "Performance might suffer" — name the specific path and the magnitude
+- "It under-uses the hardware" — name the specific resource (which GPU, how many idle CPU cores, what memory headroom) and the measured or estimated gap between current use and available capacity
 
 These objections may all be valid. The rule is they must be specific. If you can't make them specific, you don't have an objection — you have a vibe.
 
@@ -66,6 +67,7 @@ The three objections must come from different angles. Repeating the same concern
 - **Approach** — given the framing, is this the right mechanism?
 - **Coupling** — what does this lock the project into that it doesn't want to be locked into?
 - **Cost** — is the cost (time, complexity, dependency surface, attention) justified by the upside?
+- **Efficiency / resource use** — does this leave performance on the table? Is it using the hardware *actually available* — GPU, CPU cores, disk throughput, memory — at a reasonable fraction of capacity, or running far under what the machine can do? This angle is about the gap between "works" and "works at the speed/scale the resources allow." Anchor to specifics, never vibes: "single-threaded on a 32-core box," "8K context window configured on a model that serves 256K natively," "GPU at 30% utilization because the batch size is pinned to 1," "re-reads the whole file every tick instead of tailing." If the artifact describes work that runs compute — a training run, an inference server, a batch job, a build, a long test suite, a data pipeline — this angle should be **one of the three** unless a clearly stronger objection crowds it out.
 - **Reversibility** — if this turns out to be wrong, how expensive is it to undo?
 - **Audience / fit** — does this match how the actual users / contributors / reviewers will engage with it?
 - **Failure mode** — what's the specific scenario where this hurts?

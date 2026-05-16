@@ -1,0 +1,29 @@
+// Reference probe: git panel.
+//
+// Branch + dirty file count + ahead/behind upstream. Pure git invocations.
+//
+// Returns: { branch, dirty_count, dirty_files, ahead, behind, has_upstream }
+
+import { spawnSync } from 'node:child_process';
+
+function git(args) {
+  const r = spawnSync('git', args, { encoding: 'utf8' });
+  return { ok: r.status === 0, stdout: r.stdout || '', stderr: r.stderr || '' };
+}
+
+export function probeGit() {
+  const branchR = git(['branch', '--show-current']);
+  const branch = branchR.ok ? branchR.stdout.trim() : null;
+  const statusR = git(['status', '--porcelain=v1']);
+  const dirty = statusR.ok ? statusR.stdout.split('\n').filter(Boolean) : [];
+  const upstreamR = git(['rev-list', '--left-right', '--count', '@{u}...HEAD']);
+  let ahead = null, behind = null;
+  if (upstreamR.ok) {
+    const m = upstreamR.stdout.trim().split(/\s+/);
+    if (m.length === 2) { behind = +m[0]; ahead = +m[1]; }
+  }
+  return {
+    branch, dirty_count: dirty.length, dirty_files: dirty.slice(0, 20),
+    ahead, behind, has_upstream: ahead != null,
+  };
+}

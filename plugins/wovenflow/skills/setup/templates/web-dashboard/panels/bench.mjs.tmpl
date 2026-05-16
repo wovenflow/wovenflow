@@ -1,0 +1,40 @@
+// Reference probe: bench results panel (advanced).
+//
+// Auto-detects `<repo>/bench/results/` (the wovenflow bench convention).
+// For each run dir, sums `hidden_pass.pass_count` / `hidden_pass.total_count`
+// across trials and reports a per-run aggregate. Skip if the project doesn't
+// run the bench.
+//
+// Returns: { runs: [{run_id, mtime, trials, hidden_pass_sum, hidden_pass_total}] }
+
+import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+function jsonOrNull(p) { try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; } }
+
+export function probeBench(repoRoot) {
+  const root = join(repoRoot, 'bench', 'results');
+  if (!existsSync(root)) return { runs: [], note: 'no bench/results' };
+  const runs = [];
+  for (const name of readdirSync(root)) {
+    const full = join(root, name);
+    let st; try { st = statSync(full); } catch { continue; }
+    if (!st.isDirectory()) continue;
+    let trials = 0, sum = 0, total = 0;
+    try {
+      for (const tname of readdirSync(full)) {
+        const tpath = join(full, tname);
+        if (!statSync(tpath).isDirectory()) continue;
+        trials++;
+        const meta = jsonOrNull(join(tpath, 'meta.json'));
+        if (meta?.hidden_pass) {
+          sum += meta.hidden_pass.pass_count || 0;
+          total += meta.hidden_pass.total_count || 0;
+        }
+      }
+    } catch {}
+    runs.push({ run_id: name, mtime: st.mtime.toISOString(), trials, hidden_pass_sum: sum, hidden_pass_total: total });
+  }
+  runs.sort((a, b) => b.mtime.localeCompare(a.mtime));
+  return { runs: runs.slice(0, 8) };
+}

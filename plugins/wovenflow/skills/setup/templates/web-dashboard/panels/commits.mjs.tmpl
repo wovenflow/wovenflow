@@ -1,0 +1,39 @@
+// Reference probe: commits panel.
+//
+// Returns the last {{COMMITS_LIMIT}} commits plus a 14-day commits-per-day
+// sparkline series. The sparkline lets the panel surface velocity at a glance
+// alongside the raw subjects.
+//
+// Returns: { items: [{hash, author, when, subject}], sparkline: [{x,y}] }
+
+import { spawnSync } from 'node:child_process';
+
+const LIMIT = {{COMMITS_LIMIT}};
+const BRANCH = `{{COMMITS_BRANCH}}`;
+
+function git(args) {
+  const r = spawnSync('git', args, { encoding: 'utf8' });
+  return { ok: r.status === 0, stdout: r.stdout || '', stderr: r.stderr || '' };
+}
+
+export function probeCommits() {
+  const args = ['log', '-' + LIMIT, '--pretty=format:%H%x09%an%x09%ar%x09%s'];
+  if (BRANCH) args.push(BRANCH);
+  const r = git(args);
+  if (!r.ok) return { error: r.stderr.trim() || 'git log failed' };
+  const items = r.stdout.split('\n').filter(Boolean).map((line) => {
+    const [hash, author, when, ...rest] = line.split('\t');
+    return { hash: (hash || '').slice(0, 8), author, when, subject: rest.join('\t') };
+  });
+  const dailyR = git(['log', '--since=14.days.ago', '--pretty=format:%cs']);
+  const counts = {};
+  for (const day of dailyR.stdout.split('\n').filter(Boolean)) counts[day] = (counts[day] || 0) + 1;
+  const today = new Date();
+  const series = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const k = d.toISOString().slice(0, 10);
+    series.push({ x: k, y: counts[k] || 0 });
+  }
+  return { items, sparkline: series };
+}

@@ -7,7 +7,8 @@ description: Design phase of DTDD (Doc-Test-Driven Development). Use when starti
 
 First of three phases in a Doc-Test-Driven Development cycle. Produce one `.spec.md` file in `doc/specs/` containing:
 
-- **User stories** — the why
+- **User stories** — the why (for the user)
+- **Architecture changes** — the why (for the system shape), when the feature changes it
 - **Behaviors** as ∵ IF / ↦ WHEN / ∴ THEN triplets — the what
 
 No test code at this stage. No implementation. Just prose that captures the design clearly enough that the **testflow** skill can lock it down by inserting executable tests for each behavior.
@@ -32,6 +33,15 @@ Each behavior's three clauses are prefixed with a logic symbol that conveys what
 - As a <persona>, I want <goal>, so that <benefit>
 - ...
 
+## Architecture changes
+
+<!-- Omit this section entirely when the feature changes no architecture.
+     When present, one entry per decision — see "The Architecture changes
+     section" below. -->
+
+- **<change in one line>.** <why — what forced it, what was rejected, what
+  it unlocks>. Updates `ARCHITECTURE.md` <section>.
+
 ## Behaviors
 
 ### B1: <short name>
@@ -44,6 +54,35 @@ Each behavior's three clauses are prefixed with a logic symbol that conveys what
 ↦ **WHEN** ...
 ∴ **THEN** ...
 ````
+
+## The Architecture changes section
+
+Behaviors capture **what the system does**. They do not reliably capture **why the system is shaped the way it is**. When a feature changes the project's architecture — a new layer, a changed data flow, a swapped dependency, a new cross-cutting mechanism, a relaxed or tightened invariant — that decision needs a home, and a behavior triplet is the wrong shape for it.
+
+The `## Architecture changes` section is that home. It is where the **rationale** lives — the *why* behind the structural change. It pairs with `ARCHITECTURE.md`, which carries **current state**: the spec explains why the state changed; `ARCHITECTURE.md` describes what the state now is.
+
+Each entry:
+
+- **Names the change** in one line.
+- **Explains the why** — what forced it, what alternatives were considered and rejected, what it unlocks. This is the part that has nowhere else to live: git history carries the diff, `ARCHITECTURE.md` carries the result, but the *reasoning* only survives if it's written here.
+- **Points at the `ARCHITECTURE.md` update** it implies — which section gets rewritten to reflect the new state.
+
+Example:
+
+````markdown
+## Architecture changes
+
+- **Provider dispatch becomes pluggable.** The harness assumed a single
+  hardcoded Anthropic client. Supporting a local open-weights baseline
+  requires routing by a `BENCH_PROVIDER` env var. Rejected: a second
+  hardcoded code path (doesn't generalize past two providers). Updates
+  `ARCHITECTURE.md` §"Trial dispatch" to describe the provider-resolution
+  layer.
+````
+
+**The split:** `ARCHITECTURE.md` is current state — hand-written, deliberately tedious, matklad-style. The spec's Architecture changes section is the decision record — the diff and the reasoning. After the spec locks, the `ARCHITECTURE.md` update named in each entry gets applied (by the implementer during build, or by the orchestrator at post-ship) so current-state stays current. The spec is durable; re-reading it later answers "why is it like this?"
+
+**When to omit it:** most small features and bug fixes change no architecture — leave the section out entirely. Do not pad it with restated behaviors. If you're tempted to write "the architecture change is that we added behavior B3," there is no architecture change — B3 already covers it. The section exists only for decisions that outlive any single behavior.
 
 ## Where it lives
 
@@ -113,6 +152,7 @@ It's fine to spec a behavior whose precondition you only fully understood after 
 - **One ∵ IF / ↦ WHEN / ∴ THEN per behavior.** If you can't capture it that way, the behavior is too big — split it.
 - **Behaviors are independent.** If B2 depends on B1's outcome, encode that in B2's ∵ IF precondition explicitly.
 - **User stories describe what the user wants and why** — not how the system implements it.
+- **Architecture changes describe why the system shape changed** — the rationale only. Current state goes in `ARCHITECTURE.md`; each entry names the `ARCHITECTURE.md` section it updates. Omit the section when nothing architectural changed.
 
 ## Red-team check before locking
 

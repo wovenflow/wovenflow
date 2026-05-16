@@ -1,0 +1,44 @@
+// Reference probe: tasks panel.
+//
+// Auto-detects: prefers a tasks.md file at {{TASKS_FILE}}; falls back to
+// `gh issue list` if tasks.md is absent.
+//
+// Returns (tasks.md): { source: 'tasks.md', file, total, open, in_progress, done }
+// Returns (github):   { source: 'github', open, items, label_filter }
+
+import { readFileSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+
+const TASKS_FILE = '{{TASKS_FILE}}';
+const LABELS = `{{TASKS_LABELS}}`.trim();
+
+export function probeTasks(repoRoot) {
+  const tasksFile = join(repoRoot, TASKS_FILE);
+  if (existsSync(tasksFile)) {
+    const txt = readFileSync(tasksFile, 'utf8');
+    const lines = txt.split('\n').filter((l) => l.startsWith('|') && !l.startsWith('|---'));
+    let open = 0, in_progress = 0, done = 0, total = 0;
+    for (const line of lines) {
+      if (line.toLowerCase().includes('| status') || line.toLowerCase().includes('|---')) continue;
+      const cells = line.split('|').map((c) => c.trim().toLowerCase());
+      const status = cells.find((c) => /^(ready|in.progress|in.review|done|blocked|todo|open)$/.test(c));
+      if (!status) continue;
+      total++;
+      if (/done|closed/.test(status)) done++;
+      else if (/in.progress|in.review/.test(status)) in_progress++;
+      else open++;
+    }
+    return { source: 'tasks.md', file: TASKS_FILE, total, open, in_progress, done };
+  }
+  const args = ['issue', 'list', '--state', 'open', '--json', 'number,title,labels'];
+  if (LABELS) { args.push('--label'); args.push(LABELS); }
+  const r = spawnSync('gh', args, { encoding: 'utf8', timeout: 6000 });
+  if (r.status !== 0) return { source: 'unknown', error: 'no tasks.md and gh failed/missing' };
+  let issues = []; try { issues = JSON.parse(r.stdout); } catch {}
+  return {
+    source: 'github', open: issues.length,
+    items: issues.slice(0, 10).map((i) => ({ number: i.number, title: i.title })),
+    label_filter: LABELS || null,
+  };
+}

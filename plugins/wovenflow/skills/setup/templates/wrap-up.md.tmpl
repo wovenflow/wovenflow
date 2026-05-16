@@ -33,7 +33,38 @@ If the branch is ahead of `{{MAIN_BRANCH}}` but no PR exists, you have unmerged 
 - **Ship it** — run the project's `verify` skill first, then `ship-pr` (or `ship-direct`)
 - **Continue next session** — note in the task tracker that work is paused
 
-### 3. Reconcile task state
+### 3. Audit dead code and data
+
+A session leaves residue. Code paths get superseded but not deleted; experiments leave output directories; fixtures and scratch files outlive the work that needed them. Dead code and dead data both rot — they confuse future readers, inflate the repo, and make "is this load-bearing?" un-answerable at a glance. Wrap-up is the checkpoint where you clear it.
+
+**Dead code** — scan for what this session orphaned:
+
+- Functions, modules, or branches no longer referenced by anything (the session replaced the caller, or the approach changed mid-flight)
+- Files left behind by a discarded approach — a half-built module, a superseded helper
+- Commented-out blocks and `// removed` / `// old` markers — git history already carries the old version
+
+**Dead data** — scan for artifacts that outlived their purpose:
+
+- Output / result directories from runs that failed, were superseded, or were one-off experiments
+- Stale fixtures, scratch files, large logs, `*.tmp`, `*-old.*`, `.bak` files
+- Generated artifacts checked in by mistake, or kept long past their use
+
+For each item, decide **remove** or **archive**:
+
+- **Remove** when it's truly dead and recoverable from git history if ever needed again. Default to remove — git is the archive for code.
+- **Archive** when it has standalone reference value that git history doesn't surface well: a result set worth comparing against later, a fixture documenting a tricky case, an experiment whose *output* (not its code) is the artifact. Move it to the project's archive location (`doc/archive/`, `archive/`, or wherever the project keeps these) rather than deleting — and note in one line *why* it was kept.
+
+Commit the cleanup on its own:
+
+```
+git add -A && git commit -m "chore: remove dead code and data from <session topic>"
+```
+
+Keep this commit separate from feature work so the diff is reviewable as pure deletion. Note what was removed or archived in the session checkpoint (step 5) so future-you knows the residue was handled deliberately, not lost.
+
+Skip this step only when the session genuinely produced no residue — a one-behavior bug fix that touched two lines. When in doubt, scan; the audit is a 2-3 minute pass.
+
+### 4. Reconcile task state
 
 {{IF TASK_SOURCE_GITHUB}}
 For every issue you've been working on:
@@ -66,7 +97,7 @@ git commit -m "chore(tasks): reconcile status"
 ```
 {{ENDIF}}
 
-### 4. Save a session checkpoint
+### 5. Save a session checkpoint
 
 Write a short paragraph (3-5 sentences) covering:
 
@@ -77,7 +108,7 @@ Write a short paragraph (3-5 sentences) covering:
 
 Save it in whichever surface the project uses for session continuity — a comment on the task, a session-state file, or both.
 
-### 5. Notice workflow friction (offer flowtune)
+### 6. Notice workflow friction (offer flowtune)
 
 Scan the session for signals that the documented workflow drifted from how you actually worked:
 
@@ -90,12 +121,12 @@ Scan the session for signals that the documented workflow drifted from how you a
 If 1+ signal appears, offer to run `wovenflow:flowtune` via `AskUserQuestion`:
 
 - **Run flowtune now** — propose specific edits to CLAUDE.md's Standard workstream
-- **Defer** — note the signals in the checkpoint (step 4) for next session
+- **Defer** — note the signals in the checkpoint (step 5) for next session
 - **Skip** — this drift is intentional / one-off
 
 If no signals, skip this step silently — the workflow is working.
 
-### 6. Reserve the next task
+### 7. Reserve the next task
 
 Identify the most natural follow-on, in priority order:
 
@@ -129,6 +160,7 @@ If no clear next task exists, skip this step. Next session's `startup` will pick
 ## Anti-patterns
 
 - **Leaving commits unpushed** — work is invisible to others; risk of loss on disk failure
+- **Leaving dead code and data behind** — orphaned modules, superseded approaches, failed-run output dirs, scratch fixtures. They rot in place: future readers can't tell what's load-bearing, and the repo inflates run after run. Remove (git is the archive for code) or archive with a one-line why
 - **Stale status** — the task tracker diverges from reality; other contributors trust stale data
 - **No checkpoint** — future-you re-derives context from scratch, costing 10-30 minutes per session
 - **Auto-reserving without confirmation** — wrap-up should *propose* the next task and confirm with the user before flipping status; never silently take over a new task at session-end

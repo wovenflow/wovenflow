@@ -1,0 +1,41 @@
+// Reference probe: tests panel.
+//
+// Runs the project's test command, parses pass/fail counts heuristically
+// (handles node:test, jest, pytest, cargo test), and caches the result for
+// {{TESTS_INTERVAL_S}}s so we don't re-run on every dashboard tick.
+//
+// Returns: { cmd, started_at, finished_at, exit_code, ok, pass, fail, total, output_tail }
+//
+// To customize: replace the parser block with one that knows your test
+// runner's output format. Cache TTL controls re-run frequency — a 30-second
+// suite shouldn't run every 5s.
+
+import { spawnSync } from 'node:child_process';
+
+const CMD = `{{TESTS_CMD}}`;
+const TTL_MS = {{TESTS_INTERVAL_S}} * 1000;
+let cache = { at: 0, value: null };
+
+export function probeTests() {
+  const now = Date.now();
+  if (cache.value && now - cache.at < TTL_MS) return cache.value;
+  const startedAt = new Date().toISOString();
+  const r = spawnSync('sh', ['-c', CMD], { encoding: 'utf8', timeout: 120000 });
+  const out = (r.stdout || '') + '\n' + (r.stderr || '');
+  let pass = null, fail = null, total = null, m;
+  if ((m = out.match(/#\s*pass\s+(\d+)/i))) pass = +m[1];
+  if ((m = out.match(/#\s*fail\s+(\d+)/i))) fail = +m[1];
+  if ((m = out.match(/Tests:\s+(\d+)\s+failed[^\n]*?(\d+)\s+passed/i))) { fail = +m[1]; pass = +m[2]; }
+  if ((m = out.match(/(\d+)\s+passed[^\n]*?(\d+)\s+failed/i))) { pass = +m[1]; fail = +m[2]; }
+  if ((m = out.match(/(\d+)\s+passed/i)) && pass == null) pass = +m[1];
+  if ((m = out.match(/(\d+)\s+failed/i)) && fail == null) fail = +m[1];
+  if ((m = out.match(/test result:\s+(ok|FAILED)\.\s+(\d+)\s+passed[^;]*?;\s*(\d+)\s+failed/i))) { pass = +m[2]; fail = +m[3]; }
+  if (pass != null && fail != null) total = pass + fail;
+  const value = {
+    cmd: CMD, started_at: startedAt, finished_at: new Date().toISOString(),
+    exit_code: r.status, ok: r.status === 0, pass, fail, total,
+    output_tail: out.split('\n').slice(-20).join('\n').slice(0, 2000),
+  };
+  cache = { at: now, value };
+  return value;
+}

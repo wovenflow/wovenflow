@@ -1,0 +1,31 @@
+// Reference probe: processes panel.
+//
+// Match running processes by name pattern. Pass a comma-separated list of
+// substrings to look for in `ps -eo pid,etime,comm,args`. Useful for: dev
+// server (`vite`), training run (`python train.py`), database (`postgres`),
+// etc. Filters out claude itself so the panel doesn't go all-meta.
+//
+// Returns: { processes: [{pid, etime, comm, args, pattern}], patterns }
+
+import { spawnSync } from 'node:child_process';
+
+const PATTERNS = `{{PROCESSES_PATTERNS}}`.split(',').map((s) => s.trim()).filter(Boolean);
+
+export function probeProcesses() {
+  const r = spawnSync('ps', ['-eo', 'pid,etime,comm,args'], { encoding: 'utf8' });
+  if (r.status !== 0) return { error: 'ps failed' };
+  if (PATTERNS.length === 0) return { processes: [], patterns: PATTERNS };
+  const isClaude = (line) => /\bclaude\b|claude-snapshot|claude-shell-snapshot/.test(line);
+  const matches = [];
+  for (const line of (r.stdout || '').split('\n').slice(1)) {
+    if (isClaude(line)) continue;
+    const matched = PATTERNS.find((p) => line.includes(p));
+    if (!matched) continue;
+    const m = line.trim().match(/^(\d+)\s+(\S+)\s+(\S+)\s+(.*)$/);
+    if (m) matches.push({
+      pid: +m[1], etime: m[2], comm: m[3],
+      args: m[4].slice(0, 240), pattern: matched,
+    });
+  }
+  return { processes: matches, patterns: PATTERNS };
+}

@@ -4,11 +4,22 @@ These are starting points that `setup` materializes into a project's `.claude/sk
 
 ## Template syntax
 
-- `{{VAR}}` — replaced with the user's answer for that variable.
-- `{{IF VAR}}...{{ENDIF}}` — kept if `VAR` is non-empty, dropped otherwise.
+- `{{VAR}}` — replaced with the user's answer for that variable. Unset vars become empty string.
+- `{{IF VAR}}...{{ENDIF}}` — kept if `VAR` is non-empty, dropped otherwise. **Nesting is supported** — resolve from the innermost IF outward, then do the `{{VAR}}` pass last. The `web-dashboard/serve.mjs.tmpl` template uses nested IFs (e.g., `PANEL_COMMITS` wrapping a `COMMITS_BRANCH` filter), so the wizard's substitution helper must walk inside-out, not naive non-greedy regex.
 - Numbered steps (`### 1. Title`, `### 2. Title`) are renumbered sequentially after IF blocks are resolved.
 
-The `setup` wizard performs the substitution before writing the file.
+The `setup` wizard performs the substitution before writing the file. Reference implementation (used in `tests/setup-web-dashboard-template.spec.md`):
+
+```js
+function substitute(tmpl, vars) {
+  let out = tmpl;
+  const innermostIf = /\{\{IF (\w+)\}\}((?:(?!\{\{IF )[\s\S])*?)\{\{ENDIF\}\}/;
+  while (innermostIf.test(out)) {
+    out = out.replace(innermostIf, (_, name, body) => (vars[name] ? body : ''));
+  }
+  return out.replace(/\{\{(\w+)\}\}/g, (_, name) => (name in vars ? String(vars[name]) : ''));
+}
+```
 
 ## Templates
 
@@ -24,6 +35,7 @@ The `setup` wizard performs the substitution before writing the file.
 | `ship-pr.md.tmpl` | `.claude/skills/ship/SKILL.md` | Phase 8 ship via pull request: push branch, `gh pr create`, mark task in-review |
 | `ship-direct.md.tmpl` | `.claude/skills/ship/SKILL.md` | Phase 8 ship without PR: confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub workflows. |
 | `researcher.md.tmpl` | `.claude/skills/researchflow/researchers/<NAME>.md` | Phase 3 custom researcher profile: field-specific steps and integrity gates layered on top of the base researchflow. |
+| `web-dashboard/serve.mjs.tmpl` + `index.html.tmpl` + `panels/*.mjs.tmpl` + `README.md` | `<repo>/web/serve.mjs` and `<repo>/web/index.html` | Cross-cutting concern (Step 4.X): tailored project dashboard. Wizard asks which panels to include; only those `{{IF PANEL_*}}` blocks survive substitution. See `web-dashboard/README.md` for the full panel catalog and per-panel variables. |
 
 ## Variable reference
 
@@ -85,3 +97,23 @@ GitHub-specific:
 | `STEPS` | Specialized step list with IDs (e.g., `S1`, `S2`, …) | — |
 | `OUTPUT_SCHEMA_SECTIONS` | Bulleted list of `## Section` headers each step contributes | — |
 | `ANTI_PATTERNS` | Bulleted list of failure modes to avoid in this field | — |
+
+`web-dashboard`-specific:
+
+| Variable | Meaning | Example |
+|---|---|---|
+| `PROJECT_NAME` | Used in `<title>`, headings, umbrella URL slug | `wovenflow` |
+| `INTERVAL_S` | Seconds between data.json writes / browser polls | `5` |
+| `PORT` | Standalone HTTP port (`--serve`) | `8082` |
+| `UMBRELLA_PATH` | Absolute path to umbrella web root; empty for standalone-only | `/home/will/web` |
+| `PANELS_LIST` | Comma-separated panel names — appears in the file header for traceability | `tests,git,commits,specs` |
+| `PANEL_TESTS` / `PANEL_SPECS` / `PANEL_COMMITS` / `PANEL_SUBAGENTS` / `PANEL_GIT` / `PANEL_TASKS` / `PANEL_COMMAND` / `PANEL_PROCESSES` / `PANEL_BENCH` / `PANEL_TIMESERIES` / `PANEL_BAR` / `PANEL_SPARKLINE` | Per-panel `{{IF …}}` flags. Set non-empty (e.g. `"1"`) to include that panel; leave empty to strip it. | `1` |
+| `TESTS_CMD` / `TESTS_INTERVAL_S` | Test-runner command + cache TTL (avoid re-running every tick) | `npm test` / `60` |
+| `SPECS_DIR` | Where spec.md files live | `doc/specs` |
+| `COMMITS_LIMIT` / `COMMITS_BRANCH` | Number of commits / optional branch filter | `10` / `` |
+| `TASKS_FILE` / `TASKS_LABELS` | tasks.md path / GitHub Issue label filter | `tasks.md` / `agent` |
+| `COMMAND_CMD` / `COMMAND_LABEL` / `COMMAND_INTERVAL_S` / `COMMAND_REGEX` | Custom shell-command panel | `npm run health` / `Health` / `30` / `Score:\s*(\S+)` |
+| `PROCESSES_PATTERNS` | Comma-separated substrings to match in `ps -eo args` | `vite,postgres` |
+| `TIMESERIES_SOURCE` / `TIMESERIES_X` / `TIMESERIES_Y` | JSONL or CSV file + key/column names for the line chart | `metrics.jsonl` / `commit` / `pass_rate` |
+| `BAR_SOURCE` / `BAR_X_LABEL` / `BAR_Y_LABEL` | JSON file + axis labels | `coverage.json` / `module` / `coverage %` |
+| `SPARKLINE_SOURCE` / `SPARKLINE_Y` / `SPARKLINE_LABEL` | JSONL source + key + display label | `tokens.jsonl` / `tokens` / `Tokens/session` |

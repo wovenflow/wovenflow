@@ -217,6 +217,7 @@ The wizard's Step 3 (Craft custom skills) uses these templates when applicable; 
 
 These aren't phase-bound — they're project-level decisions the wizard asks about *after* the phase walk-through.
 
+- **Web dashboard** — a tailored single-page dashboard for project monitoring (test status, spec.md state, recent commits, subagent activity, git status, task counts, custom commands, long-lived processes, and graph-shaped panels: time-series, bar, sparkline). Materializes from `templates/web-dashboard/`; only the panels the user picks are emitted. Runs as either a standalone `node web/serve.mjs --serve` HTTP server or as static files dropped into a fawkes-style umbrella web root. **Pitch this as the surface for things that resist text** — "your tests passed today" is text, "your pass rate over the last 30 commits" is a chart that tells you whether you're trending or thrashing. Run as part of Step 4 (see Step 4.X below for the wizard flow).
 - **MCP server building** — projects exposing internal tools via MCP. Discover via [awesome-claude-plugins](https://github.com/ComposioHQ/awesome-claude-plugins) (`mcp-builder` and similar).
 - **Hooks configuration** — pre-commit, session-start, pre-push automation. Configure via [`update-config` (Claude Code settings)](https://docs.claude.com/en/docs/claude-code) and `.claude/hooks/`.
 - **Experimental Agent Teams** — set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `~/.claude/settings.json` (or `.claude/settings.json`) under `env`. Exposes `TeamCreate` / `TeamDelete` / `SendMessage` tools, which give `wovenflow:subflow`'s parallel dispatch richer coordination primitives — direct messaging between orchestrator and implementer subagents on `NEEDS_CONTEXT`, instead of round-tripping through the orchestrator. Subflow works without it; recommended when behaviors frequently surface clarifying questions mid-flight. Use `update-config` to set, or edit `settings.json` directly. The wizard should ask about this when `wovenflow:subflow` is selected for Phase 6.
@@ -392,7 +393,96 @@ After the 10 phases, ask about each cross-cutting concern (see "Cross-cutting co
 - "Seed memory feedback files? Y/N → walk through `claude-md-management`"
 - Etc.
 
+The web-dashboard concern has its own interactive sub-wizard — see Step 4.X below.
+
 These don't affect the workflow doc — they're tracked separately (in `~/.claude/settings.json`, hooks files, memory dir).
+
+### Step 4.X — Web dashboard (interactive panel picker)
+
+A project dashboard is one of the cross-cutting concerns and gets its own sub-wizard because the right shape varies a lot per project. The framing the wizard should use with the user: **a dashboard is the surface for things that resist text**. Test pass/fail at this moment is text. Pass-rate over the last 30 commits is a chart. The wizard should pitch graph panels for any time-varying metric, not just status panels for now-state.
+
+#### 4.X.1 — Opt-in
+
+`AskUserQuestion`:
+- Question: `"Set up a project dashboard at <repo>/web/?"`
+- Options:
+  1. **Yes — let me pick which panels** *(Recommended for first-time setup — dashboards are most useful when tailored)*
+  2. **Yes — use sensible defaults for this project type** — auto-pick from project signals (test command found in package.json/Cargo.toml/pyproject.toml → tests panel; `doc/specs/` exists → specs panel; always include git status, recent commits, subagent activity)
+  3. **Skip** — no dashboard
+
+If 3, end the dashboard sub-wizard.
+
+If 2, set the panel set automatically, log the picks, and skip to Step 4.X.3 (serving mode).
+
+If 1, run the panel picker (4.X.2).
+
+#### 4.X.2 — Panel picker
+
+The full menu has 12 panels — too many for a single 4-option `AskUserQuestion`. Run two `multiSelect: true` calls. Frame the second as the graph/chart half explicitly so the user notices charts exist.
+
+**First call — status / activity panels:**
+
+| Slot | Panel | What it shows |
+|---|---|---|
+| 1 | `tests` *(Recommended for any project with a test runner)* | Pass/fail counts from your test command |
+| 2 | `git` *(Recommended)* | Branch, dirty files, ahead/behind upstream |
+| 3 | `commits` *(Recommended)* | Last N commits + 14-day commits/day sparkline |
+| 4 | `specs` | `*.spec.md` files with state (designed/tested) |
+
+**Second call — activity, custom, and chart panels:**
+
+| Slot | Panel | What it shows |
+|---|---|---|
+| 1 | `subagents` *(Recommended for wovenflow projects)* | Active subagent transcript count (last 60s) |
+| 2 | `tasks` | tasks.md counts OR `gh issue list` open count |
+| 3 | `command` | Custom shell command stdout, optional regex extract |
+| 4 | **Show full catalog (12 panels)** — when picked, the agent prints all panels including `processes`, `bench`, and the three chart types (`timeseries`, `bar`, `sparkline`); user replies in free text with a comma-separated set |
+
+When pitching the catalog, lead with the chart panels and explain the use case in one line each:
+
+- `timeseries` — line chart from JSONL/CSV. Use for **pass-rate over time, build-duration trend, token-cost-per-session**, anything that varies over time and tells you whether you're trending well or drifting.
+- `bar` — bar chart from JSON. Use for **test counts per file, coverage per module, latency per endpoint**, anything category-vs-scalar.
+- `sparkline` — tiny inline trend. Use for **a single number whose direction matters** (recent throughput, recent error count). Cheap to add — fits in any panel.
+
+After both calls (and the catalog free-text if used), run per-panel config calls. Skip the call entirely for panels with no config (`subagents`, `git`, `bench`).
+
+| Panel | Per-panel `AskUserQuestion`(s) |
+|---|---|
+| `tests` | Test command (default: detected from `package.json` / `Cargo.toml` / `pyproject.toml`); cache TTL in seconds (default `60`) |
+| `specs` | Specs directory (default `doc/specs`) |
+| `commits` | Commit count to show (default `10`); branch filter (default empty = current branch) |
+| `tasks` | Tasks file path (default `tasks.md`); GitHub Issue label filter (optional) |
+| `command` | Command, label (display name), cache TTL in seconds (default `30`), optional regex (first capture group becomes a headline status) |
+| `processes` | Comma-separated name patterns to match in `ps` output |
+| `timeseries` | Source file path (`.jsonl` or `.csv`), x key/column, y key/column |
+| `bar` | Source file path (`.json`), x-axis label, y-axis label |
+| `sparkline` | Source file (`.jsonl`), y key, display label |
+
+Panels with no config (`subagents`, `git`, `bench`) auto-detect everything they need; just include them in `PANELS_LIST` and set `PANEL_<NAME>` non-empty.
+
+#### 4.X.3 — Serving mode
+
+`AskUserQuestion`:
+- Question: `"Where should the dashboard be served from?"`
+- Options:
+  1. **Standalone server on port 8082** — run `node web/serve.mjs --serve`. One less moving part; great for projects without an umbrella site.
+  2. **Drop static files into an umbrella web/ directory** *(Recommended for fawkes-style multi-project setups)* — wizard asks for the umbrella absolute path (default `~/web` if it exists). The materialized `index.html` will `<link>` `/static/site.css` and `/static/header.js` from the umbrella so the dashboard inherits the umbrella's top-nav and styling. The serve loop just writes `data.json`; you point your existing umbrella server at `<umbrella>/<project>/`.
+  3. **Both** — generate the standalone server **and** make the static files umbrella-compatible. The umbrella `<link>` 404s gracefully when standalone-only.
+
+Map the answer to template variables:
+- Standalone: `UMBRELLA_PATH=""`, `PORT="8082"`. The serve loop writes `data.json` next to `index.html`; user runs `node web/serve.mjs --serve` to also start the HTTP server.
+- Umbrella: `UMBRELLA_PATH=<path>`, `PORT="8082"` (still set, so user can fall back to `--serve` ad-hoc). Set `<repo>/web` as a symlink or directory inside `<umbrella>/<PROJECT_NAME>/`.
+- Both: same as Umbrella, but document both invocations in the chosen output.
+
+#### 4.X.4 — Materialize and confirm
+
+1. Build the variable bag from the user's answers, with `PANEL_<NAME>="1"` for chosen panels and `""` for the rest. `PANELS_LIST` is the comma-separated list of chosen names — embedded in the `serve.mjs` header for traceability.
+2. Substitute `templates/web-dashboard/serve.mjs.tmpl` → `<repo>/web/serve.mjs` and `templates/web-dashboard/index.html.tmpl` → `<repo>/web/index.html`.
+3. Show the user the panel list + serving mode + paths and confirm with `AskUserQuestion` (Yes / Show me again / Cancel) before writing.
+4. After write: `chmod +x <repo>/web/serve.mjs`. Add `web/data.json` to `.gitignore` if `.gitignore` exists (the snapshot file shouldn't be committed).
+5. Tell the user how to start it:
+   - Standalone: `node web/serve.mjs --serve` then open `http://localhost:8082/`.
+   - Umbrella: `node web/serve.mjs &` (writer only); make sure `<repo>/web` is reachable from the umbrella server's web root, then visit `<umbrella-host>/<PROJECT_NAME>/`.
 
 ### Step 5 — Ask about alternative cycles
 

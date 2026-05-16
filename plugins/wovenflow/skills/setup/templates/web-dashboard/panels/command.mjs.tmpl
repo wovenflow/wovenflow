@@ -1,0 +1,38 @@
+// Reference probe: custom command panel.
+//
+// Runs `{{COMMAND_CMD}}` every {{COMMAND_INTERVAL_S}}s and surfaces stdout.
+// If COMMAND_REGEX is set, the first capture group is extracted into `status`
+// (lets you surface "8.2/10" or "PASS" as a headline number).
+//
+// Use this for: `npm run health`, `cargo check --quiet`, `du -sh build/`,
+// `python3 scripts/coverage_summary.py`, anything that prints something
+// useful periodically.
+//
+// Returns: { cmd, label, exit_code, ok, status, output_tail, finished_at }
+
+import { spawnSync } from 'node:child_process';
+
+const CMD = `{{COMMAND_CMD}}`;
+const LABEL = `{{COMMAND_LABEL}}`;
+const TTL_MS = {{COMMAND_INTERVAL_S}} * 1000;
+const REGEX = `{{COMMAND_REGEX}}`;
+let cache = { at: 0, value: null };
+
+export function probeCommand() {
+  const now = Date.now();
+  if (cache.value && now - cache.at < TTL_MS) return cache.value;
+  const r = spawnSync('sh', ['-c', CMD], { encoding: 'utf8', timeout: 30000 });
+  let status = null;
+  if (REGEX) {
+    const m = ((r.stdout || '') + '\n' + (r.stderr || '')).match(new RegExp(REGEX));
+    if (m) status = m[1] ?? m[0];
+  }
+  const value = {
+    cmd: CMD, label: LABEL, exit_code: r.status, ok: r.status === 0, status,
+    output_tail: ((r.stdout || '') + (r.stderr ? '\n--- stderr ---\n' + r.stderr : ''))
+      .split('\n').slice(-15).join('\n').slice(0, 2000),
+    finished_at: new Date().toISOString(),
+  };
+  cache = { at: now, value };
+  return value;
+}
