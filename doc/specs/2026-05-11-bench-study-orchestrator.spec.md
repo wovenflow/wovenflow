@@ -125,32 +125,45 @@ test('B4: composePrompt user_message contains intent.md verbatim', () => {
 });
 ```
 
-### B5: Tools array contains write_source and write_test in OpenAI function-call shape
+### B5: Tools array contains write_source, write_test, and run_tests in OpenAI function-call shape
 ∵ **IF** `composePrompt({condition: <any>, task_id, repo_root})` is called
 ↦ **WHEN** it returns the composed prompt object
-∴ **THEN** the returned `tools` is an array of exactly two function definitions matching the OpenAI tool-call schema: `{type: "function", function: {name: "write_source", description: <string>, parameters: {type: "object", properties: {path: {type: "string"}, content: {type: "string"}}, required: ["path", "content"]}}}` and the analogous shape for `write_test`. Names must match exactly (the bench's openai-compatible provider matches `fn.name === 'write_source'` literally)
+∴ **THEN** the returned `tools` is an array of exactly three function definitions matching the OpenAI tool-call schema: `{type: "function", function: {name: "write_source", description: <string>, parameters: {type: "object", properties: {path: {type: "string"}, content: {type: "string"}}, required: ["path", "content"]}}}`, the analogous shape for `write_test`, and a `run_tests` tool whose `parameters` object has an optional `test_path` string property (no `required` list). Names must match exactly (the bench's openai-compatible provider matches `fn.name === 'write_source'` literally).
+
+The `run_tests` tool was added post-lock to give the agent a feedback loop on its own tests — a DTDD trial was observed shipping tests that asserted `/Invalid semver string/` against an impl that threw `'Invalid semantic version: ...'`, a mismatch the agent could not have caught without an in-trial test runner. The tool executes the agent's in-memory `write_test` files against its `write_source` files in a sandbox tempdir (never against `bench/tasks/<task>/hidden_tests/`). Its presence is methodologically neutral — calling it is optional and does not change the trial outcome.
 
 ```javascript
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { composePrompt } from '../../study.mjs';
 
-test('B5: composePrompt tools array has write_source and write_test in OpenAI shape', () => {
+test('B5: composePrompt tools array has write_source, write_test, and run_tests in OpenAI shape', () => {
   const result = composePrompt({
     condition: 'dtdd',
     task_id: 'slugify',
     repo_root: process.cwd(),
   });
-  assert.strictEqual(result.tools.length, 2);
+  assert.strictEqual(result.tools.length, 3);
   const names = result.tools.map(t => t.function.name).sort();
-  assert.deepStrictEqual(names, ['write_source', 'write_test']);
+  assert.deepStrictEqual(names, ['run_tests', 'write_source', 'write_test']);
+  // write_source / write_test share the path+content shape.
   for (const tool of result.tools) {
     assert.strictEqual(tool.type, 'function');
     assert.ok(typeof tool.function.description === 'string' && tool.function.description.length > 0);
     assert.strictEqual(tool.function.parameters.type, 'object');
-    assert.deepStrictEqual(tool.function.parameters.required, ['path', 'content']);
-    assert.strictEqual(tool.function.parameters.properties.path.type, 'string');
-    assert.strictEqual(tool.function.parameters.properties.content.type, 'string');
+    if (tool.function.name === 'write_source' || tool.function.name === 'write_test') {
+      assert.deepStrictEqual(tool.function.parameters.required, ['path', 'content']);
+      assert.strictEqual(tool.function.parameters.properties.path.type, 'string');
+      assert.strictEqual(tool.function.parameters.properties.content.type, 'string');
+    } else if (tool.function.name === 'run_tests') {
+      // run_tests has only an optional test_path string parameter.
+      assert.strictEqual(tool.function.parameters.properties.test_path.type, 'string');
+      // No `required` list (test_path is optional).
+      assert.ok(
+        tool.function.parameters.required === undefined ||
+          tool.function.parameters.required.length === 0,
+      );
+    }
   }
 });
 ```

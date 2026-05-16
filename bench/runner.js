@@ -276,7 +276,29 @@ export function dispatchTrial(options) {
       topology,
       trial_index,
       dry_run,
+      trial_dir: null,
     };
+  }
+
+  // Per spec B1: dispatchTrial with topology='multi' routes internally to
+  // dispatchMultiAgentTrial. The dry-run path above already returns the
+  // multi-flavored shape (shared trial-id format). The live path forks here.
+  if (topology === 'multi') {
+    return dispatchMultiAgentTrial({
+      task_id,
+      style,
+      trial_index,
+      provider,
+      run_id,
+      turn_cap,
+      wall_clock_cap_ms,
+      grace_ms,
+      env,
+      protocol_model_id,
+      system_prompt,
+      user_message,
+      tools,
+    });
   }
 
   // Live path. Resolve provider config from the in-test shortcut or from env.
@@ -504,6 +526,11 @@ async function runLiveTrial(ctx) {
         user_message,
         tools,
         signal: controller.signal,
+        // Live progress: provider appends one line per assistant/tool turn to
+        // ${progress_dir}/conversation-live.jsonl as they happen. Lets the
+        // dashboard probe see in-flight progress before captureTrial writes
+        // the canonical conversation.jsonl at end of dispatch.
+        progress_dir: trialDir,
         options: {
           turn_cap,
           wall_clock_cap_ms,
@@ -791,7 +818,24 @@ export async function dispatchEditTrial(options) {
     protocol_model_id,
     system_prompt: callerSystemPrompt,
     tools: callerTools,
+    // Additive in v2.1: when topology === 'multi', the Phase 2 fresh agent
+    // is itself an orchestrator+subagents structure. Default 'single'
+    // preserves the v2 Stage-2 single-agent behavior exactly.
+    topology: editTopology = 'single',
+    subagent_turn_cap,
+    subagent_wall_clock_cap_ms,
+    // Multi-agent edit: per-subagent prompt + tools template (passed by
+    // study.mjs's composeMultiAgentPrompt). Same fallback contract as the
+    // dispatchMultiAgentTrial path — the runner uses these only when the
+    // orchestrator's parsed dispatch entry omits its own override.
+    subagent_system_prompt: callerSubagentSystemPrompt,
+    subagent_tools: callerSubagentTools,
   } = options;
+  if (!KNOWN_TOPOLOGIES.has(editTopology)) {
+    throw new Error(
+      `dispatchEditTrial: unknown topology "${editTopology}" (expected one of ${[...KNOWN_TOPOLOGIES].join(', ')})`,
+    );
+  }
 
   if (typeof phase1_trial_dir !== 'string' || phase1_trial_dir.length === 0) {
     throw new Error('dispatchEditTrial: phase1_trial_dir must be a non-empty string');
@@ -1019,6 +1063,7 @@ export async function dispatchEditTrial(options) {
     edit_prompt_path: editPromptPath,
     intent_prompt_path: include_original_description ? intentPath : null,
     input_context_files: inputContextFiles,
+    topology: editTopology,
     dry_run,
   };
 
@@ -1071,6 +1116,11 @@ export async function dispatchEditTrial(options) {
   let stopReason = 'error';
   let providerError = null;
   let resolvedModelId = providerConfig.model_id;
+  // Multi-agent edit-trial extras (populated only when editTopology === 'multi').
+  let editSubagentRecords = [];
+  let editOrchestratorTokensIn = 0;
+  let editOrchestratorTokensOut = 0;
+  let editSubagentErrors = 0;
 
   try {
     const mod = await loadProviderModule(providerConfig);
@@ -1079,28 +1129,168 @@ export async function dispatchEditTrial(options) {
         `provider module does not export runTrial() (provider: ${providerConfig.name}, script: ${providerConfig.script ?? 'built-in'})`,
       );
     }
-    providerResult = await mod.runTrial({
-      task_id,
-      style: 'edit',
-      topology: 'single',
-      trial_index: 0,
-      trial_id: `${phase1TrialId}-${phase}`,
-      run_id: effectiveRunId,
-      system_prompt: systemPrompt,
-      user_message: userMessage,
-      tools: callerTools ?? [],
-      signal: controller.signal,
-      options: {
-        turn_cap: effectiveTurnCap,
-        wall_clock_cap_ms: effectiveWallCap,
-        grace_ms: effectiveGrace,
-        endpoint_url: providerConfig.endpoint_url,
-        model_id: providerConfig.model_id,
-        protocol_variant: providerConfig.protocol_variant,
-      },
-    });
-    stopReason = providerResult?.stop_reason ?? 'done';
-    if (providerResult?.model_id) resolvedModelId = providerResult.model_id;
+
+    if (editTopology === 'multi') {
+      // Multi-agent Phase 2: the fresh agent IS an orchestrator+subagents
+      // structure. Per open question 3, it plans its OWN decomposition from
+      // the inherited artifacts (no leakage of any Phase 1 plan). The
+      // orchestrator receives the edit prompt as user_message; if it returns
+      // subagent_dispatches, the runner loops over them with the same
+      // contract dispatchMultiAgentTrial uses.
+      const orchestratorRes = await mod.runTrial({
+        task_id,
+        style: 'edit',
+        topology: 'multi',
+        trial_index: 0,
+        trial_id: `${phase1TrialId}-${phase}`,
+        run_id: effectiveRunId,
+        role: 'orchestrator',
+        system_prompt: systemPrompt,
+        user_message: userMessage,
+        tools: callerTools ?? [],
+        signal: controller.signal,
+        options: {
+          turn_cap: effectiveTurnCap,
+          wall_clock_cap_ms: effectiveWallCap,
+          grace_ms: effectiveGrace,
+          endpoint_url: providerConfig.endpoint_url,
+          model_id: providerConfig.model_id,
+          protocol_variant: providerConfig.protocol_variant,
+        },
+      });
+      editOrchestratorTokensIn = Number(orchestratorRes?.tokens_input ?? 0);
+      editOrchestratorTokensOut = Number(orchestratorRes?.tokens_output ?? 0);
+      const orchestratorConversation = Array.isArray(orchestratorRes?.conversation)
+        ? orchestratorRes.conversation
+        : [];
+      const dispatches = Array.isArray(orchestratorRes?.subagent_dispatches)
+        ? orchestratorRes.subagent_dispatches.slice(0, MAX_SUBAGENT_COUNT)
+        : [];
+      const mergedSource = { ...(orchestratorRes?.source_files ?? {}) };
+      const mergedTests = { ...(orchestratorRes?.test_files ?? {}) };
+      const subagentBlocks = [];
+      const subTurnCap = subagent_turn_cap ?? DEFAULT_SUBAGENT_TURN_CAP;
+      const subWallCap = subagent_wall_clock_cap_ms ?? DEFAULT_SUBAGENT_WALL_CLOCK_CAP_MS;
+
+      for (let i = 0; i < dispatches.length; i += 1) {
+        const dispatch = dispatches[i] ?? {};
+        const rawId = dispatch.id ?? `S${i + 1}`;
+        let saRes = null;
+        let saErr = null;
+        try {
+          saRes = await mod.runTrial({
+            task_id,
+            style: 'edit',
+            topology: 'multi',
+            trial_index: 0,
+            trial_id: `${phase1TrialId}-${phase}`,
+            run_id: effectiveRunId,
+            role: 'subagent',
+            subagent_id: rawId,
+            // Same resolution order as runMultiAgentTrial: dispatch override
+            // → study.mjs-supplied subagent template → orchestrator fallback.
+            system_prompt:
+              dispatch.system_prompt
+              ?? callerSubagentSystemPrompt
+              ?? systemPrompt,
+            user_message: dispatch.user_message ?? `Subagent ${rawId} brief`,
+            tools:
+              dispatch.tools
+              ?? callerSubagentTools
+              ?? callerTools
+              ?? [],
+            signal: controller.signal,
+            options: {
+              turn_cap: subTurnCap,
+              wall_clock_cap_ms: subWallCap,
+              grace_ms: effectiveGrace,
+              endpoint_url: providerConfig.endpoint_url,
+              model_id: providerConfig.model_id,
+              protocol_variant: providerConfig.protocol_variant,
+            },
+          });
+        } catch (err) {
+          saErr = err && err.message ? err.message : String(err);
+        }
+        let saStop = saRes?.stop_reason ?? (saErr ? 'error' : 'done');
+        if (!VALID_STOP_REASONS.has(saStop)) saStop = 'error';
+        if (saErr) saStop = 'error';
+        let written = 0;
+        if (saStop !== 'error') {
+          for (const [p, c] of Object.entries(saRes?.source_files ?? {})) {
+            mergedSource[p] = c;
+            written += 1;
+          }
+          for (const [p, c] of Object.entries(saRes?.test_files ?? {})) {
+            mergedTests[p] = c;
+            written += 1;
+          }
+        }
+        if (saStop === 'error') editSubagentErrors += 1;
+        const rec = {
+          id: rawId,
+          tokens_input: Number(saRes?.tokens_input ?? 0),
+          tokens_output: Number(saRes?.tokens_output ?? 0),
+          stop_reason: saStop,
+          files_written: written,
+        };
+        if (saErr) rec.error = saErr;
+        editSubagentRecords.push(rec);
+        subagentBlocks.push({
+          id: rawId,
+          conversation: Array.isArray(saRes?.conversation) ? saRes.conversation : [],
+        });
+      }
+
+      // Build the merged conversation (orchestrator + interleaved subagent
+      // blocks with marker lines).
+      const mergedConversation = [...orchestratorConversation];
+      for (const block of subagentBlocks) {
+        mergedConversation.push({
+          role: 'system',
+          content: `--- subagent ${block.id} turns follow ---`,
+        });
+        for (const turn of block.conversation) mergedConversation.push(turn);
+      }
+      const subTokensIn = editSubagentRecords.reduce((a, r) => a + r.tokens_input, 0);
+      const subTokensOut = editSubagentRecords.reduce((a, r) => a + r.tokens_output, 0);
+
+      const orchestratorStop = orchestratorRes?.stop_reason ?? 'done';
+      stopReason = VALID_STOP_REASONS.has(orchestratorStop) ? orchestratorStop : 'done';
+      providerResult = {
+        conversation: mergedConversation,
+        source_files: mergedSource,
+        test_files: mergedTests,
+        tokens_input: editOrchestratorTokensIn + subTokensIn,
+        tokens_output: editOrchestratorTokensOut + subTokensOut,
+        stop_reason: stopReason,
+        model_id: orchestratorRes?.model_id ?? resolvedModelId,
+      };
+      if (orchestratorRes?.model_id) resolvedModelId = orchestratorRes.model_id;
+    } else {
+      providerResult = await mod.runTrial({
+        task_id,
+        style: 'edit',
+        topology: 'single',
+        trial_index: 0,
+        trial_id: `${phase1TrialId}-${phase}`,
+        run_id: effectiveRunId,
+        system_prompt: systemPrompt,
+        user_message: userMessage,
+        tools: callerTools ?? [],
+        signal: controller.signal,
+        options: {
+          turn_cap: effectiveTurnCap,
+          wall_clock_cap_ms: effectiveWallCap,
+          grace_ms: effectiveGrace,
+          endpoint_url: providerConfig.endpoint_url,
+          model_id: providerConfig.model_id,
+          protocol_variant: providerConfig.protocol_variant,
+        },
+      });
+      stopReason = providerResult?.stop_reason ?? 'done';
+      if (providerResult?.model_id) resolvedModelId = providerResult.model_id;
+    }
   } catch (err) {
     providerError = err && err.message ? err.message : String(err);
     stopReason = 'error';
@@ -1144,7 +1334,7 @@ export async function dispatchEditTrial(options) {
     trial_id: phase1TrialId,
     task_id,
     style: 'edit',
-    topology: 'single',
+    topology: editTopology,
     trial_index: 0,
     tokens_input: Number(providerResult.tokens_input ?? 0),
     tokens_output: Number(providerResult.tokens_output ?? 0),
@@ -1160,6 +1350,13 @@ export async function dispatchEditTrial(options) {
     edit_prompt_path: path.relative(REPO_ROOT, editPromptPath),
     included_original_description: include_original_description,
   };
+  if (editTopology === 'multi') {
+    meta.orchestrator_tokens_input = editOrchestratorTokensIn;
+    meta.orchestrator_tokens_output = editOrchestratorTokensOut;
+    meta.subagent_count = editSubagentRecords.length;
+    meta.subagents = editSubagentRecords;
+    if (editSubagentErrors > 0) meta.subagent_errors = editSubagentErrors;
+  }
   if (providerError) {
     meta.error = providerError;
   }
@@ -1201,3 +1398,551 @@ function listFilesRecursive(dir) {
   walk(dir, '');
   return out;
 }
+
+// --- Multi-agent topology (2026-05-13 spec) -----------------------------
+//
+// Contract: doc/specs/2026-05-13-bench-multi-agent-topology.spec.md
+//
+// dispatchMultiAgentTrial mirrors the outer contract of dispatchTrial but
+// runs an orchestrator + N subagents instead of one agent. Per-trial token
+// accounting splits orchestrator and subagent costs; per-subagent isolation
+// keeps each provider call's conversation fresh; one subagent's failure
+// doesn't kill the trial.
+//
+// Provider contract extension:
+//   - First call: runner invokes provider's runTrial({..., role: 'orchestrator'}).
+//     Provider returns the standard fields plus an optional
+//     `subagent_dispatches: [{id, system_prompt, user_message, tools}]` array.
+//   - Subsequent calls: runner loops over subagent_dispatches and invokes
+//     provider's runTrial({..., role: 'subagent', subagent_id, system_prompt,
+//     user_message, tools, subagent_worktree}). Each subagent gets a fresh
+//     conversation (system + user only — never the orchestrator's history).
+//   - Runner merges results: source_files / test_files via last-writer-wins
+//     in dispatch order; conversation is interleaved with marker lines;
+//     tokens are summed; per-subagent records carry to meta.json.
+
+const DEFAULT_SUBAGENT_TURN_CAP = 20;
+const DEFAULT_SUBAGENT_WALL_CLOCK_CAP_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_SUBAGENT_COUNT = 6;
+
+// Compose the orchestrator's system prompt. Per spec B3 (with red-team
+// resolution): the orchestrator's system_prompt embeds bench/topology/multi.md
+// VERBATIM plus a short orchestrator-role preamble. The style card body is
+// NOT embedded — the orchestrator gets a POINTER to the style card path so
+// it can read the methodology when deciding how to decompose, but the topology
+// helper itself stays methodology-neutral.
+export function composeOrchestratorPrompt({ style, task_id, repo_root } = {}) {
+  if (!KNOWN_STYLES.has(style)) {
+    throw new Error(
+      `composeOrchestratorPrompt: unknown style "${style}" (expected one of ${[...KNOWN_STYLES].join(', ')})`,
+    );
+  }
+  if (typeof task_id !== 'string' || task_id.length === 0) {
+    throw new Error('composeOrchestratorPrompt: task_id must be a non-empty string');
+  }
+  const root = typeof repo_root === 'string' && repo_root.length > 0
+    ? repo_root
+    : REPO_ROOT;
+
+  const multiPath = path.join(root, 'bench', 'topology', 'multi.md');
+  if (!existsSync(multiPath)) {
+    throw new Error(
+      `composeOrchestratorPrompt: bench/topology/multi.md not found at ${multiPath}`,
+    );
+  }
+  const multiBody = readFileSync(multiPath, 'utf8').trim();
+
+  const styleCardPath = `bench/styles/${style}.md`;
+
+  // Orchestrator-role preamble: explains the orchestrator's job and points to
+  // the style card by PATH (not body). Per the red-team resolution, the
+  // orchestrator reads the style card at decomposition time to learn its
+  // methodology — the topology helper's prompt remains methodology-neutral.
+  const preamble = [
+    '# Orchestrator role',
+    '',
+    `You are the orchestrator for a coding task (\`${task_id}\`). Your job is to:`,
+    '',
+    '1. Read the task at `bench/tasks/' + task_id + '/intent.md`.',
+    '2. Decompose the work per the topology helper above.',
+    '3. Dispatch implementer subagents (one per subtask) with focused briefs.',
+    '4. Integrate their results into the trial dir layout: `source/`, `tests/`,',
+    '   and any methodology-specific artifacts (e.g. a `<task>.spec.md`).',
+    '',
+    '## Your methodology',
+    '',
+    `Your coding methodology is described at \`${styleCardPath}\`. Read that file`,
+    'to understand what shape of decomposition the workflow expects (e.g. one',
+    'subagent per behavior, one per test class, or a single subagent for the',
+    'whole task). Apply the methodology in your decomposition decisions and in',
+    'the briefs you give each implementer subagent.',
+    '',
+    'Each implementer subagent will receive its own copy of the style card',
+    'plus the brief you write for it. You do not need to repeat the methodology',
+    'in the brief itself — just the scope of the work and any cross-subagent',
+    'invariants you have already settled (e.g. interface decisions).',
+  ].join('\n');
+
+  const system_prompt = `${multiBody}\n\n${preamble}`;
+
+  return {
+    system_prompt,
+    style_card_path: styleCardPath,
+    topology_helper_path: 'bench/topology/multi.md',
+  };
+}
+
+// Sanitize a subagent id for use in a filesystem path. Allow letters,
+// digits, underscore, hyphen — anything else collapses to underscore.
+function sanitizeSubagentId(id) {
+  return String(id ?? 'sub').replace(/[^A-Za-z0-9_-]+/g, '_');
+}
+
+// dispatchMultiAgentTrial: outer contract mirrors dispatchTrial but routes
+// through orchestrator + subagents. Validation throws synchronously (returned
+// inside the same function so awaiting works for both the dry-run and live
+// paths).
+export function dispatchMultiAgentTrial(options) {
+  if (!options || typeof options !== 'object') {
+    throw new Error('dispatchMultiAgentTrial requires an options object');
+  }
+  const {
+    task_id,
+    style,
+    trial_index,
+    dry_run = false,
+    provider,
+    run_id,
+    turn_cap,
+    wall_clock_cap_ms,
+    grace_ms,
+    subagent_turn_cap,
+    subagent_wall_clock_cap_ms,
+    env,
+    protocol_model_id,
+    system_prompt,
+    user_message,
+    tools,
+    // Multi-agent: per-subagent prompt + tools (passed by study.mjs's
+    // composeMultiAgentPrompt). The runner uses these as the fallback when a
+    // dispatch entry from the orchestrator omits its own system_prompt /
+    // tools — keeping the methodology-aware composition in study.mjs rather
+    // than the provider.
+    subagent_system_prompt,
+    subagent_tools,
+  } = options;
+
+  if (typeof task_id !== 'string' || task_id.length === 0) {
+    throw new Error('dispatchMultiAgentTrial: task_id must be a non-empty string');
+  }
+  if (!KNOWN_STYLES.has(style)) {
+    throw new Error(
+      `dispatchMultiAgentTrial: unknown style "${style}" (expected one of ${[...KNOWN_STYLES].join(', ')})`,
+    );
+  }
+  if (typeof trial_index !== 'number' || !Number.isInteger(trial_index) || trial_index < 0) {
+    throw new Error('dispatchMultiAgentTrial: trial_index must be a non-negative integer');
+  }
+
+  const topology = 'multi';
+  const styleCardPath = `bench/styles/${style}.md`;
+  const topologyHelperPath = `bench/topology/${topology}.md`;
+  const trialId = `${task_id}-${style}-${topology}-${trial_index}`;
+  const worktreePath = path.resolve(
+    REPO_ROOT,
+    'bench',
+    'worktrees',
+    trialId,
+  );
+
+  if (dry_run) {
+    return {
+      style_card_path: styleCardPath,
+      topology_helper_path: topologyHelperPath,
+      worktree_path: worktreePath,
+      task_id,
+      style,
+      topology,
+      trial_index,
+      trial_id: trialId,
+      dry_run,
+      trial_dir: null,
+    };
+  }
+
+  // Live path. Resolve provider first so misconfiguration surfaces synchronously.
+  const providerConfig = resolveProviderConfig({
+    provider,
+    env: env ?? process.env,
+    protocol_model_id,
+  });
+  const effectiveRunId = run_id ?? `live-${Date.now()}`;
+
+  return runMultiAgentTrial({
+    task_id,
+    style,
+    topology,
+    trial_index,
+    trial_id: trialId,
+    run_id: effectiveRunId,
+    style_card_path: styleCardPath,
+    topology_helper_path: topologyHelperPath,
+    worktree_path: worktreePath,
+    provider: providerConfig,
+    turn_cap: turn_cap ?? DEFAULT_TURN_CAP,
+    wall_clock_cap_ms: wall_clock_cap_ms ?? DEFAULT_WALL_CLOCK_CAP_MS,
+    grace_ms: grace_ms ?? DEFAULT_GRACE_MS,
+    subagent_turn_cap: subagent_turn_cap ?? DEFAULT_SUBAGENT_TURN_CAP,
+    subagent_wall_clock_cap_ms:
+      subagent_wall_clock_cap_ms ?? DEFAULT_SUBAGENT_WALL_CLOCK_CAP_MS,
+    system_prompt,
+    user_message,
+    tools: tools ?? [],
+    subagent_system_prompt,
+    subagent_tools,
+  });
+}
+
+async function runMultiAgentTrial(ctx) {
+  const {
+    task_id,
+    style,
+    topology,
+    trial_index,
+    trial_id,
+    run_id,
+    worktree_path,
+    style_card_path,
+    topology_helper_path,
+    provider,
+    turn_cap,
+    wall_clock_cap_ms,
+    grace_ms,
+    subagent_turn_cap,
+    subagent_wall_clock_cap_ms,
+    system_prompt: callerSystemPrompt,
+    user_message: callerUserMessage,
+    tools: callerTools,
+    subagent_system_prompt: callerSubagentSystemPrompt,
+    subagent_tools: callerSubagentTools,
+  } = ctx;
+
+  const trialDir = path.resolve(REPO_ROOT, 'bench', 'results', run_id, trial_id);
+  const sourceDir = path.join(trialDir, 'source');
+  const testsDir = path.join(trialDir, 'tests');
+  mkdirSync(sourceDir, { recursive: true });
+  mkdirSync(testsDir, { recursive: true });
+
+  // Subagent worktree root — each subagent gets a sibling tempdir per B9.
+  const subagentRoot = path.join(worktree_path, 'subagents');
+  mkdirSync(subagentRoot, { recursive: true });
+
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const wallClockTimer = setTimeout(() => controller.abort('wall-clock'), wall_clock_cap_ms);
+  if (typeof wallClockTimer.unref === 'function') wallClockTimer.unref();
+
+  // Compose orchestrator prompt unless the caller injected one (mocks bypass
+  // composition by passing a literal system_prompt).
+  let orchestratorSystemPrompt = callerSystemPrompt;
+  if (!orchestratorSystemPrompt) {
+    const composed = composeOrchestratorPrompt({ style, task_id, repo_root: REPO_ROOT });
+    orchestratorSystemPrompt = composed.system_prompt;
+  }
+  const orchestratorUserMessage =
+    callerUserMessage ?? `Decompose and dispatch implementer subagents for task ${task_id}.`;
+
+  let orchestratorResult = null;
+  let orchestratorError = null;
+  let resolvedModelId = provider.model_id;
+  let mod;
+
+  try {
+    mod = await loadProviderModule(provider);
+    if (typeof mod.runTrial !== 'function') {
+      throw new ProviderConfigError(
+        `provider module does not export runTrial() (provider: ${provider.name}, script: ${provider.script ?? 'built-in'})`,
+      );
+    }
+    orchestratorResult = await mod.runTrial({
+      task_id,
+      style,
+      topology,
+      trial_index,
+      trial_id,
+      run_id,
+      role: 'orchestrator',
+      system_prompt: orchestratorSystemPrompt,
+      user_message: orchestratorUserMessage,
+      tools: callerTools ?? [],
+      signal: controller.signal,
+      options: {
+        turn_cap,
+        wall_clock_cap_ms,
+        grace_ms,
+        endpoint_url: provider.endpoint_url,
+        model_id: provider.model_id,
+        protocol_variant: provider.protocol_variant,
+      },
+    });
+    if (orchestratorResult?.model_id) resolvedModelId = orchestratorResult.model_id;
+  } catch (err) {
+    orchestratorError = err && err.message ? err.message : String(err);
+    orchestratorResult = {
+      conversation: [{ role: 'system', content: `[runner] orchestrator error: ${orchestratorError}` }],
+      source_files: {},
+      test_files: {},
+      tokens_input: 0,
+      tokens_output: 0,
+      stop_reason: 'error',
+      model_id: resolvedModelId,
+      subagent_dispatches: [],
+    };
+  }
+
+  const orchestratorConversation = Array.isArray(orchestratorResult?.conversation)
+    ? orchestratorResult.conversation
+    : [];
+  const orchestratorTokensIn = Number(orchestratorResult?.tokens_input ?? 0);
+  const orchestratorTokensOut = Number(orchestratorResult?.tokens_output ?? 0);
+  const orchestratorSpecFiles = orchestratorResult?.spec_files ?? {};
+
+  // Subagent dispatches list. Cap at MAX_SUBAGENT_COUNT defensively (the
+  // mock or live model could return more; we record but only run up to the cap).
+  const requestedDispatches = Array.isArray(orchestratorResult?.subagent_dispatches)
+    ? orchestratorResult.subagent_dispatches
+    : [];
+  const dispatches = requestedDispatches.slice(0, MAX_SUBAGENT_COUNT);
+
+  // Run each subagent. Sequential for now — preserves dispatch-order
+  // last-writer-wins semantics for file merges (B6/B9). Each subagent's
+  // failure is contained per B8.
+  const subagentRecords = [];
+  const mergedSourceFiles = { ...(orchestratorResult?.source_files ?? {}) };
+  const mergedTestFiles = { ...(orchestratorResult?.test_files ?? {}) };
+  const subagentConversationBlocks = [];
+  let subagentErrors = 0;
+
+  for (let i = 0; i < dispatches.length; i += 1) {
+    const dispatch = dispatches[i] ?? {};
+    const rawId = dispatch.id ?? `S${i + 1}`;
+    const subId = sanitizeSubagentId(rawId);
+    const subWorktree = path.join(subagentRoot, subId);
+    mkdirSync(subWorktree, { recursive: true });
+
+    let saResult = null;
+    let saError = null;
+    try {
+      if (!mod || typeof mod.runTrial !== 'function') {
+        throw new ProviderConfigError(
+          `provider module unavailable for subagent dispatch (provider: ${provider.name})`,
+        );
+      }
+      saResult = await mod.runTrial({
+        task_id,
+        style,
+        topology,
+        trial_index,
+        trial_id,
+        run_id,
+        role: 'subagent',
+        subagent_id: rawId,
+        subagent_worktree: subWorktree,
+        // Resolution order for the subagent's prompt: (1) the orchestrator's
+        // explicit dispatch entry override, (2) the runner-supplied
+        // subagent_system_prompt template (study.mjs's composeMultiAgentPrompt
+        // populates this with the methodology card + tool-usage prelude),
+        // (3) the orchestrator's own system_prompt as last-resort fallback
+        // (mocks bypass composition, so this preserves their existing shape).
+        system_prompt:
+          dispatch.system_prompt
+          ?? callerSubagentSystemPrompt
+          ?? orchestratorSystemPrompt,
+        user_message: dispatch.user_message ?? `Subagent ${rawId} brief`,
+        // Same resolution order for tools: dispatch override → runner-supplied
+        // subagent_tools → orchestrator's own tools (last-resort).
+        tools:
+          dispatch.tools
+          ?? callerSubagentTools
+          ?? callerTools
+          ?? [],
+        signal: controller.signal,
+        options: {
+          turn_cap: subagent_turn_cap,
+          wall_clock_cap_ms: subagent_wall_clock_cap_ms,
+          grace_ms,
+          endpoint_url: provider.endpoint_url,
+          model_id: provider.model_id,
+          protocol_variant: provider.protocol_variant,
+        },
+      });
+    } catch (err) {
+      saError = err && err.message ? err.message : String(err);
+    }
+
+    const saConversation = Array.isArray(saResult?.conversation) ? saResult.conversation : [];
+    const saTokensIn = Number(saResult?.tokens_input ?? 0);
+    const saTokensOut = Number(saResult?.tokens_output ?? 0);
+    let saStopReason = saResult?.stop_reason ?? (saError ? 'error' : 'done');
+    if (!VALID_STOP_REASONS.has(saStopReason)) saStopReason = 'error';
+    if (saError) saStopReason = 'error';
+
+    // Merge files (only for surviving subagents — B8: errored subagent skipped).
+    const saSourceFiles = saResult?.source_files ?? {};
+    const saTestFiles = saResult?.test_files ?? {};
+    let filesWritten = 0;
+    if (saStopReason !== 'error') {
+      for (const [p, c] of Object.entries(saSourceFiles)) {
+        mergedSourceFiles[p] = c;
+        filesWritten += 1;
+      }
+      for (const [p, c] of Object.entries(saTestFiles)) {
+        mergedTestFiles[p] = c;
+        filesWritten += 1;
+      }
+    }
+
+    if (saStopReason === 'error') subagentErrors += 1;
+
+    const record = {
+      id: rawId,
+      tokens_input: saTokensIn,
+      tokens_output: saTokensOut,
+      stop_reason: saStopReason,
+      files_written: filesWritten,
+      input_conversation_length: Number(saResult?.input_conversation_length ?? 0),
+    };
+    if (saError) record.error = saError;
+    subagentRecords.push(record);
+
+    // Build conversation block: a marker line, then the subagent's turns.
+    subagentConversationBlocks.push({ id: rawId, conversation: saConversation });
+  }
+
+  // Cleanup subagent worktrees unless explicitly preserved.
+  if (process.env.BENCH_KEEP_SUBAGENT_WORKTREES !== '1') {
+    try {
+      rmSync(subagentRoot, { recursive: true, force: true });
+    } catch {
+      // Cleanup is best-effort; a transient FS error here shouldn't kill the trial.
+    }
+  }
+
+  clearTimeout(wallClockTimer);
+
+  // Determine top-level stop_reason. Per B8: if the orchestrator completed,
+  // top-level is 'done' even if some subagents errored. If the orchestrator
+  // itself errored, top-level is 'error'.
+  let topStopReason;
+  if (orchestratorError) {
+    topStopReason = 'error';
+  } else {
+    topStopReason = orchestratorResult?.stop_reason ?? 'done';
+    if (!VALID_STOP_REASONS.has(topStopReason)) topStopReason = 'done';
+  }
+
+  const wallClockMs = Date.now() - startedAt;
+
+  // Write merged source/, tests/, and any orchestrator-produced spec files.
+  writeArtifactTree(sourceDir, mergedSourceFiles);
+  writeArtifactTree(testsDir, mergedTestFiles);
+  // spec_files (e.g. <task>.spec.md) are written at the trial-dir root per B6.
+  for (const [relPath, contents] of Object.entries(orchestratorSpecFiles ?? {})) {
+    const target = path.join(trialDir, relPath);
+    mkdirSync(path.dirname(target), { recursive: true });
+    writeFileSync(target, contents);
+  }
+
+  // Compose the interleaved conversation: orchestrator turns first, then
+  // for each subagent, a marker line followed by its turns.
+  const fullConversation = [...orchestratorConversation];
+  for (const block of subagentConversationBlocks) {
+    fullConversation.push({
+      role: 'system',
+      content: `--- subagent ${block.id} turns follow ---`,
+    });
+    for (const turn of block.conversation) {
+      fullConversation.push(turn);
+    }
+  }
+  const jsonl =
+    fullConversation.map((turn) => JSON.stringify(turn)).join('\n') +
+    (fullConversation.length > 0 ? '\n' : '');
+  writeFileSync(path.join(trialDir, 'conversation.jsonl'), jsonl);
+
+  const subagentTokensIn = subagentRecords.reduce((a, r) => a + r.tokens_input, 0);
+  const subagentTokensOut = subagentRecords.reduce((a, r) => a + r.tokens_output, 0);
+  const totalTokensIn = orchestratorTokensIn + subagentTokensIn;
+  const totalTokensOut = orchestratorTokensOut + subagentTokensOut;
+
+  // Strip the input_conversation_length helper field before persisting to
+  // meta — it's a B5 testing aid, not part of the documented record contract.
+  // Keep it on the in-memory return shape so B5 can read it.
+  const metaSubagents = subagentRecords.map((r) => {
+    const { input_conversation_length, ...rest } = r;
+    return rest;
+  });
+
+  const meta = {
+    run_id,
+    trial_id,
+    task_id,
+    style,
+    topology,
+    trial_index,
+    tokens_input: totalTokensIn,
+    tokens_output: totalTokensOut,
+    wall_clock_ms: wallClockMs,
+    stop_reason: topStopReason,
+    captured_at: new Date().toISOString(),
+    provider: provider.name,
+    endpoint_url: provider.endpoint_url ?? null,
+    model_id: resolvedModelId ?? null,
+    // Multi-agent additive fields (B7):
+    orchestrator_tokens_input: orchestratorTokensIn,
+    orchestrator_tokens_output: orchestratorTokensOut,
+    subagent_count: subagentRecords.length,
+    subagents: metaSubagents,
+  };
+  if (subagentErrors > 0) {
+    meta.subagent_errors = subagentErrors;
+  }
+  if (orchestratorError) {
+    meta.error = orchestratorError;
+  }
+  writeFileSync(
+    path.join(trialDir, 'meta.json'),
+    JSON.stringify(meta, null, 2) + '\n',
+  );
+
+  return {
+    trial_id,
+    run_id,
+    style_card_path,
+    topology_helper_path,
+    worktree_path,
+    stop_reason: topStopReason,
+    provider: provider.name,
+    endpoint_url: provider.endpoint_url ?? null,
+    model_id: resolvedModelId ?? null,
+    tokens_input: totalTokensIn,
+    tokens_output: totalTokensOut,
+    wall_clock_ms: wallClockMs,
+    trial_dir: trialDir,
+    topology,
+    style,
+    task_id,
+    trial_index,
+    // Multi-agent fields:
+    orchestrator_tokens_input: orchestratorTokensIn,
+    orchestrator_tokens_output: orchestratorTokensOut,
+    subagent_count: subagentRecords.length,
+    subagents: subagentRecords,
+    subagent_errors: subagentErrors,
+  };
+}
+
+// Export the topology set so callers (study.mjs) can validate without
+// duplicating the constant. Kept as a Set to mirror KNOWN_STYLES export
+// shape if downstream consumers add one.
+export { KNOWN_TOPOLOGIES };

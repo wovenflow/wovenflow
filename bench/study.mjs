@@ -30,8 +30,18 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dispatchTrial, dispatchEditTrial } from './runner.js';
+import {
+  dispatchTrial,
+  dispatchEditTrial,
+  dispatchMultiAgentTrial,
+  composeOrchestratorPrompt,
+} from './runner.js';
 import { scoreHidden, HiddenTestLeakError } from './scorer.js';
+
+// Topology values the study orchestrator routes on. Mirrors KNOWN_TOPOLOGIES
+// in runner.js but kept local so a typo in the CLI flag fails fast in study.mjs
+// rather than dispatching a trial only to have the runner reject it.
+const KNOWN_TOPOLOGIES = new Set(['single', 'multi']);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,7 +83,7 @@ const STUDY_DEFAULT_TURN_CAP = 35;
 const TOOL_USAGE_INSTRUCTIONS = [
   '## Tool usage',
   '',
-  'You have access to two tools for emitting files:',
+  'You have access to three tools:',
   '',
   '- `write_source(path, content)` — write a source file. `path` is relative',
   '  to the project root (e.g. `index.js`). Calling this tool replaces any',
@@ -82,6 +92,13 @@ const TOOL_USAGE_INSTRUCTIONS = [
   '- `write_test(path, content)` — write a test file. `path` is relative to',
   '  the project root. Use this for any test files you author. Implementation',
   '  belongs in `write_source`, not here.',
+  '- `run_tests([test_path])` — execute your test files against your source',
+  '  files in a sandboxed `node:test` process. Returns structured pass/fail per',
+  '  test plus any load errors. Without an argument it runs every',
+  '  `*.test.{js,mjs,cjs}` you have written via `write_test`; with `test_path`',
+  '  it runs only that single file (path must match one you wrote — path',
+  '  traversal is rejected). Use this after writing tests + source to verify',
+  '  they actually pass. Without it you are guessing whether your tests run.',
   '',
   'When you call `write_source`, the file you write must be a real, working',
   'implementation — not a placeholder. Do not write TODO stubs or placeholder',
@@ -209,9 +226,180 @@ export function composePrompt({ condition, task_id, repo_root } = {}) {
         },
       },
     },
+    {
+      type: 'function',
+      function: {
+        name: 'run_tests',
+        description:
+          'Execute your test files (whatever you have written via write_test) against your source files (whatever you have written via write_source) in a sandboxed node:test process. Returns structured pass/fail per test plus any load errors. Use this to verify your tests actually pass before declaring the cycle complete. Supports node:test syntax; if you import vitest/jest/chai/etc., the harness shims `expect`/`describe`/`it` onto node:test equivalents (best-effort).',
+        parameters: {
+          type: 'object',
+          properties: {
+            test_path: {
+              type: 'string',
+              description:
+                'Optional. If omitted, runs all *.test.{js,mjs,cjs} you have written via write_test. If specified, runs only that single file (must be a path you wrote via write_test; path traversal is rejected).',
+            },
+          },
+        },
+      },
+    },
   ];
 
   return { system_prompt, user_message, tools };
+}
+
+// --- Multi-agent composition (2026-05-13 spec) -----------------------------
+//
+// `dispatch_subagent` is the orchestrator-only tool that lets a multi-agent
+// orchestrator request fresh implementer subagents. Each call produces one
+// subagent dispatch entry the runner picks up from the provider response (per
+// the multi-agent spec's B4 / B5 contract). The provider parses these calls;
+// the runner runs each subagent in its own fresh provider chain.
+//
+// Multiple `dispatch_subagent` calls in a single orchestrator turn fan out to
+// multiple parallel subagents. The runner enforces N <= 6.
+const DISPATCH_SUBAGENT_TOOL = {
+  type: 'function',
+  function: {
+    name: 'dispatch_subagent',
+    description:
+      'Dispatch a fresh implementer subagent with a focused brief. Each subagent runs in its own provider call chain (no shared conversation), receives its own copy of the methodology, and writes files into the trial dir. Multiple dispatch_subagent calls in one turn run in parallel; the harness enforces a maximum of 6 subagents per orchestrator turn. Use this when a piece of work can be completed independently of other pieces.',
+    parameters: {
+      type: 'object',
+      properties: {
+        subagent_id: {
+          type: 'string',
+          description:
+            'Short stable identifier for this subagent (e.g. "S1", "S2"). Appears in logs and per-subagent token accounting. Use distinct ids across calls in the same turn.',
+        },
+        brief: {
+          type: 'string',
+          description:
+            'One paragraph describing the focused scope of the subagent\'s work. Include any cross-subagent invariants you have already settled (e.g. interface decisions). Do not repeat the methodology — the subagent will receive its own copy of the style card.',
+        },
+        artifacts_to_produce: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Optional list of project-root-relative file paths the subagent should write (e.g. ["source/index.js", "tests/index.test.js"]). Helps reviewers audit decomposition decisions; the subagent is not required to write every listed file.',
+        },
+      },
+      required: ['subagent_id', 'brief'],
+    },
+  },
+};
+
+// Multi-agent prompt composition. Returns the orchestrator and subagent
+// prompts/tools for a (condition, task) pair under topology='multi'.
+//
+// B3 strategy: **Option B (style-card injection via user_message)**. The
+// orchestrator's system_prompt comes from `composeOrchestratorPrompt` in
+// runner.js (methodology-neutral topology helper + role preamble); the
+// orchestrator's user_message inlines the task intent AND the style-card
+// body so the orchestrator can choose its decomposition without needing a
+// `read_file` tool.
+//
+// Why Option B over Option A (file-read tool):
+//   * Qwen3.6-35B-A3B-FP8 on a 30+ turn loop is already shaky with reasoning
+//     enabled — minimizing tool-use ceremony for the orchestrator is wise.
+//   * A `read_file` tool would burn an extra orchestrator turn for each style
+//     card read, eating into the 35-turn budget on every multi-agent trial.
+//   * The orchestrator's job is decomposition, not retrieval; the style card
+//     is the methodology context, not a runtime artifact to discover.
+//   * The methodology-neutrality of the topology helper (B3 / red-team
+//     resolution) is preserved: the system_prompt is `multi.md` + the role
+//     preamble. The style card lives in user_message — a payload the runner
+//     supplies, not part of the orchestrator's identity prompt.
+//
+// Each dispatched subagent receives its own freshly-composed system_prompt
+// (the same `composePrompt` output single-agent trials use) plus the brief
+// the orchestrator wrote. Subagents do NOT inherit the orchestrator's
+// conversation (B5).
+export function composeMultiAgentPrompt({ condition, task_id, repo_root } = {}) {
+  if (typeof condition !== 'string' || condition.length === 0) {
+    throw new Error('composeMultiAgentPrompt: condition must be a non-empty string');
+  }
+  if (typeof task_id !== 'string' || task_id.length === 0) {
+    throw new Error('composeMultiAgentPrompt: task_id must be a non-empty string');
+  }
+  const root = typeof repo_root === 'string' && repo_root.length > 0
+    ? repo_root
+    : process.cwd();
+
+  // Orchestrator system_prompt: methodology-neutral topology helper. Reads
+  // bench/topology/multi.md verbatim and appends a role preamble. Delegates
+  // to composeOrchestratorPrompt in runner.js so the spec-compliance contract
+  // (B3) lives in one place.
+  const orch = composeOrchestratorPrompt({
+    style: condition,
+    task_id,
+    repo_root: root,
+  });
+
+  // Orchestrator user_message: the task intent + the methodology body. The
+  // orchestrator never sees the file path of the style card — it sees the
+  // resolved content, so it can decompose without a read_file tool.
+  const intentPath = path.join(root, 'bench', 'tasks', task_id, 'intent.md');
+  if (!existsSync(intentPath)) {
+    throw new Error(
+      `composeMultiAgentPrompt: intent.md not found for task "${task_id}" at ${intentPath}`,
+    );
+  }
+  const intent = readFileSync(intentPath, 'utf8').trim();
+
+  // Subagent prompts: identical to the single-agent composition. Each
+  // implementer subagent gets the full style card + tool-usage instructions
+  // — the orchestrator's role preamble does NOT bleed into subagents.
+  const subagentPrompt = composePrompt({ condition, task_id, repo_root: root });
+
+  // Style card body (or empty for baseline — baseline has no style card).
+  // We inline this into the orchestrator's user_message so the orchestrator
+  // can decide its decomposition based on the methodology shape.
+  let styleCardBody = '';
+  if (condition !== 'baseline') {
+    const stylePath = path.join(root, 'bench', 'styles', `${condition}.md`);
+    if (existsSync(stylePath)) {
+      styleCardBody = readFileSync(stylePath, 'utf8').trim();
+    }
+  }
+
+  const orchestratorUserMessage = [
+    '# Task',
+    '',
+    intent,
+    '',
+    '# Your methodology',
+    '',
+    condition === 'baseline'
+      ? 'You have no specific methodology — implement the task however you judge best.'
+      : `Your coding methodology is **${condition.toUpperCase()}**. The full methodology card follows. Use it to decide how to decompose the work into subagent dispatches.`,
+    '',
+    styleCardBody || '(no methodology card — baseline condition)',
+    '',
+    '# Your subagents',
+    '',
+    'Each implementer subagent you dispatch via `dispatch_subagent` will receive its own copy of the methodology card above plus the brief you write. You do not need to repeat the methodology in the brief — focus the brief on the scope of the subagent\'s work and any cross-subagent invariants you have already settled (interface decisions, file boundaries).',
+    '',
+    'You may also call `write_source` and `write_test` yourself to produce orchestrator-level artifacts (e.g. a `<task>.spec.md` for DTDD, or interface decisions you want to lock in before dispatching). Files written by the orchestrator are merged with subagent outputs in the final trial dir.',
+    '',
+    'When you are done with all dispatches and any orchestrator-level writes, stop generating tool calls; the harness will end your turn.',
+  ].join('\n');
+
+  // Orchestrator tools: dispatch_subagent + the file-write tools. Subagent
+  // tools omit dispatch_subagent (subagents cannot dispatch their own
+  // subagents — the provider also strips it defensively per spec
+  // §"Subagent role plumbing").
+  const orchestratorTools = [DISPATCH_SUBAGENT_TOOL, ...subagentPrompt.tools];
+  const subagentTools = subagentPrompt.tools;
+
+  return {
+    orchestrator_system_prompt: orch.system_prompt,
+    orchestrator_user_message: orchestratorUserMessage,
+    orchestrator_tools: orchestratorTools,
+    subagent_system_prompt: subagentPrompt.system_prompt,
+    subagent_tools: subagentTools,
+  };
 }
 
 // --- B6: runStudy -----------------------------------------------------------
@@ -235,6 +423,7 @@ export async function runStudy({
   conditions,
   trials,
   turn_cap,
+  topology,
   dry_run = false,
   repo_root,
 } = {}) {
@@ -267,14 +456,23 @@ export async function runStudy({
     }
     resolved_turn_cap = turn_cap;
   }
+  // Resolve the topology: default `single` per the v2 Stage-2 lock; explicit
+  // `multi` enables the v2.1 multi-agent path. Anything else fails fast.
+  const resolved_topology = topology ?? 'single';
+  if (!KNOWN_TOPOLOGIES.has(resolved_topology)) {
+    throw new Error(
+      `runStudy: unknown topology "${resolved_topology}" (expected one of ${[...KNOWN_TOPOLOGIES].join(', ')})`,
+    );
+  }
   const root = typeof repo_root === 'string' && repo_root.length > 0
     ? repo_root
     : REPO_ROOT;
 
   // --- Phase 1 planning ------------------------------------------------
-  // Topology is hardcoded `single` for v2 — multi-agent is out of scope per
-  // the spec's B6 contract. The trial-id shape matches the harness's existing
-  // worktree naming so dispatchTrial's output paths line up.
+  // Topology defaults to `single` for back-compat with the v2 Stage-2 lock;
+  // `multi` is the v2.1 multi-agent path. The trial-id shape carries the
+  // topology slot so single-agent and multi-agent results coexist in
+  // bench/results/ without colliding.
   const phase1_planned = [];
   for (const task_id of tasks) {
     for (const condition of conditions) {
@@ -283,8 +481,8 @@ export async function runStudy({
           task_id,
           condition,
           trial_index,
-          topology: 'single',
-          trial_id: `${task_id}-${condition}-single-${trial_index}`,
+          topology: resolved_topology,
+          trial_id: `${task_id}-${condition}-${resolved_topology}-${trial_index}`,
         });
       }
     }
@@ -294,6 +492,7 @@ export async function runStudy({
     return {
       phase1_planned,
       turn_cap: resolved_turn_cap,
+      topology: resolved_topology,
       phase2_inherits_prompt_from_phase1: true,
     };
   }
@@ -339,22 +538,48 @@ export async function runStudy({
   const phase1_results = [];
   for (const entry of phase1_planned) {
     try {
-      const prompt = composePrompt({
-        condition: entry.condition,
-        task_id: entry.task_id,
-        repo_root: root,
-      });
-      const result = await dispatchTrial({
-        task_id: entry.task_id,
-        style: entry.condition,
-        topology: entry.topology,
-        trial_index: entry.trial_index,
-        run_id,
-        system_prompt: prompt.system_prompt,
-        user_message: prompt.user_message,
-        tools: prompt.tools,
-        turn_cap: resolved_turn_cap,
-      });
+      // Route on topology. Multi-agent uses composeMultiAgentPrompt to derive
+      // separate orchestrator and subagent prompts/tools; single-agent stays
+      // on composePrompt. This branch is the only place where multi-agent
+      // composition diverges from the single-agent flow — downstream the
+      // dispatchMultiAgentTrial vs dispatchTrial signatures handle the rest.
+      let result;
+      if (entry.topology === 'multi') {
+        const composed = composeMultiAgentPrompt({
+          condition: entry.condition,
+          task_id: entry.task_id,
+          repo_root: root,
+        });
+        result = await dispatchMultiAgentTrial({
+          task_id: entry.task_id,
+          style: entry.condition,
+          trial_index: entry.trial_index,
+          run_id,
+          system_prompt: composed.orchestrator_system_prompt,
+          user_message: composed.orchestrator_user_message,
+          tools: composed.orchestrator_tools,
+          subagent_system_prompt: composed.subagent_system_prompt,
+          subagent_tools: composed.subagent_tools,
+          turn_cap: resolved_turn_cap,
+        });
+      } else {
+        const prompt = composePrompt({
+          condition: entry.condition,
+          task_id: entry.task_id,
+          repo_root: root,
+        });
+        result = await dispatchTrial({
+          task_id: entry.task_id,
+          style: entry.condition,
+          trial_index: entry.trial_index,
+          run_id,
+          system_prompt: prompt.system_prompt,
+          user_message: prompt.user_message,
+          tools: prompt.tools,
+          turn_cap: resolved_turn_cap,
+          topology: entry.topology,
+        });
+      }
       phase1_results.push({ ...entry, ...result });
     } catch (err) {
       appendError({
@@ -414,14 +639,32 @@ export async function runStudy({
       const condition = deriveConditionFromTrialId(entry.trial_id);
       let phase2_system_prompt;
       let phase2_tools;
+      let phase2_subagent_system_prompt;
+      let phase2_subagent_tools;
       if (condition && KNOWN_CONDITIONS.has(condition)) {
-        const prompt = composePrompt({
-          condition,
-          task_id: entry.task_id,
-          repo_root: root,
-        });
-        phase2_system_prompt = prompt.system_prompt;
-        phase2_tools = prompt.tools;
+        if (resolved_topology === 'multi') {
+          // Multi-agent edit: the Phase 2 orchestrator gets the multi-agent
+          // composition (orchestrator system_prompt is the topology helper +
+          // role preamble; orchestrator tools include dispatch_subagent).
+          // Subagents get the methodology-aware single-agent composition.
+          const composed = composeMultiAgentPrompt({
+            condition,
+            task_id: entry.task_id,
+            repo_root: root,
+          });
+          phase2_system_prompt = composed.orchestrator_system_prompt;
+          phase2_tools = composed.orchestrator_tools;
+          phase2_subagent_system_prompt = composed.subagent_system_prompt;
+          phase2_subagent_tools = composed.subagent_tools;
+        } else {
+          const prompt = composePrompt({
+            condition,
+            task_id: entry.task_id,
+            repo_root: root,
+          });
+          phase2_system_prompt = prompt.system_prompt;
+          phase2_tools = prompt.tools;
+        }
       }
       result = await dispatchEditTrial({
         phase1_trial_dir: entry.phase1_trial_dir,
@@ -431,6 +674,12 @@ export async function runStudy({
         turn_cap: resolved_turn_cap,
         system_prompt: phase2_system_prompt,
         tools: phase2_tools,
+        // Phase 2 topology mirrors the run's chosen topology. dispatchEditTrial
+        // is back-compat: omitted/`single` runs the existing single-agent path,
+        // `multi` routes through the multi-agent edit path.
+        topology: resolved_topology,
+        subagent_system_prompt: phase2_subagent_system_prompt,
+        subagent_tools: phase2_subagent_tools,
       });
       phase2_results.push({ ...entry, ...result });
     } catch (err) {
@@ -705,6 +954,7 @@ function parseArgs(argv) {
     tasks: null,
     conditions: null,
     trials: null,
+    topology: null,
     dry_run: false,
     help: false,
   };
@@ -738,6 +988,9 @@ function parseArgs(argv) {
       case 'trials':
         out.trials = Number.parseInt(value, 10);
         break;
+      case 'topology':
+        out.topology = value;
+        break;
       default:
         throw new Error(`unknown flag --${key}`);
     }
@@ -754,6 +1007,7 @@ function printUsage(stream = process.stdout) {
     `  --tasks=<csv>           Comma-separated tasks (default: ${DEFAULT_TASKS.join(',')}).`,
     `  --conditions=<csv>      Comma-separated conditions (default: ${DEFAULT_CONDITIONS.join(',')}).`,
     '  --trials=<int>          Trials per cell (default: 1).',
+    `  --topology=<single|multi>  Topology for the run (default: single).`,
     '  --dry-run               Print the planned matrix and exit without dispatching.',
     '',
     'Provider config is read from BENCH_PROVIDER, BENCH_PROVIDER_URL,',
@@ -780,6 +1034,7 @@ async function main() {
   const conditions = parsed.conditions ?? DEFAULT_CONDITIONS;
   const trials = parsed.trials ?? 1;
   const run_id = parsed.run_id ?? null;
+  const topology = parsed.topology ?? 'single';
   const dry_run = parsed.dry_run;
 
   // Validate conditions up front so a typo doesn't burn budget. The error
@@ -790,6 +1045,15 @@ async function main() {
     process.stderr.write(
       `bench/study.mjs: invalid condition(s): ${invalid.join(', ')}. ` +
         `Allowed: ${[...KNOWN_CONDITIONS].join(', ')}.\n`,
+    );
+    process.exit(2);
+  }
+  // Validate topology with a message format that matches the spec's regex
+  // /topology.*<value>|invalid topology|unknown topology/i.
+  if (!KNOWN_TOPOLOGIES.has(topology)) {
+    process.stderr.write(
+      `bench/study.mjs: unknown topology "${topology}". ` +
+        `Allowed: ${[...KNOWN_TOPOLOGIES].join(', ')}.\n`,
     );
     process.exit(2);
   }
@@ -816,20 +1080,22 @@ async function main() {
     tasks,
     conditions,
     trials,
+    topology,
     dry_run,
   });
 
   if (dry_run) {
     // Emit a human-readable matrix. The spec's regex matches lines containing
-    // `<task>.*<condition>`; keeping task first matches that, and one line per
-    // planned trial is easy to grep.
+    // `<task>.*<condition>.*<topology>`; keeping that order makes the line
+    // grep-friendly and one line per planned trial keeps the dry-run output
+    // mechanical.
     process.stdout.write(
       `Planned ${plan.phase1_planned.length} Phase 1 trials ` +
-        `(${tasks.length} tasks × ${conditions.length} conditions × ${trials} trials):\n`,
+        `(${tasks.length} tasks × ${conditions.length} conditions × ${trials} trials, topology=${topology}):\n`,
     );
     for (const entry of plan.phase1_planned) {
       process.stdout.write(
-        `  ${entry.task_id}\t${entry.condition}\ttrial=${entry.trial_index}\t(${entry.trial_id})\n`,
+        `  ${entry.task_id}\t${entry.condition}\t${entry.topology}\ttrial=${entry.trial_index}\t(${entry.trial_id})\n`,
       );
     }
     process.exit(0);
