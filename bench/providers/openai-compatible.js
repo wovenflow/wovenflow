@@ -218,6 +218,55 @@ const ORCHESTRATOR_TOOL_NAMES = new Set([
   'dispatch_subagent',
 ]);
 
+// Directory names that show up as path PREFIXES when a model has confused
+// "path relative to source/" with "path relative to the repo root." Writing
+// `bench/tasks/<task>/intent.md` from inside the harness produced
+// `source/bench/tasks/<task>/intent.md`, leaking the harness's own tree into
+// the trial dir. Same shape for `tests/` and `source/` themselves.
+const REJECTED_PATH_PREFIXES = ['bench/', 'tests/', 'source/'];
+// Bare directory names (no extension, exact match) that are unambiguously
+// directory placeholders. A model emitting `path: "bench"` is producing a
+// directory name, not a file path; we reject rather than create a file
+// literally named `bench`.
+const REJECTED_BARE_NAMES = new Set(['bench', 'tests', 'source']);
+
+/**
+ * Validate a relative artifact path supplied to `write_source` / `write_test`.
+ *
+ * Returns `{ ok: true }` when the path is a sensible relative file path
+ * (e.g. `index.js`, `lib/util.js`, `slugify.spec.md`). Returns
+ * `{ ok: false, reason }` for paths that are:
+ *   - empty
+ *   - absolute (start with `/` or `\`)
+ *   - contain `..` (path traversal)
+ *   - start with a known harness prefix (`bench/`, `tests/`, `source/`)
+ *   - equal a bare directory name (`bench`, `tests`, `source`)
+ *
+ * Exported so callers (the runner, tests, future provider adapters) share
+ * one definition of "what counts as a malformed artifact path." See
+ * doc/specs/2026-05-17-bench-orchestrator-must-dispatch.spec.md B4.
+ */
+export function validateArtifactPath(p) {
+  if (typeof p !== 'string' || p.length === 0) {
+    return { ok: false, reason: `write_source/write_test: path "${p ?? ''}" rejected (path must be a non-empty string relative to source/, no traversal, no leading directory prefix)` };
+  }
+  if (p.startsWith('/') || p.startsWith('\\')) {
+    return { ok: false, reason: `write_source/write_test: path "${p}" rejected (absolute paths not allowed; must be relative to source/, no traversal, no leading directory prefix)` };
+  }
+  if (p.includes('..')) {
+    return { ok: false, reason: `write_source/write_test: path "${p}" rejected (contains "..", path traversal not allowed; must be relative to source/, no traversal, no leading directory prefix)` };
+  }
+  for (const prefix of REJECTED_PATH_PREFIXES) {
+    if (p.startsWith(prefix)) {
+      return { ok: false, reason: `write_source/write_test: path "${p}" rejected (leading "${prefix}" prefix leaks harness tree; must be relative to source/, no traversal, no leading directory prefix)` };
+    }
+  }
+  if (REJECTED_BARE_NAMES.has(p)) {
+    return { ok: false, reason: `write_source/write_test: path "${p}" rejected (bare directory name, not a file path; must be relative to source/, no traversal, no leading directory prefix)` };
+  }
+  return { ok: true };
+}
+
 // Scan an assistant `content` string for fenced ```json blocks and return one
 // `{ name, arguments }` object per block whose body parses as JSON, has a
 // string `name` matching one of `acceptedNames`, and an object `arguments`
@@ -372,6 +421,14 @@ export async function runTrial({
 
   const sourceFiles = {};
   const testFiles = {};
+  // Path-validation rejections collected this call. Each entry is
+  // `{tool, path, reason}` for any write_source / write_test call whose
+  // `path` failed `validateArtifactPath`. The rejection is recorded but the
+  // call is silently dropped from sourceFiles/testFiles so a malformed
+  // orchestrator path (e.g. `bench/tasks/x/intent.md`) doesn't leak into
+  // `source/`. The runner surfaces orchestrator-role rejections to
+  // meta.json.orchestrator_violations[] (see runner.js).
+  const pathRejections = [];
   // Multi-agent: orchestrator-collected dispatch entries to surface to the
   // runner. Each entry mirrors the contract documented at runner.js's
   // "Provider contract extension" header: {id, system_prompt, user_message,
@@ -718,9 +775,19 @@ export async function runTrial({
           args = {};
         }
         if (fn.name === 'write_source' && args.path && args.content) {
-          sourceFiles[args.path] = String(args.content);
+          const v = validateArtifactPath(args.path);
+          if (v.ok) {
+            sourceFiles[args.path] = String(args.content);
+          } else {
+            pathRejections.push({ tool: 'write_source', path: args.path, reason: v.reason });
+          }
         } else if (fn.name === 'write_test' && args.path && args.content) {
-          testFiles[args.path] = String(args.content);
+          const v = validateArtifactPath(args.path);
+          if (v.ok) {
+            testFiles[args.path] = String(args.content);
+          } else {
+            pathRejections.push({ tool: 'write_test', path: args.path, reason: v.reason });
+          }
         } else if (fn.name === 'run_tests') {
           // Execute the agent's tests against the agent's source. This is the
           // model's feedback loop — it runs in a sandbox tempdir, never
@@ -792,9 +859,19 @@ export async function runTrial({
       for (const call of fallbackCalls) {
         const { name, arguments: args } = call;
         if (name === 'write_source' && args.path && args.content) {
-          sourceFiles[args.path] = String(args.content);
+          const v = validateArtifactPath(args.path);
+          if (v.ok) {
+            sourceFiles[args.path] = String(args.content);
+          } else {
+            pathRejections.push({ tool: 'write_source', path: args.path, reason: v.reason });
+          }
         } else if (name === 'write_test' && args.path && args.content) {
-          testFiles[args.path] = String(args.content);
+          const v = validateArtifactPath(args.path);
+          if (v.ok) {
+            testFiles[args.path] = String(args.content);
+          } else {
+            pathRejections.push({ tool: 'write_test', path: args.path, reason: v.reason });
+          }
         } else if (name === 'run_tests') {
           const result = runTestsTool({
             sourceFiles,
@@ -851,6 +928,11 @@ export async function runTrial({
     stop_reason: stopReason,
     model_id: resolvedModelId,
   };
+  // Surface path-validation rejections so the runner can fold orchestrator
+  // ones into meta.json.orchestrator_violations[]. Always present (possibly
+  // empty) so the runner can distinguish "no rejections" from "field omitted
+  // by an older provider build."
+  result.path_rejections = pathRejections;
   // Multi-agent: surface dispatch entries when this was an orchestrator call
   // and the model invoked dispatch_subagent. Always present (possibly empty)
   // for orchestrator role so the runner can disambiguate "orchestrator chose

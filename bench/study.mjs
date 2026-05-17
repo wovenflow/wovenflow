@@ -395,9 +395,17 @@ export function composeMultiAgentPrompt({ condition, task_id, repo_root } = {}) 
     '',
     'Each implementer subagent you dispatch via `dispatch_subagent` will receive its own copy of the methodology card above plus the brief you write. You do not need to repeat the methodology in the brief — focus the brief on the scope of the subagent\'s work and any cross-subagent invariants you have already settled (interface decisions, file boundaries).',
     '',
-    'You may also call `write_source` and `write_test` yourself to produce orchestrator-level artifacts (e.g. a `<task>.spec.md` for DTDD, or interface decisions you want to lock in before dispatching). Files written by the orchestrator are merged with subagent outputs in the final trial dir.',
+    '# Hard requirements — orchestrator role',
     '',
-    'When you are done with all dispatches and any orchestrator-level writes, stop generating tool calls; the harness will end your turn.',
+    'You MUST dispatch at least one implementer subagent per trial via `dispatch_subagent`. You are the coordinator, not the implementer. Direct implementation by the orchestrator defeats the purpose of the multi-agent topology — it is what the harness is measuring against.',
+    '',
+    '- `write_source` from the orchestrator turn is allowed ONLY for a single methodology-specific artifact: the `<task>.spec.md` file authored by a DTDD orchestrator before dispatching its per-behavior subagents (e.g. `slugify.spec.md`). Any other path under `write_source` (anything under `source/`, anything that looks like implementation code, anything ending in `.js`/`.mjs`/`.cjs`/`.ts`) MUST be produced by a dispatched subagent, not by you.',
+    '- `write_test` is for subagents, not for you — never call write_test from the orchestrator turn. Tests are an implementer-subagent responsibility under every methodology in this study.',
+    '- `run_tests` is for subagents — each subagent verifies its own work. The orchestrator does not need to call run_tests; integration happens after subagents report back.',
+    '',
+    'If you call `write_source` with a path that is NOT a `<task>.spec.md` file, the harness will record the call to `meta.json.orchestrator_violations[]` as a methodology-compliance violation. The trial will still complete (this is observability, not a hard block), but downstream analysis will treat the trial as off-protocol.',
+    '',
+    'When you are done dispatching (and, for DTDD only, after writing the `<task>.spec.md`), stop generating tool calls; the harness will end your turn.',
   ].join('\n');
 
   // Orchestrator tools: dispatch_subagent + the file-write tools. Subagent

@@ -1707,6 +1707,33 @@ async function runMultiAgentTrial(ctx) {
   const orchestratorTokensOut = Number(orchestratorResult?.tokens_output ?? 0);
   const orchestratorSpecFiles = orchestratorResult?.spec_files ?? {};
 
+  // Compute orchestrator methodology-compliance violations. Two sources:
+  //   1. Path-validation rejections returned by the provider (always
+  //      observability — the file was already dropped from sourceFiles).
+  //   2. Methodology violations: the orchestrator wrote a file via
+  //      write_source whose path is NOT a `*.spec.md`. Under the
+  //      multi-agent topology the orchestrator is the coordinator, not the
+  //      implementer (see doc/specs/2026-05-17-bench-orchestrator-must-dispatch.spec.md).
+  //      The file is still merged into source/ (soft enforcement — analysis
+  //      can filter on orchestrator_violations.length > 0 as off-protocol).
+  const orchestratorViolations = [];
+  for (const rej of orchestratorResult?.path_rejections ?? []) {
+    orchestratorViolations.push({
+      tool: rej.tool,
+      path: rej.path,
+      reason: rej.reason,
+    });
+  }
+  for (const p of Object.keys(orchestratorResult?.source_files ?? {})) {
+    if (!/\.spec\.md$/i.test(p)) {
+      orchestratorViolations.push({
+        tool: 'write_source',
+        path: p,
+        reason: `orchestrator wrote non-spec.md path "${p}" via write_source; orchestrator write_source is restricted to <task>.spec.md authoring under the multi-agent topology`,
+      });
+    }
+  }
+
   // Subagent dispatches list. Cap at MAX_SUBAGENT_COUNT defensively (the
   // mock or live model could return more; we record but only run up to the cap).
   const requestedDispatches = Array.isArray(orchestratorResult?.subagent_dispatches)
@@ -1906,6 +1933,9 @@ async function runMultiAgentTrial(ctx) {
   };
   if (subagentErrors > 0) {
     meta.subagent_errors = subagentErrors;
+  }
+  if (orchestratorViolations.length > 0) {
+    meta.orchestrator_violations = orchestratorViolations;
   }
   if (orchestratorError) {
     meta.error = orchestratorError;
