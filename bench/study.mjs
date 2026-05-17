@@ -49,11 +49,17 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 
 // --- shared constants -------------------------------------------------------
 
-// Conditions the orchestrator recognizes for v2 Stage-2. The harness's
-// `KNOWN_STYLES` also accepts these strings (runner.js B1).
-// v2 deliberately narrows to three conditions; bench/runner.js's KNOWN_STYLES
-// remains permissive (plan, freeform) for v1 compatibility.
-const KNOWN_CONDITIONS = new Set(['baseline', 'tdd', 'dtdd']);
+// Conditions the orchestrator recognizes. The harness's `KNOWN_STYLES`
+// (runner.js B1) accepts the same strings. `baseline`, `tdd`, and `dtdd`
+// are the v2 pre-reg matrix (see DEFAULT_CONDITIONS below); `plan` and
+// `freeform` are accepted as exploratory conditions when explicitly named
+// via --conditions. They are not in the default matrix. Multi-agent
+// decomposition for plan/freeform is explicitly out-of-scope per
+// doc/specs/2026-05-13-bench-multi-agent-topology.spec.md § "Out of scope" —
+// under --topology=multi those conditions fall back to multi.md §1's
+// "single subagent for the whole task" default. The whitelist exists to
+// catch CLI typos before dispatching trials and burning budget.
+const KNOWN_CONDITIONS = new Set(['baseline', 'tdd', 'dtdd', 'plan', 'freeform']);
 
 // v2 task set per spec B9's default. Kept here as a single source of truth so
 // the CLI default and any programmatic caller stay aligned.
