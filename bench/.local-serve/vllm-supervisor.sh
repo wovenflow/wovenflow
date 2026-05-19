@@ -62,12 +62,21 @@ while [ ! -f "$STOP_FILE" ]; do
   #      long single response that actually triggers the IPC heartbeat timeout
   #   3. the provider's vLLM-recovery loop — polls + retries on a mid-trial crash
   # CUDAGraph stays ON for the 3x speedup.
+  # 2026-05-19: switched --distributed-executor-backend from default `mp`
+  # (multiproc, shared-memory broadcast) to `ray`. The default backend was
+  # hitting `TimeoutError: RPC call to sample_tokens timed out` between TP=4
+  # workers under sustained chat-completion load — see supervised log
+  # attempts 161-162. Ray's IPC model handles long generations under
+  # sustained load substantially better than shm_broadcast in production
+  # deployments. Tradeoff: marginally higher orchestration overhead per
+  # batch (~1-2ms); irrelevant given trials run for minutes.
   CUDA_VISIBLE_DEVICES=1,2,3,4 \
     VLLM_ENABLE_V1_MULTIPROCESSING=0 \
     python3 -m vllm.entrypoints.openai.api_server \
     --model Qwen/Qwen3.6-35B-A3B-FP8 \
     --host 127.0.0.1 --port 8000 \
     --tensor-parallel-size 4 \
+    --distributed-executor-backend ray \
     --gpu-memory-utilization 0.88 \
     --max-model-len 65536 \
     --enable-auto-tool-choice \
