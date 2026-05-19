@@ -239,6 +239,24 @@ The next phase (`wovenflow:designflow`) reads this document as context when draf
 | 5 | `wovenflow:testflow` | — (operates on the `.spec.md`) |
 | 6 | `wovenflow:subflow` | — |
 
+## Involvement gates
+
+Researchflow exposes one user-involvement gate:
+
+| Gate | Fires when |
+|---|---|
+| `open_question_from_subagent` | A researcher profile (academic, competitive-landscape, or a custom one) needs a confirm-before-fetch decision: paywalled content the user may not want to pay for, ambiguous source class, citations whose DOI lookup fails and need human re-verification, an unexpected source set the profile wants to broaden into. |
+
+Before invoking `AskUserQuestion` at this gate, consult `.wovenflow.yml` at the repo root (see the mode-to-gate table in the plugin README). On `auto`, pick the `(Recommended)` option and append a record to `.wovenflow-decisions.log`:
+
+```json
+{"ts":"<iso>","skill":"researchflow","gate":"open_question_from_subagent","chosen":"<option>","reason":"<one-line>"}
+```
+
+On `ask`, prompt the user as normal.
+
+Under all three documented modes (`minimal`, `standard`, `maximal`) this gate defaults to `ask` — researcher-surfaced open questions are typically high-leverage and the user usually wants in. Override to `auto` only under `custom` mode and only after deciding you trust the recommended option for those question shapes.
+
 ## Anti-patterns
 
 - **Listing references you haven't actually checked.** Name + URL is the floor; the 2-line summary must reflect what the reference actually says, not a guess from the title.

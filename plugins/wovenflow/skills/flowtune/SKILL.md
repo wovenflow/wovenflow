@@ -76,6 +76,39 @@ Per the project's land-path rule (some projects push docs directly to main, othe
 
 If the proposed edits would significantly change the workflow shape (adding/removing phases, restructuring the cycle), surgical edits aren't enough. Suggest re-running `wovenflow:setup` instead — that re-walks the wizard and writes a coherent Standard workstream from scratch. Surgical tuning is for incremental drift; re-setup is for restructuring.
 
+## Retune involvement (`.wovenflow.yml`)
+
+Flowtune is also the natural home for retuning the user-involvement-cadence setting (`.wovenflow.yml`). The same friction-signals pass that surfaces workflow drift also surfaces involvement-mode drift.
+
+### Friction signals that suggest a mode change
+
+- **"Just do it" / "stop asking me"** — the user repeatedly told the orchestrator to skip a prompt at a specific gate. Strong signal that gate should flip from `ask` to `auto` (or the whole mode should drop a level — `maximal → standard`, `standard → minimal`).
+- **"Wait, ask me first"** — the orchestrator auto-decided and the user pushed back. Strong signal that gate should flip from `auto` to `ask` (or the whole mode should climb — `minimal → standard`, `standard → maximal`).
+- **Override pattern at one gate** — three or more recent sessions show the user overriding the same gate's decision in the same direction. Surgical flip of that gate via `custom` mode is the right move; don't bump the whole mode for one gate.
+- **Auto-decision-log mismatches** — entries in `.wovenflow-decisions.log` where the user later said the orchestrator picked wrong. If the same gate keeps mis-deciding, flip it to `ask`.
+
+### Procedure
+
+1. Read `.wovenflow.yml` if present (or note that it's missing and the user is on the `standard` default).
+2. Read `.wovenflow-decisions.log` if present — the per-session list of auto-decided gates is the audit trail for "did we get this right?"
+3. Survey the session transcript for the friction signals above.
+4. Propose a specific edit:
+   - "Flip `redteam_findings` to `auto` (you said 'just do it' three times after we asked at this gate)" — surgical change, switch to `custom` mode if not already there.
+   - "Drop from `maximal` to `standard` (you accepted the recommendation at every scopecheck-clean prompt this session)" — broader change, replace the mode line.
+5. Confirm with `AskUserQuestion`:
+   - **Apply** — write the new `.wovenflow.yml`
+   - **Skip** — leave as-is
+   - **Modify** — user names a different change
+6. If applied, show the resulting file content before writing.
+
+Flowtune authors `.wovenflow.yml` here using the same schema setup uses; this is the only other skill (besides setup) that writes to that file. Other skills only ever *read* it.
+
+### Skip when
+
+- The session was routine and no involvement-related friction surfaced
+- The user explicitly invoked the workflow with one-off overrides (those aren't drift — they're explicit per-session choices)
+- The user's current mode is `maximal` and they accepted every prompt — that's the system working as configured, not drift
+
 ## Anti-patterns
 
 - **Tuning every session.** Most sessions don't surface signals worth acting on. Only tune when patterns are clear (3+ occurrences usually).

@@ -134,6 +134,26 @@ When invoked from another skill, the calling skill provides the artifact, the de
 
 `/wovenflow:redteam <artifact-path>` runs the same flow. The orchestrator asks the user (via `AskUserQuestion`) for the decision sentence and (optionally) the stakes if not derivable from the artifact, then runs steps 1-6 above.
 
+## Involvement gates
+
+Redteam exposes one user-involvement gate:
+
+| Gate | Fires when |
+|---|---|
+| `redteam_findings` | The redteam pass has completed and the orchestrator is about to act on the verdict (PROCEED / REVISE / PAUSE). On PROCEED, "act" means continuing to the next phase; on REVISE / PAUSE it means stopping and either looping back to revise the artifact or returning to an earlier phase. |
+
+Before invoking `AskUserQuestion` at this gate, consult `.wovenflow.yml` at the repo root (see the mode-to-gate table in the plugin README). On `auto`, pick the `(Recommended)` option (typically: PROCEED means continue, REVISE/PAUSE means stop and act on the verdict text) and append a record to `.wovenflow-decisions.log`:
+
+```json
+{"ts":"<iso>","skill":"redteam","gate":"redteam_findings","chosen":"<verdict-action>","reason":"<one-line>"}
+```
+
+On `ask`, prompt the user as normal.
+
+Defaults: under `minimal`, `redteam_findings` is `auto` — the redteam check still runs and the verdict still influences behavior, but the user isn't pulled in unless a load-bearing objection surfaces and the orchestrator can't resolve it. Under `standard` and `maximal`, the gate is `ask` — the user sees the three objections and signs off on the verdict.
+
+This gate is about the **action on the verdict**, not the verdict itself. The redteam pass always runs (it's cheap and the objections become design context for downstream phases regardless). What the gate controls is whether the user reviews the objections before the orchestrator acts on them.
+
 ## Anti-patterns
 
 - **Generic objections (over-engineering, complexity, scope creep) without an artifact anchor.** Step 3's banned list is non-negotiable. Generic objections are vibes, not evidence.

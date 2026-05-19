@@ -84,6 +84,24 @@ Example:
 
 **When to omit it:** most small features and bug fixes change no architecture — leave the section out entirely. Do not pad it with restated behaviors. If you're tempted to write "the architecture change is that we added behavior B3," there is no architecture change — B3 already covers it. The section exists only for decisions that outlive any single behavior.
 
+## Involvement gates
+
+Designflow exposes one user-involvement gate:
+
+| Gate | Fires when |
+|---|---|
+| `design_doc_ready` | The spec is fully drafted, the red-team check returned PROCEED, and the orchestrator is about to hand off to `testflow`. |
+
+Before invoking `AskUserQuestion` at this gate, consult `.wovenflow.yml` at the repo root (see the mode-to-gate table in the plugin README). If the resolved value is `auto`, pick the `(Recommended)` option (proceed to testflow) and append a record to `.wovenflow-decisions.log`:
+
+```json
+{"ts":"<iso>","skill":"designflow","gate":"design_doc_ready","chosen":"proceed","reason":"<one-line>"}
+```
+
+If the resolved value is `ask`, proceed with the normal interactive prompt.
+
+Under every documented mode (`minimal`, `standard`, `maximal`) the default for `design_doc_ready` is `ask` — this gate is the canonical "show the user the spec before locking" checkpoint and is intentionally not auto-resolvable except via `custom` mode override.
+
 ## Where it lives
 
 - `doc/specs/YYYY-MM-DD-<feature>.spec.md` for top-level project specs

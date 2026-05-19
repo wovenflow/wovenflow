@@ -484,6 +484,66 @@ Map the answer to template variables:
    - Standalone: `node web/serve.mjs --serve` then open `http://localhost:8082/`.
    - Umbrella: `node web/serve.mjs &` (writer only); make sure `<repo>/web` is reachable from the umbrella server's web root, then visit `<umbrella-host>/<PROJECT_NAME>/`.
 
+### Step 4.Y — User-involvement cadence (writes `.wovenflow.yml`)
+
+A wovenflow project chooses how often the workflow stops to ask the user. The choice lives in `.wovenflow.yml` at the repo root; every wovenflow skill consults it at every prompt-the-user point. The full mode-to-gate table is documented in the plugin README under "User involvement modes".
+
+#### 4.Y.1 — Pick a mode
+
+`AskUserQuestion`:
+
+- Question: `"How often should the workflow stop and ask you about decisions? (writes .wovenflow.yml at repo root)"`
+- Options:
+  1. **Standard** `(Recommended)` — ask at design lock, subagent open questions, UI inspect, redteam findings, scopecheck violations / ambiguous-or-blocked, pre-ship PR. Auto on scopecheck-clean and subflow-style decisions.
+  2. **Minimal** — auto-decide redteam-findings, scopecheck violations, pre-ship-PR, subflow-style as well. Still asks on design-doc-ready, open-question-from-subagent, UI inspect, scopecheck ambiguous-or-blocked. Use for heads-down solo work where you trust the recommended option most of the time.
+  3. **Maximal** — ask at every gate, including scopecheck-clean and subflow-style decisions. Use for high-stakes code where you never want a decision made on your behalf.
+  4. **Custom** — pick per-gate. Triggers a follow-up question per gate.
+
+#### 4.Y.2 — If `Custom`, walk through each gate
+
+Run nine follow-up `AskUserQuestion` calls (one per gate), or batch them three-at-a-time into the multi-question form. For each, present a 2-option pick (`ask` / `auto`) with the standard-mode default marked `(Recommended)`. Gates:
+
+| Gate | Standard default | Meaning |
+|---|---|---|
+| `design_doc_ready` | ask | Spec is drafted and red-team returned PROCEED, about to hand off to testflow |
+| `open_question_from_subagent` | ask | A subagent surfaced a `NEEDS_CONTEXT` question the orchestrator can't resolve |
+| `ui_inspect` | ask | UI-touching work is ready for a visual walkthrough |
+| `redteam_findings` | ask | A redteam pass returned a verdict and the orchestrator is about to act on it |
+| `scopecheck_clean` | auto | Coverage audit returned CLEAN — every diff line is exercised by a test |
+| `scopecheck_violations` | ask | Coverage audit found uncovered lines; per-region remove-vs-formalize proposals are ready |
+| `scopecheck_ambiguous_or_blocked` | ask | Coverage audit hit a blind spot or the coverage command failed |
+| `pre_ship_pr` | ask | About to push the branch + open a PR |
+| `subflow_style_decisions` | auto | Choosing among equally-spec-compliant implementation styles |
+
+#### 4.Y.3 — Write `.wovenflow.yml`
+
+After the user picks a mode (and optionally per-gate overrides), write the file:
+
+For non-custom modes:
+
+```yaml
+involvement:
+  mode: minimal   # or standard, maximal
+```
+
+For custom mode (only list gates the user overrode away from standard):
+
+```yaml
+involvement:
+  mode: custom
+  gates:
+    redteam_findings: auto
+    scopecheck_clean: ask
+```
+
+Show the resulting YAML and confirm with `AskUserQuestion` (Yes / Show me again / Cancel) before writing. After write: confirm to the user that the file is at `.wovenflow.yml` and add `.wovenflow-decisions.log` to `.gitignore` if `.gitignore` exists (the auto-decision log is local audit data, not a committed artifact).
+
+#### 4.Y.4 — Setup itself is exempt
+
+The setup wizard is BY DEFINITION interactive — it always asks the user at every step it documents, regardless of what `.wovenflow.yml` later declares. The involvement modes apply to *other* skills running in normal sessions; setup itself is the configuration surface.
+
+This exception is intentional and called out here so future contributors don't try to wire setup into the involvement-gate consultation pattern.
+
 ### Step 5 — Ask about alternative cycles
 
 Ask: *"Does this project have other cycles besides feature work? (bug fix, hotfix, refactor, architectural change, postmortem)"* If yes, walk through each chosen cycle and configure its skills the same way (or note it as a documented variation in CLAUDE.md).

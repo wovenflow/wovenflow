@@ -408,6 +408,25 @@ DTDD's contract is "every behavior has a test, every test traces to a behavior; 
 
 Projects that prefer a tighter feedback loop can opt to invoke scopecheck as subflow's final step instead, before declaring the build phase complete. The trade is: catch scope creep at the build moment (faster signal) vs at the verify gate (subflow stays simpler). Either is supported; pick per project preference.
 
+## Involvement gates
+
+Subflow exposes two user-involvement gates:
+
+| Gate | Fires when |
+|---|---|
+| `open_question_from_subagent` | An implementer or reviewer subagent surfaces a `NEEDS_CONTEXT` question the orchestrator cannot resolve from the spec alone (e.g., "this clause is ambiguous about behavior under empty input"). |
+| `subflow_style_decisions` | The orchestrator is choosing among multiple equally-spec-compliant implementation styles (file layout, helper extraction, ordering of behaviors, choice of std-lib vs hand-rolled). |
+
+Before invoking `AskUserQuestion` at either gate, consult `.wovenflow.yml` at the repo root (see the mode-to-gate table in the plugin README). On `auto`, pick the `(Recommended)` option and append a record to `.wovenflow-decisions.log`:
+
+```json
+{"ts":"<iso>","skill":"subflow","gate":"<gate>","chosen":"<option>","reason":"<one-line>"}
+```
+
+On `ask`, prompt the user as normal.
+
+Defaults: `open_question_from_subagent` is `ask` under all three documented modes (a real ambiguity surfaced by a subagent is the kind of thing the user usually wants to weigh in on). `subflow_style_decisions` is `auto` under `minimal` and `standard` and `ask` only under `maximal` — the orchestrator picks a reasonable default style otherwise.
+
 ## Integration with other wovenflow skills
 
 - `wovenflow:designflow` — wrote the prose contract (Design phase)

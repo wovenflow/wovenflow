@@ -84,6 +84,78 @@ In a project that has a test runner (Mocha, Vitest, Jest, or Node's built-in `no
 5. Wire `pretest` in your `package.json` so `npm test` extracts and runs the spec tests.
 6. Run `/wovenflow:subflow` to dispatch implementer subagents in parallel.
 
+## User involvement modes
+
+Once you've run `/wovenflow:setup`, you can tune how often the workflow stops to ask you about decisions. The setting lives in `.wovenflow.yml` at your project root; every wovenflow skill consults it at every prompt-the-user point.
+
+### `.wovenflow.yml` schema
+
+```yaml
+involvement:
+  mode: minimal | standard | maximal | custom
+  # Per-gate overrides — only consulted when mode == custom.
+  # Any gate not listed inherits standard's behavior.
+  gates:
+    design_doc_ready: ask | auto
+    open_question_from_subagent: ask | auto
+    ui_inspect: ask | auto
+    redteam_findings: ask | auto
+    scopecheck_clean: ask | auto
+    scopecheck_violations: ask | auto
+    scopecheck_ambiguous_or_blocked: ask | auto
+    pre_ship_pr: ask | auto
+    subflow_style_decisions: ask | auto
+```
+
+Missing file → defaults to `standard` (don't break existing users). Unknown mode → loud error.
+
+### Mode-to-gate table
+
+| Gate | `minimal` | `standard` | `maximal` |
+|---|---|---|---|
+| `design_doc_ready` | ask | ask | ask |
+| `open_question_from_subagent` | ask | ask | ask |
+| `ui_inspect` | ask | ask | ask |
+| `redteam_findings` | auto | ask | ask |
+| `scopecheck_clean` | auto | auto | ask |
+| `scopecheck_violations` | auto | ask | ask |
+| `scopecheck_ambiguous_or_blocked` | ask | ask | ask |
+| `pre_ship_pr` | auto | ask | ask |
+| `subflow_style_decisions` | auto | auto | ask |
+
+`ask` — the skill invokes `AskUserQuestion` as normal. `auto` — the orchestrator picks the option labeled `(Recommended)` and proceeds without prompting.
+
+### `custom` mode
+
+`custom` reads each gate from the per-gate `gates:` map. Any gate not listed inherits `standard`'s behavior — so if you mostly want `standard` but want one gate flipped, your file is short:
+
+```yaml
+involvement:
+  mode: custom
+  gates:
+    redteam_findings: auto   # I trust the redteam verdicts; just act on them
+```
+
+### `.wovenflow-decisions.log`
+
+Every gate the orchestrator auto-decides is appended as a JSON-Lines record to `.wovenflow-decisions.log` at the repo root. One line per auto-decided gate, with timestamp, skill name, gate name, chosen option, and a one-line reason. This is the audit trail — if a gate keeps mis-deciding, the log is what `flowtune` reads to suggest a per-gate flip.
+
+The file is local audit data; add it to `.gitignore`.
+
+### Which skills consult which gates
+
+| Gate | Consulted by |
+|---|---|
+| `design_doc_ready` | `designflow` |
+| `open_question_from_subagent` | `subflow`, `researchflow` |
+| `ui_inspect` | project `verify` skill (when UI work is in scope) |
+| `redteam_findings` | `redteam` |
+| `scopecheck_clean` / `scopecheck_violations` / `scopecheck_ambiguous_or_blocked` | `scopecheck` |
+| `pre_ship_pr` | project `ship` skill |
+| `subflow_style_decisions` | `subflow`, `testflow` |
+
+`setup` and `flowtune` are exempt — they are by definition interactive (they configure the file). Every other wovenflow skill reads `.wovenflow.yml` before prompting.
+
 ## Why woven
 
 In most agentic workflows, it is easy to end up with many distributed sources of truth for any one feature. The goal of DTDD is to keep the definition and intent for any one feature in one place. This makes it easy to know what needs to be updated or replaced in the case of a change. Documentation stays fresh because it is conjoined to the test that enforces it. This solution also does not overspecify implementation for a sub-agent. We are not writing the code twice. 

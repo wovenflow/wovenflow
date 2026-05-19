@@ -150,6 +150,30 @@ Coverage gives a sharper rule: tests are the spec's enforcement mechanism. If a 
 
 The exception is untrackable code (type-only declarations, decorators, etc.) — those need human judgment, which Step 4 surfaces explicitly.
 
+## Involvement gates
+
+Scopecheck exposes three user-involvement gates, one per verdict shape:
+
+| Gate | Fires when |
+|---|---|
+| `scopecheck_clean` | The verdict is CLEAN — every committed line is exercised by at least one test. The orchestrator is about to confirm and continue. |
+| `scopecheck_violations` | The verdict is VIOLATIONS — there are uncovered lines and the per-region resolution proposals (remove vs formalize) are ready to apply. |
+| `scopecheck_ambiguous_or_blocked` | The verdict is AMBIGUOUS (coverage-tool blind spot) or BLOCKED (coverage command failed). The orchestrator needs a human call on how to proceed. |
+
+Before invoking `AskUserQuestion` at any of these, consult `.wovenflow.yml` at the repo root (see the mode-to-gate table in the plugin README). On `auto`, pick the `(Recommended)` option and append a record to `.wovenflow-decisions.log`:
+
+```json
+{"ts":"<iso>","skill":"scopecheck","gate":"<gate>","chosen":"<option>","reason":"<one-line>"}
+```
+
+On `ask`, prompt the user as normal.
+
+Defaults (read the spec table for the full picture):
+
+- `scopecheck_clean` is `auto` under `minimal` and `standard` (CLEAN is a positive verdict; no decision to make), `ask` only under `maximal`.
+- `scopecheck_violations` is `auto` under `minimal` (orchestrator applies the proposed resolutions), `ask` under `standard` and `maximal` (each violation is a real choice between remove vs formalize and the user usually wants in).
+- `scopecheck_ambiguous_or_blocked` is `ask` under all three modes — these verdicts are by definition the cases where the orchestrator does not have the information to decide.
+
 ## Anti-patterns
 
 - **Adding tests to satisfy scopecheck.** If the code is genuinely scope creep, the right fix is to remove it, not to write a fig-leaf test. Tests added to silence scopecheck without a corresponding behavior are dishonest — they make the rule unenforceable. Reviewers should catch this.

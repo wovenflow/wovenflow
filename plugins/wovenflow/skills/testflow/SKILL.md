@@ -244,6 +244,20 @@ That single line catches almost all wiring regressions in CI before they hide a 
 | First run looks right; second run shows stale tests | Output directory was accidentally committed to git and is never refreshed. Add it to `.gitignore`. |
 | Output filenames look weird | `--name-template` placeholder mismatch. Use `{base}`, `{snake}`, `{pascal}` as documented in the language table |
 
+## Involvement gates
+
+Testflow has no dedicated gates of its own — it inserts test fences against an already-locked `.spec.md` and hands off to `subflow`. The path is largely mechanical.
+
+That said, when testflow surfaces a mid-flow question about style (test runner choice, fence-language picks for polyglot specs, how to shape a fixture), defer to **`subflow_style_decisions`** in the mode-to-gate table — the same gate `subflow` consults for its style-of-implementation prompts. Look up `.wovenflow.yml` at the repo root (see the table in the plugin README); on `auto`, pick the `(Recommended)` option, log to `.wovenflow-decisions.log`:
+
+```json
+{"ts":"<iso>","skill":"testflow","gate":"subflow_style_decisions","chosen":"<option>","reason":"<one-line>"}
+```
+
+On `ask`, prompt the user as normal.
+
+Under `minimal` and `standard`, `subflow_style_decisions` is `auto`; under `maximal` it is `ask`. Testflow uses the same default so testflow-and-subflow read as one continuous phase from the user's seat.
+
 ## Rules
 
 - **Source of truth is the `.spec.md`.** Derived test files live in the output directory (gitignored), recreated every pretest.
