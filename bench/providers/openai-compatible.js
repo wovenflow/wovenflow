@@ -46,6 +46,7 @@ const DEFAULT_RECOVERY_POLL_INTERVAL_MS = 5_000;
 // Per-poll request timeout: short, since /models is a cheap endpoint and a
 // hung connect is itself a "vLLM is down" signal.
 const RECOVERY_POLL_TIMEOUT_MS = 2_000;
+const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 
 function readEnvMs(name, fallback) {
   const raw = process.env[name];
@@ -544,6 +545,7 @@ export async function runTrial({
     'VLLM_RECOVERY_POLL_INTERVAL_MS',
     DEFAULT_RECOVERY_POLL_INTERVAL_MS,
   );
+  const maxOutputTokens = readEnvInt('BENCH_MAX_TOKENS', DEFAULT_MAX_OUTPUT_TOKENS);
 
   // Sentinel returned by the per-turn helper when the turn loop should break
   // out (terminal error, abort, etc.) — distinguishes from "got a body, keep
@@ -601,15 +603,14 @@ export async function runTrial({
             messages: toModelMessages(conversation),
             tools: effectiveTools.length > 0 ? effectiveTools : undefined,
             tool_choice: effectiveTools.length > 0 ? 'required' : undefined,
-            // Cap any single response. The vLLM v1 multiproc IPC bug fires on
-            // very long single responses (~40K+ output tokens). Capping forces
-            // the model into shorter turns — the harness injects [continue] on
-            // `finish_reason: length`. 16384 is well below the crash threshold
-            // and high enough that most trials complete without continue-loops
-            // chewing the wall budget. See:
+            // Cap each single generation's wall time so it stays under vLLM's
+            // ~300s `sample_tokens` executor timeout — a known upstream bug
+            // (vllm issue #36921) that crashes EngineCore on long generations.
+            // Lower is safer; the harness injects [continue] on
+            // `finish_reason: length`, so the cap costs extra turns rather than
+            // lost output. Overridable via the BENCH_MAX_TOKENS env var. See:
             //   https://github.com/vllm-project/vllm/issues/36921
-            //   https://github.com/vllm-project/vllm/issues/41530
-            max_tokens: 16384,
+            max_tokens: maxOutputTokens,
           }),
           signal: perReqController.signal,
         });

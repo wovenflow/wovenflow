@@ -58,8 +58,9 @@ while [ ! -f "$STOP_FILE" ]; do
   # per-turn latency tax that pushed trials past the 15-min wall cap. Dropped:
   # the crash is already covered by three cheaper layers —
   #   1. VLLM_ENABLE_V1_MULTIPROCESSING=0 (the documented direct mitigation)
-  #   2. client-side max_tokens cap (16384, see openai-compatible.js) — caps the
-  #      long single response that actually triggers the IPC heartbeat timeout
+  #   2. client-side max_tokens cap (default 4096, env BENCH_MAX_TOKENS, see
+  #      openai-compatible.js) — caps each single response so its generation
+  #      time stays under the ~300s sample_tokens executor timeout
   #   3. the provider's vLLM-recovery loop — polls + retries on a mid-trial crash
   # CUDAGraph stays ON for the 3x speedup.
   # 2026-05-20: reverted the --distributed-executor-backend=ray experiment back
