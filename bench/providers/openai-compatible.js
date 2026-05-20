@@ -234,14 +234,18 @@ const REJECTED_BARE_NAMES = new Set(['bench', 'tests', 'source']);
 /**
  * Validate a relative artifact path supplied to `write_source` / `write_test`.
  *
- * Returns `{ ok: true }` when the path is a sensible relative file path
- * (e.g. `index.js`, `lib/util.js`, `slugify.spec.md`). Returns
+ * Returns `{ ok: true }` when the path is a sensible flat relative file path
+ * at the source root (e.g. `index.js`, `slugify.spec.md`). Returns
  * `{ ok: false, reason }` for paths that are:
  *   - empty
  *   - absolute (start with `/` or `\`)
  *   - contain `..` (path traversal)
  *   - start with a known harness prefix (`bench/`, `tests/`, `source/`)
  *   - equal a bare directory name (`bench`, `tests`, `source`)
+ *   - place a file in a subdirectory (contain `/` or `\` after the above
+ *     checks) — the hidden suite imports exactly `<sourceDir>/index.js`, so
+ *     the contract is flat-only. See
+ *     doc/specs/2026-05-20-bench-reject-source-subdirs.spec.md.
  *
  * Exported so callers (the runner, tests, future provider adapters) share
  * one definition of "what counts as a malformed artifact path." See
@@ -264,6 +268,9 @@ export function validateArtifactPath(p) {
   }
   if (REJECTED_BARE_NAMES.has(p)) {
     return { ok: false, reason: `write_source/write_test: path "${p}" rejected (bare directory name, not a file path; must be relative to source/, no traversal, no leading directory prefix)` };
+  }
+  if (p.includes('/') || p.includes('\\')) {
+    return { ok: false, reason: `write_source/write_test: path "${p}" rejected (subdirectory paths not supported; write a flat file at the source root — the entrypoint must be index.js)` };
   }
   return { ok: true };
 }

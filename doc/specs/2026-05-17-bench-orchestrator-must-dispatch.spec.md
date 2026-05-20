@@ -152,7 +152,7 @@ test('B3: orchestrator that wrote only spec.md produces no orchestrator_violatio
 ### B4: `write_source` / `write_test` reject malformed paths (absolute, traversal, leading-dir, literal directory)
 ∵ **IF** the provider's content-fallback path-validation helper `validateArtifactPath(path)` (exported from `bench/providers/openai-compatible.js`) is called with one of: an absolute path, a path containing `..`, a path with a leading `bench/` or `tests/` prefix, a literal directory name like `bench`, or the empty string
 ↦ **WHEN** validation runs
-∴ **THEN** the helper returns `{ ok: false, reason: <string> }` where `reason` includes the word `rejected` and the offending path. For valid paths (e.g. `index.js`, `lib/util.js`, `slugify.spec.md`), it returns `{ ok: true }`.
+∴ **THEN** the helper returns `{ ok: false, reason: <string> }` where `reason` includes the word `rejected` and the offending path. For valid paths (flat filenames at the source root, e.g. `index.js`, `slugify.spec.md`), it returns `{ ok: true }`. Subdirectory paths (e.g. `lib/util.js`, `a/b/c.js`) are rejected — see `doc/specs/2026-05-20-bench-reject-source-subdirs.spec.md`, which pins the flat-only contract (the hidden suite imports exactly `<sourceDir>/index.js`).
 
 ```javascript
 import { test } from 'node:test';
@@ -190,8 +190,14 @@ test('B4: validateArtifactPath rejects malformed paths', () => {
     const r = validateArtifactPath('');
     assert.strictEqual(r.ok, false, 'empty path rejected');
   }
-  // Valid relative paths
-  for (const good of ['index.js', 'lib/util.js', 'slugify.spec.md', 'index.test.js', 'a/b/c.js']) {
+  // Subdirectory paths: flat-only contract (hidden suite imports <sourceDir>/index.js).
+  for (const bad of ['lib/util.js', 'a/b/c.js', 'src/index.js']) {
+    const r = validateArtifactPath(bad);
+    assert.strictEqual(r.ok, false, `subdirectory path "${bad}" should be rejected`);
+    assert.ok(r.reason.includes('rejected'), `reason mentions "rejected" for "${bad}"`);
+  }
+  // Valid relative paths (flat, at the source root)
+  for (const good of ['index.js', 'slugify.spec.md', 'index.test.js']) {
     const r = validateArtifactPath(good);
     assert.strictEqual(r.ok, true, `valid path "${good}" should be accepted (got ${JSON.stringify(r)})`);
   }
