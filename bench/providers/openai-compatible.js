@@ -267,6 +267,53 @@ export function validateArtifactPath(p) {
   return { ok: true };
 }
 
+// CommonJS patterns that throw under Node's ESM loader. The bench's trial
+// dirs declare `"type": "module"`, so any of these statements cause
+// `await import(.../index.js)` (used by hidden-test suites) to fail with
+// `ReferenceError: module is not defined` or `ReferenceError: require is not
+// defined`. Producing CJS instead of ESM is a methodology-compliance issue
+// that the TOOL_USAGE_INSTRUCTIONS prelude warns against, but open-weights
+// coder models occasionally ignore the warning. This validation catches the
+// pattern at write_source / write_test time so the model sees a tool-result
+// error and can retry with ESM syntax — turning a silent
+// scored-as-load-error trial into an observable, recoverable signal.
+//
+// Patterns match only at the start of a line (after optional whitespace) to
+// avoid false positives on string literals or comments containing the same
+// substrings (e.g. a docstring discussing CJS vs ESM).
+const CJS_REJECTION_PATTERNS = [
+  { pattern: /^[\t ]*module\.exports\s*=/m, label: 'module.exports = ...' },
+  { pattern: /^[\t ]*exports\.\w+\s*=/m, label: 'exports.<name> = ...' },
+  { pattern: /^[\t ]*(?:const|let|var)\s+[\w{},\s]+\s*=\s*require\s*\(/m, label: 'const ... = require(...)' },
+  { pattern: /^[\t ]*require\s*\(/m, label: 'require(...)' },
+];
+
+/**
+ * Validate the content of a `write_source` / `write_test` call against the
+ * bench's ESM-only contract. Trial dirs declare `"type": "module"`, so CJS
+ * patterns throw at import time. Returns `{ ok: true }` when the content is
+ * ESM-shaped (or has no module-system statements at all). Returns
+ * `{ ok: false, reason }` when it matches a known CJS pattern, with a
+ * reason string naming the pattern and pointing the model at ESM syntax.
+ *
+ * Exported for testability and so future provider adapters can share one
+ * definition. See doc/specs/2026-05-19-bench-reject-cjs-in-write-source.spec.md.
+ */
+export function validateArtifactContent(content, path) {
+  if (typeof content !== 'string' || content.length === 0) {
+    return { ok: true };
+  }
+  for (const { pattern, label } of CJS_REJECTION_PATTERNS) {
+    if (pattern.test(content)) {
+      return {
+        ok: false,
+        reason: `write_source/write_test: content of "${path}" rejected (contains CommonJS pattern \`${label}\`; trial dirs declare "type": "module" so CJS throws at import time — use \`export function name(...)\` / \`export default\` and \`import x from '...'\` instead)`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
 // Scan an assistant `content` string for fenced ```json blocks and return one
 // `{ name, arguments }` object per block whose body parses as JSON, has a
 // string `name` matching one of `acceptedNames`, and an object `arguments`
@@ -429,6 +476,11 @@ export async function runTrial({
   // `source/`. The runner surfaces orchestrator-role rejections to
   // meta.json.orchestrator_violations[] (see runner.js).
   const pathRejections = [];
+  // Content-validation rejections. Each entry is `{tool, path, reason}` for
+  // a write_source/write_test call whose `content` matched a CJS pattern
+  // forbidden by the bench's ESM-only contract. The file is dropped; the
+  // model sees the reason in its tool result and can retry with ESM syntax.
+  const contentRejections = [];
   // Multi-agent: orchestrator-collected dispatch entries to surface to the
   // runner. Each entry mirrors the contract documented at runner.js's
   // "Provider contract extension" header: {id, system_prompt, user_message,
@@ -765,6 +817,12 @@ export async function runTrial({
       // all results in one tool message (matches OpenAI's expected pattern of
       // one tool reply per assistant turn rather than interleaved messages).
       const runTestsResults = [];
+      // Snapshot rejection counts so we can surface only THIS turn's rejects
+      // to the model (rejections accumulate across turns in the module-scoped
+      // arrays; per-turn slicing is how we tell the model what just got
+      // rejected so it can retry with corrected path/content).
+      const pathRejCountBefore = pathRejections.length;
+      const contentRejCountBefore = contentRejections.length;
       for (const call of structuredCalls) {
         const fn = call.function;
         if (!fn?.name) continue;
@@ -776,17 +834,27 @@ export async function runTrial({
         }
         if (fn.name === 'write_source' && args.path && args.content) {
           const v = validateArtifactPath(args.path);
-          if (v.ok) {
-            sourceFiles[args.path] = String(args.content);
-          } else {
+          if (!v.ok) {
             pathRejections.push({ tool: 'write_source', path: args.path, reason: v.reason });
+          } else {
+            const cv = validateArtifactContent(args.content, args.path);
+            if (!cv.ok) {
+              contentRejections.push({ tool: 'write_source', path: args.path, reason: cv.reason });
+            } else {
+              sourceFiles[args.path] = String(args.content);
+            }
           }
         } else if (fn.name === 'write_test' && args.path && args.content) {
           const v = validateArtifactPath(args.path);
-          if (v.ok) {
-            testFiles[args.path] = String(args.content);
-          } else {
+          if (!v.ok) {
             pathRejections.push({ tool: 'write_test', path: args.path, reason: v.reason });
+          } else {
+            const cv = validateArtifactContent(args.content, args.path);
+            if (!cv.ok) {
+              contentRejections.push({ tool: 'write_test', path: args.path, reason: cv.reason });
+            } else {
+              testFiles[args.path] = String(args.content);
+            }
           }
         } else if (fn.name === 'run_tests') {
           // Execute the agent's tests against the agent's source. This is the
@@ -836,10 +904,20 @@ export async function runTrial({
       // Synthesize a tool-result user turn so the loop continues. When
       // run_tests was called this turn, surface the test output so the model
       // can react to failures next turn; otherwise the generic placeholder.
-      const toolContent =
+      // Per-turn rejection summaries are prepended so the model sees its
+      // write_source/write_test errors and can retry.
+      const turnPathRejects = pathRejections.slice(pathRejCountBefore);
+      const turnContentRejects = contentRejections.slice(contentRejCountBefore);
+      const rejectLines = [
+        ...turnPathRejects.map((r) => `[rejected] ${r.reason}`),
+        ...turnContentRejects.map((r) => `[rejected] ${r.reason}`),
+      ];
+      const baseContent =
         runTestsResults.length > 0
           ? runTestsResults.join('\n\n')
           : '[tool results applied]';
+      const toolContent =
+        rejectLines.length > 0 ? `${rejectLines.join('\n')}\n\n${baseContent}` : baseContent;
       pushTurn({ role: 'tool', content: toolContent });
       continue;
     }
@@ -856,21 +934,33 @@ export async function runTrial({
     if (fallbackCalls.length > 0) {
       let sawDispatch = false;
       const runTestsResults = [];
+      const pathRejCountBefore = pathRejections.length;
+      const contentRejCountBefore = contentRejections.length;
       for (const call of fallbackCalls) {
         const { name, arguments: args } = call;
         if (name === 'write_source' && args.path && args.content) {
           const v = validateArtifactPath(args.path);
-          if (v.ok) {
-            sourceFiles[args.path] = String(args.content);
-          } else {
+          if (!v.ok) {
             pathRejections.push({ tool: 'write_source', path: args.path, reason: v.reason });
+          } else {
+            const cv = validateArtifactContent(args.content, args.path);
+            if (!cv.ok) {
+              contentRejections.push({ tool: 'write_source', path: args.path, reason: cv.reason });
+            } else {
+              sourceFiles[args.path] = String(args.content);
+            }
           }
         } else if (name === 'write_test' && args.path && args.content) {
           const v = validateArtifactPath(args.path);
-          if (v.ok) {
-            testFiles[args.path] = String(args.content);
-          } else {
+          if (!v.ok) {
             pathRejections.push({ tool: 'write_test', path: args.path, reason: v.reason });
+          } else {
+            const cv = validateArtifactContent(args.content, args.path);
+            if (!cv.ok) {
+              contentRejections.push({ tool: 'write_test', path: args.path, reason: cv.reason });
+            } else {
+              testFiles[args.path] = String(args.content);
+            }
           }
         } else if (name === 'run_tests') {
           const result = runTestsTool({
@@ -899,10 +989,18 @@ export async function runTrial({
         stopReason = 'done';
         break;
       }
-      const toolContent =
+      const turnPathRejects = pathRejections.slice(pathRejCountBefore);
+      const turnContentRejects = contentRejections.slice(contentRejCountBefore);
+      const rejectLines = [
+        ...turnPathRejects.map((r) => `[rejected] ${r.reason}`),
+        ...turnContentRejects.map((r) => `[rejected] ${r.reason}`),
+      ];
+      const baseContent =
         runTestsResults.length > 0
           ? runTestsResults.join('\n\n')
           : '[tool results applied]';
+      const toolContent =
+        rejectLines.length > 0 ? `${rejectLines.join('\n')}\n\n${baseContent}` : baseContent;
       pushTurn({ role: 'tool', content: toolContent });
       continue;
     }
@@ -933,6 +1031,9 @@ export async function runTrial({
   // empty) so the runner can distinguish "no rejections" from "field omitted
   // by an older provider build."
   result.path_rejections = pathRejections;
+  // Surface content-validation rejections (CJS-pattern rejects from
+  // validateArtifactContent). Same back-compat shape as path_rejections.
+  result.content_rejections = contentRejections;
   // Multi-agent: surface dispatch entries when this was an orchestrator call
   // and the model invoked dispatch_subagent. Always present (possibly empty)
   // for orchestrator role so the runner can disambiguate "orchestrator chose
