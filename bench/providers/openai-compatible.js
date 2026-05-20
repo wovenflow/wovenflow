@@ -314,6 +314,45 @@ export function validateArtifactContent(content, path) {
   return { ok: true };
 }
 
+/**
+ * Build the request `messages` array from the `conversation` transcript,
+ * isolating "what the model sees" from "what we log."
+ *
+ * `conversation` doubles as the saved transcript (and `conversation-live.jsonl`
+ * source) AND the request payload. Recovery/error breadcrumbs are pushed onto
+ * `conversation` as `system`-role turns for observability, but a `system`
+ * message landing mid-conversation is rejected by chat templates that require
+ * the system message to be first (Qwen3.x: "System message must be at the
+ * beginning"), turning one transient blip into a cascade of HTTP 500s.
+ *
+ * This helper returns a NEW array of `{ role, content }` objects:
+ *   - turns tagged `diagnostic === true` are dropped (the explicit signal that
+ *     a turn is a transport breadcrumb, not model-visible);
+ *   - any `system`-role turn that is not the first element of the RESULT is
+ *     dropped (positional backstop for the system-first invariant, even for an
+ *     untagged stray system turn);
+ *   - non-string `content` is JSON-stringified (preserving the prior
+ *     `conversation.map(...)` behavior).
+ *
+ * The input array is not mutated, so `conversation` keeps every breadcrumb for
+ * the transcript. See doc/specs/2026-05-20-bench-provider-no-midstream-system.spec.md.
+ */
+export function toModelMessages(conversation) {
+  const out = [];
+  for (const turn of conversation) {
+    if (turn.diagnostic === true) continue;
+    // Drop any system message that would not be the first element of the
+    // result (out.length > 0 means a non-system turn already precedes it).
+    if (turn.role === 'system' && out.length > 0) continue;
+    out.push({
+      role: turn.role,
+      content:
+        typeof turn.content === 'string' ? turn.content : JSON.stringify(turn.content),
+    });
+  }
+  return out;
+}
+
 // Scan an assistant `content` string for fenced ```json blocks and return one
 // `{ name, arguments }` object per block whose body parses as JSON, has a
 // string `name` matching one of `acceptedNames`, and an object `arguments`
@@ -559,10 +598,7 @@ export async function runTrial({
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             model: modelId,
-            messages: conversation.map((m) => ({
-              role: m.role,
-              content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-            })),
+            messages: toModelMessages(conversation),
             tools: effectiveTools.length > 0 ? effectiveTools : undefined,
             tool_choice: effectiveTools.length > 0 ? 'required' : undefined,
             // Cap any single response. The vLLM v1 multiproc IPC bug fires on
@@ -596,6 +632,7 @@ export async function runTrial({
             pushTurn({
               role: 'system',
               content: 'provider abort timeout',
+              diagnostic: true,
             });
           } else {
             stopReason = 'time-cap';
@@ -617,6 +654,7 @@ export async function runTrial({
               role: 'system',
               content:
                 `[openai-compatible] fetch failed (attempt ${attempts}) — no wall-clock budget remaining for recovery: ${fetchErr.message}`,
+              diagnostic: true,
             });
             body = TURN_FAILED;
             break;
@@ -626,6 +664,7 @@ export async function runTrial({
             role: 'system',
             content:
               `[openai-compatible] fetch failed (attempt ${attempts}), polling vLLM for ~${waitS}s before retry: ${fetchErr.message}`,
+            diagnostic: true,
           });
           const probe = await pollVllmHealth({
             endpointUrl,
@@ -638,6 +677,7 @@ export async function runTrial({
             pushTurn({
               role: 'system',
               content: `[openai-compatible] vLLM recovered after ${recS}s, retrying turn`,
+              diagnostic: true,
             });
             // Loop back: same payload, fresh per-request controller.
             continue;
@@ -657,6 +697,7 @@ export async function runTrial({
               role: 'system',
               content:
                 `[openai-compatible] vLLM did not recover within ${Math.round(probe.elapsedMs / 1000)}s, retrying (${attempts}/${recoveryMaxRetries})`,
+              diagnostic: true,
             });
             continue;
           }
@@ -666,6 +707,7 @@ export async function runTrial({
             role: 'system',
             content:
               `[openai-compatible fetch error] giving up after ${attempts} attempts (vLLM unrecovered): ${fetchErr.message}`,
+            diagnostic: true,
           });
           body = TURN_FAILED;
           break;
@@ -677,12 +719,14 @@ export async function runTrial({
             role: 'system',
             content:
               `[openai-compatible fetch error] giving up after ${attempts} attempts: ${fetchErr.message}`,
+            diagnostic: true,
           });
         } else {
           stopReason = 'error';
           pushTurn({
             role: 'system',
             content: `[openai-compatible fetch error] ${fetchErr.message}`,
+            diagnostic: true,
           });
         }
         body = TURN_FAILED;
@@ -705,6 +749,7 @@ export async function runTrial({
             pushTurn({
               role: 'system',
               content: `[openai-compatible HTTP ${response.status}] ${text.slice(0, 500)}`,
+              diagnostic: true,
             });
             body = TURN_FAILED;
             break;
@@ -716,6 +761,7 @@ export async function runTrial({
             role: 'system',
             content:
               `[openai-compatible] HTTP ${response.status} (attempt ${attempts}), polling vLLM for ~${waitS}s before retry`,
+            diagnostic: true,
           });
           const probe = await pollVllmHealth({
             endpointUrl,
@@ -728,6 +774,7 @@ export async function runTrial({
             pushTurn({
               role: 'system',
               content: `[openai-compatible] vLLM recovered after ${recS}s, retrying turn`,
+              diagnostic: true,
             });
             continue;
           }
@@ -741,6 +788,7 @@ export async function runTrial({
               role: 'system',
               content:
                 `[openai-compatible] vLLM did not recover within ${Math.round(probe.elapsedMs / 1000)}s, retrying (${attempts}/${recoveryMaxRetries})`,
+              diagnostic: true,
             });
             continue;
           }
@@ -749,6 +797,7 @@ export async function runTrial({
             role: 'system',
             content:
               `[openai-compatible HTTP ${response.status}] giving up after ${attempts} attempts (vLLM unrecovered)`,
+            diagnostic: true,
           });
           body = TURN_FAILED;
           break;
@@ -759,6 +808,7 @@ export async function runTrial({
         pushTurn({
           role: 'system',
           content: `[openai-compatible HTTP ${response.status}] ${text.slice(0, 500)}`,
+          diagnostic: true,
         });
         body = TURN_FAILED;
         break;
@@ -773,6 +823,7 @@ export async function runTrial({
         pushTurn({
           role: 'system',
           content: `[openai-compatible JSON parse error] ${err && err.message}`,
+          diagnostic: true,
         });
         body = TURN_FAILED;
         break;
@@ -799,6 +850,7 @@ export async function runTrial({
       pushTurn({
         role: 'system',
         content: '[openai-compatible: no choices in response]',
+        diagnostic: true,
       });
       break;
     }
