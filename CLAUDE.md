@@ -1,5 +1,9 @@
 # Wovenflow repo — orchestrator notes
 
+## Research before deciding
+
+When you (or a dispatched subagent) hit a decision the current task doesn't settle — an unfamiliar API or library, a design fork with non-obvious tradeoffs, a "which approach" call where a wrong guess means rework — stop and run a research pass before implementing. Ground the call against real references (`wovenflow:researchflow`, or a focused web search for a narrow question) rather than guessing from stale training knowledge. This applies in every phase, not just pre-design. Skip it only when the decision is mechanical or freely reversible at no cost. A few minutes of grounding beats a confident wrong guess that costs a rebuild.
+
 ## Repo layout
 
 This repo contains two distinct artifacts that happen to live together:

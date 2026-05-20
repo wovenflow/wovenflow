@@ -38,6 +38,7 @@ If no profiles are configured, `researchflow` runs in **generalist mode**: the b
 - Choosing among multiple plausible approaches and the choice depends on what's been tried
 - Entering a domain where conventions or prior work matters (security, accessibility, ML, distributed systems)
 - Before invoking `wovenflow:designflow`
+- **Any phase, mid-task, when a hard decision surfaces that the spec doesn't pin down** — an unfamiliar API, a design fork with non-obvious tradeoffs, a "which approach" question where guessing risks rework. `researchflow` is not only a pre-design gate; invoke it whenever you're about to guess on something consequential, including while building or reviewing. The output can be a short scratch survey rather than a full `doc/research/` document when the question is narrow.
 
 Skip when: the work is mechanical (rename a variable, fix a typo), the domain is well-understood by the team, or external references would be noise.
 

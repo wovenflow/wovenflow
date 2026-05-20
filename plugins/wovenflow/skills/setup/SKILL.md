@@ -556,6 +556,7 @@ After all phases (and optional alternative cycles) have chosen skills, build the
 - Step-numbered bullets (sequential 1-N across all phases — no number reuse)
 - Mention the chosen skill prominently for each phase
 - Include the standard "If a step finds blockers, back up and fix" closing paragraph
+- Always include the cross-cutting **"Research before deciding"** principle in the closing block (see the output template). It is phase-independent and is emitted for every project regardless of which per-phase skills were chosen.
 - Match the format in the "Output template" below
 
 ### Step 7 — Write to CLAUDE.md
@@ -628,6 +629,8 @@ A typical work cycle starts from <claim source — e.g., GitHub issues, tasks.md
 [... etc through Phase 10 ...]
 
 If a step finds blockers, back up and fix before continuing. The workstream is a happy path, not a forced march — skip phases that don't apply, but don't skip Phase 1 (Claim), Phase 7 (Verify), or Phase 10 (Close out).
+
+**Research before deciding (applies in every phase).** When you hit a decision the current phase doesn't settle — an unfamiliar API or library, a design fork with non-obvious tradeoffs, a "which approach" question where a wrong guess means rework — stop and run a research pass (`wovenflow:researchflow`) before implementing. This is not confined to Phase 3: a few minutes grounding the call against real references beats a confident wrong guess that costs a rebuild. Skip it only when the decision is mechanical or genuinely reversible at no cost.
 ```
 
 ## Re-running the wizard
