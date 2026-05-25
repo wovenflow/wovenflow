@@ -41,44 +41,69 @@ while [ ! -f "$STOP_FILE" ]; do
   log "starting vllm (attempt #$restart_count)"
   echo "[$(ts)] === vllm start #$restart_count ===" >> "$VLLM_LOG"
 
-  # max-model-len 65536 (64K): full attention only on 10/40 layers, 2 KV heads,
-  # bf16 KV → ~10 KB/token. 64K context = ~640 MB KV cache per GPU, well under
-  # the ~1.5 GB headroom we measured at 8K. Bump higher (128K, 256K) only after
-  # confirming this size runs cleanly.
+  # 2026-05-20: switched from Qwen3.6-35B-A3B-FP8 (MoE) to Qwen3.6-27B-FP8
+  # (DENSE). The 35B-A3B repeatedly hung vLLM under sustained bench load: TP
+  # workers deadlocked on the shared-memory broadcast channel ("shm_broadcast.py:
+  # No available shared memory broadcast block found in 60 seconds" ->
+  # "TimeoutError: RPC call to sample_tokens timed out" -> EngineDeadError). It
+  # hit both the mp and ray executor backends. Research pinned the fingerprint
+  # on FP8 + MoE-routing JIT churn destabilizing the broadcast channel (vllm
+  # issues #36921, #41530 — the latter still open at v0.20.2, no fix). A dense
+  # model avoids the MoE-routing recompiles (the actual root-cause trigger);
+  # the TP worker count is secondary (#41530 reproduced at TP=2 and TP=4). The
+  # dense 27B also out-scores the 35B-A3B on coding benchmarks (SWE-bench 77.2
+  # vs 73.4, LiveCodeBench 83.9 vs 80.4) and keeps the native qwen3_coder tool
+  # parser. The benchmark never pinned a model (PROTOCOL-v2 §3.6 leaves Model
+  # ID "TBD", naming Qwen2.5-Coder-14B/32B as candidates), so this is in-scope.
   #
-  # VLLM_ENABLE_V1_MULTIPROCESSING=0: documented mitigation for the V1 multiproc
-  # shared-memory IPC bug (https://github.com/vllm-project/vllm/issues/36921 and
-  # related) that surfaces as `TimeoutError: RPC call to sample_tokens timed out`
-  # under sustained chat-completion load with long single responses (~40K+ output
-  # tokens). Disables only the engine-vs-API-server multiproc separation; TP=4
-  # workers continue to use multiproc-executor since that's required for tensor
-  # parallelism. Cost: minor throughput hit since engine + API server share a
-  # process. Worth it to stop the periodic engine deaths the bench was hitting.
-  # --enforce-eager was tried as a vLLM-IPC-crash mitigation but added a ~3x
-  # per-turn latency tax that pushed trials past the 15-min wall cap. Dropped:
-  # the crash is already covered by three cheaper layers —
-  #   1. VLLM_ENABLE_V1_MULTIPROCESSING=0 (the documented direct mitigation)
-  #   2. client-side max_tokens cap (default 4096, env BENCH_MAX_TOKENS, see
-  #      openai-compatible.js) — caps each single response so its generation
-  #      time stays under the ~300s sample_tokens executor timeout
-  #   3. the provider's vLLM-recovery loop — polls + retries on a mid-trial crash
-  # CUDAGraph stays ON for the 3x speedup.
-  # 2026-05-20: reverted the --distributed-executor-backend=ray experiment back
-  # to vLLM's default (mp). The HTTP 500s / EngineCore deaths it was chasing
-  # were not an executor-IPC problem: the bench provider was injecting
-  # mid-conversation `role:"system"` recovery breadcrumbs into the model
-  # payload, which Qwen3.6's chat template rejects ("System message must be at
-  # the beginning"), 500-ing every subsequent request and destabilizing the
-  # engine. Fixed harness-side — see
-  # doc/specs/2026-05-20-bench-provider-no-midstream-system.spec.md.
+  # TP=4: the FP8 weights are ~29 GB on disk (NOT ~17 GB), so TP=2 OOMs at
+  # ~14.5 GB/GPU on 16 GB A4000s. TP=4 splits to ~7.25 GB/GPU, leaving room for
+  # CUDA graphs + KV cache at 32K context. VLLM_ENABLE_V1_MULTIPROCESSING=0 kept
+  # as a low-cost engine/API-server IPC mitigation. Client-side max_tokens cap
+  # (default 4096, env BENCH_MAX_TOKENS) and the provider's vLLM-recovery loop
+  # remain in place.
+  #
+  # --max-num-seqs 16: Qwen3.6-27B is a HYBRID Mamba/linear-attention model
+  # (config shows mamba_mixer2 / gdn_attention_core / linear_attention ops).
+  # Each decode sequence needs one Mamba state-cache block; vLLM's default
+  # max_num_seqs=256 exceeded the ~216 blocks that fit in the available cache
+  # ("CUDA graph capture cannot proceed"). The bench fires ONE request at a
+  # time, so a high concurrency ceiling is pointless — 16 is ample and frees
+  # cache memory.
+  #
+  # ROOT CAUSE (2026-05-21): the hang is a TRANSPORT problem, not a model
+  # problem. The identical signature (shm_broadcast stall -> sample_tokens RPC
+  # timeout -> EngineDeadError) appeared across MoE 35B, dense-hybrid 27B, and
+  # with the GDN-specific --gdn-prefill-backend triton fix applied. Symptom
+  # invariant across architectures => the cause is the TP=4 cross-GPU comms.
+  # These A4000s have NO NVLink — TP all-reduce goes over PCIe P2P. IOMMU is ON
+  # (AMD-Vi) and ACS was enabled on the AMD GPP bridges, which forces P2P
+  # transactions through the root complex / IOMMU and deadlocks NCCL under load
+  # (NVIDIA NCCL #2079, our exact AMD-bridge + no-NVLink hardware; NCCL docs
+  # name ACS/VT-d as the cause). Forcing socket transport (NCCL_P2P_DISABLE +
+  # NCCL_SHM_DISABLE) fully stopped the crashes but dropped throughput to
+  # ~15 tok/s (TCP loopback all-reduce).
+  #
+  # FIX (2026-05-21): ACS disabled at runtime on all PCIe bridges via
+  #   sudo bash -c 'for b in $(lspci -D|awk "/PCI bridge/{print \$1}"); do \
+  #     setpci -v -s "$b" ECAP_ACS+0x6.w=0000 2>/dev/null; done'
+  # (reversible on reboot). With ACS off, direct GPU P2P works, so the socket-
+  # fallback flags are REMOVED to restore full speed. --disable-custom-all-reduce
+  # kept as a conservative all-reduce path (NCCL all-reduce over now-working
+  # P2P); drop it too if more speed is needed. --gdn-prefill-backend triton and
+  # --max-num-seqs 16 kept. If the hang ever returns, re-confirm ACS is still
+  # off after any reboot (re-run the setpci loop) before re-adding socket flags.
   CUDA_VISIBLE_DEVICES=1,2,3,4 \
     VLLM_ENABLE_V1_MULTIPROCESSING=0 \
     python3 -m vllm.entrypoints.openai.api_server \
-    --model Qwen/Qwen3.6-35B-A3B-FP8 \
+    --model Qwen/Qwen3.6-27B-FP8 \
     --host 127.0.0.1 --port 8000 \
     --tensor-parallel-size 4 \
-    --gpu-memory-utilization 0.88 \
-    --max-model-len 65536 \
+    --gpu-memory-utilization 0.90 \
+    --max-model-len 32768 \
+    --max-num-seqs 16 \
+    --gdn-prefill-backend triton \
+    --disable-custom-all-reduce \
     --enable-auto-tool-choice \
     --tool-call-parser qwen3_coder \
     --reasoning-parser qwen3 \
