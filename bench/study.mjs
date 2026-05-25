@@ -80,7 +80,12 @@ const DEFAULT_CONDITIONS = ['baseline', 'tdd', 'dtdd'];
 // the budget on small test writes and then stubbed `write_source` on the last
 // turn. 35 gives that workflow headroom while still acting as a ceiling, not a
 // target; callers can override per `runStudy` invocation.
-const STUDY_DEFAULT_TURN_CAP = 35;
+//
+// Exported so the CLI (`main`) and tests can name the default without
+// re-hard-coding 35. This is a near-pre-registered value — change it only
+// via an explicit `--turn-cap` override on a run, never by editing the
+// constant for a single run.
+export const STUDY_DEFAULT_TURN_CAP = 35;
 
 // Tool-usage preamble appended to every system prompt regardless of condition.
 // Describes what `write_source` and `write_test` do so the model knows to call
@@ -970,12 +975,13 @@ export async function scoreTrialAndUpdateMeta({ trial_dir, task_id, phase } = {}
 
 // --- B9: CLI ----------------------------------------------------------------
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const out = {
     run_id: null,
     tasks: null,
     conditions: null,
     trials: null,
+    turn_cap: null,
     topology: null,
     dry_run: false,
     help: false,
@@ -1010,6 +1016,21 @@ function parseArgs(argv) {
       case 'trials':
         out.trials = Number.parseInt(value, 10);
         break;
+      case 'turn-cap': {
+        // Parse strictly: reject anything that isn't a bare positive integer.
+        // Number.parseInt('15abc', 10) === 15 would silently accept garbage,
+        // so require the whole value to be digits, then range-check > 0. This
+        // mirrors the fail-fast validation on --trials / --topology so a typo
+        // can't quietly dispatch trials with a meaningless budget.
+        const n = /^\d+$/.test(value) ? Number.parseInt(value, 10) : NaN;
+        if (!Number.isInteger(n) || n <= 0) {
+          throw new Error(
+            `--turn-cap must be a positive integer (got "${value}")`,
+          );
+        }
+        out.turn_cap = n;
+        break;
+      }
       case 'topology':
         out.topology = value;
         break;
@@ -1029,6 +1050,7 @@ function printUsage(stream = process.stdout) {
     `  --tasks=<csv>           Comma-separated tasks (default: ${DEFAULT_TASKS.join(',')}).`,
     `  --conditions=<csv>      Comma-separated conditions (default: ${DEFAULT_CONDITIONS.join(',')}).`,
     '  --trials=<int>          Trials per cell (default: 1).',
+    `  --turn-cap=<int>        Per-trial turn budget (positive int; default: ${STUDY_DEFAULT_TURN_CAP}).`,
     `  --topology=<single|multi>  Topology for the run (default: single).`,
     '  --dry-run               Print the planned matrix and exit without dispatching.',
     '',
@@ -1056,6 +1078,10 @@ async function main() {
   const conditions = parsed.conditions ?? DEFAULT_CONDITIONS;
   const trials = parsed.trials ?? 1;
   const run_id = parsed.run_id ?? null;
+  // Per-trial turn budget: explicit --turn-cap override (already validated as a
+  // positive integer in parseArgs) wins, else the study-tuned default. runStudy
+  // re-validates and threads the resolved value down to the provider.
+  const turn_cap = parsed.turn_cap ?? STUDY_DEFAULT_TURN_CAP;
   const topology = parsed.topology ?? 'single';
   const dry_run = parsed.dry_run;
 
@@ -1102,6 +1128,7 @@ async function main() {
     tasks,
     conditions,
     trials,
+    turn_cap,
     topology,
     dry_run,
   });

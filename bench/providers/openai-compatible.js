@@ -323,6 +323,101 @@ export function validateArtifactContent(content, path) {
 }
 
 /**
+ * Strip a single fully-wrapping markdown code fence from `write_source` /
+ * `write_test` content. A weak model that emits its file body wrapped in a
+ * fence (e.g. ```javascript\n…\n```) would otherwise write the literal fence
+ * lines to `index.js`, making the hidden suite's `await import('index.js')`
+ * throw a SyntaxError and scoring a misleading load failure — even though the
+ * inner code is valid and complete (observed condition-correlated, see the
+ * spec). This unwraps the model's evident intent (the code inside the fence)
+ * rather than rejecting it; the raw fenced argument stays in the transcript.
+ *
+ * Deliberately conservative: fires ONLY when the entire trimmed content is a
+ * single fenced block — an opening fence line (optional language tag) and a
+ * closing ``` that is the final line of the trimmed content, with no
+ * intermediate ``` fence line. Already-clean code, prose-then-fence, two
+ * separate fenced blocks, and inline backticks are all left untouched. Empty
+ * or non-string input passes through unchanged.
+ *
+ * Exported for testability. See
+ * doc/specs/2026-05-24-bench-strip-code-fence.spec.md.
+ */
+export function stripCodeFence(content) {
+  if (typeof content !== 'string' || content.length === 0) {
+    return content;
+  }
+  const trimmed = content.trim();
+  // Opening fence must be the first line: ``` optionally followed by a
+  // language tag, then a newline. Reject if no body/closing fence follows.
+  const openMatch = /^```[a-zA-Z0-9_-]*\n/.exec(trimmed);
+  if (!openMatch) {
+    return content;
+  }
+  // Closing fence must be the final line of the trimmed content.
+  if (!/\n```$/.test(trimmed)) {
+    return content;
+  }
+  const body = trimmed.slice(openMatch[0].length, trimmed.length - '\n```'.length);
+  // Conservative: the body must not itself contain a fence line, otherwise the
+  // content is multiple blocks (or prose around a fence) — ambiguous, leave it.
+  if (/^```/m.test(body)) {
+    return content;
+  }
+  return body;
+}
+
+/**
+ * Append a just-in-time wrap-up reminder to an all-pass `run_tests` result.
+ *
+ * Motivation (see doc/specs/2026-05-24-bench-green-wrapup-reminder.spec.md):
+ * a weak model (Qwen2.5-Coder-14B) reaches all-green on its own `run_tests`
+ * call early, then ignores the buried system-prompt "stop when green" line and
+ * keeps rewriting working files until it hits the 35-turn cap — ~33 wasted
+ * turns per trial, which also overflows context on verbose tasks. An inline
+ * reminder right after green is far more salient than the system prompt.
+ *
+ * This only NUDGES — it never hard-stops the trial. The model still ends the
+ * trial itself by emitting a zero-tool-call turn (already `stopReason: 'done'`).
+ * The turn cap is unchanged.
+ *
+ * Detection rides on `run-tests-tool.js`'s `formatResult` output and is
+ * deliberately conservative — it fires ONLY for the unambiguous all-pass,
+ * non-empty case (`[run_tests] N/N passed` with N === N and N > 0, no
+ * `| ... failed` suffix, no `— <names>` failing list, and none of the
+ * error / timeout / load-error / no-tests forms). Anything it does not
+ * positively recognize as all-pass-non-empty is returned unchanged, so a
+ * future format drift fails safe (no reminder) rather than firing on a
+ * failing run.
+ *
+ * @param {string} resultString — the `run_tests` tool result.
+ * @returns {string} — the result, with the reminder appended iff all-pass.
+ */
+export function appendGreenWrapupReminder(resultString) {
+  if (typeof resultString !== 'string' || resultString.length === 0) {
+    return resultString;
+  }
+  // The all-pass summary is a single line `[run_tests] N/N passed` with NO
+  // trailing `| X failed` / `— <names>` markers. Match the whole (trimmed)
+  // string so any extra lines (load errors, timeout banner) disqualify it.
+  const m = /^\[run_tests\] (\d+)\/(\d+) passed$/.exec(resultString.trim());
+  if (!m) {
+    return resultString;
+  }
+  const pass = Number(m[1]);
+  const total = Number(m[2]);
+  // All-pass AND non-empty: numerator equals denominator and there is at
+  // least one test. `0/0 passed` is an empty suite — not a real green.
+  if (pass !== total || total === 0) {
+    return resultString;
+  }
+  const reminder =
+    `\n\nAll ${total} tests pass. If your implementation is complete, STOP NOW: ` +
+    `reply with no tool calls and the trial ends. Do not re-run tests on ` +
+    `already-passing code or rewrite working files.`;
+  return resultString + reminder;
+}
+
+/**
  * Build the request `messages` array from the `conversation` transcript,
  * isolating "what the model sees" from "what we log."
  *
@@ -352,11 +447,31 @@ export function toModelMessages(conversation) {
     // Drop any system message that would not be the first element of the
     // result (out.length > 0 means a non-system turn already precedes it).
     if (turn.role === 'system' && out.length > 0) continue;
-    out.push({
+    const msg = {
       role: turn.role,
       content:
         typeof turn.content === 'string' ? turn.content : JSON.stringify(turn.content),
-    });
+    };
+    // Preserve OpenAI tool-call pairing across multi-turn conversations:
+    //   - assistant.tool_calls survive into the request payload so the model
+    //     sees its own tool-call history;
+    //   - tool.tool_call_id survives so each tool result is routed back to the
+    //     call that produced it (qwen3-coder's chat template insists on this).
+    // finish_reason is intentionally NOT propagated — it's provider bookkeeping
+    // (we record it on `conversation` turns for the transcript), not part of
+    // the OpenAI Chat Completions request shape. See
+    // doc/specs/2026-05-23-bench-provider-tool-call-id-pairing.spec.md B1.
+    if (
+      turn.role === 'assistant' &&
+      Array.isArray(turn.tool_calls) &&
+      turn.tool_calls.length > 0
+    ) {
+      msg.tool_calls = turn.tool_calls;
+    }
+    if (turn.role === 'tool' && typeof turn.tool_call_id === 'string' && turn.tool_call_id.length > 0) {
+      msg.tool_call_id = turn.tool_call_id;
+    }
+    out.push(msg);
   }
   return out;
 }
@@ -430,14 +545,30 @@ export async function runTrial({
   // captureTrial at end of dispatch. Filename is `conversation-live.jsonl`.
   // Best-effort: any write failure is swallowed so it never breaks dispatch.
   progress_dir,
+  // Test-only seams documented in
+  // doc/specs/2026-05-23-bench-provider-tool-call-id-pairing.spec.md B3/B4:
+  // the new tests pass endpoint_url / model_id / protocol_variant at the top
+  // level (rather than under `options`) and an `_injectedFetch` to stand in
+  // for `globalThis.fetch`. Production callers continue to use `options.*`
+  // and `globalThis.fetch`; top-level fields are accepted as fallbacks so
+  // both shapes coexist without breaking older callers.
+  endpoint_url: endpoint_url_arg,
+  model_id: model_id_arg,
+  protocol_variant: protocol_variant_arg,
+  _injectedFetch,
 } = {}) {
-  assertSupportedVariant(options.protocol_variant || 'openai-chat-completions');
+  assertSupportedVariant(
+    options.protocol_variant || protocol_variant_arg || 'openai-chat-completions',
+  );
 
   const turnCap = options.turn_cap ?? DEFAULT_TURN_CAP;
   const wallClockMs = options.wall_clock_cap_ms ?? DEFAULT_WALL_CLOCK_MS;
   const graceMs = options.grace_ms ?? DEFAULT_GRACE_MS;
-  const endpointUrl = options.endpoint_url;
-  const modelId = options.model_id;
+  const endpointUrl = options.endpoint_url ?? endpoint_url_arg;
+  const modelId = options.model_id ?? model_id_arg;
+  // Allow tests to inject a fetch implementation without monkey-patching
+  // globalThis.fetch (see _injectedFetch above).
+  const fetchImpl = _injectedFetch || globalThis.fetch;
 
   if (!endpointUrl) {
     throw new ProviderConfigError(
@@ -528,6 +659,12 @@ export async function runTrial({
   // forbidden by the bench's ESM-only contract. The file is dropped; the
   // model sees the reason in its tool result and can retry with ESM syntax.
   const contentRejections = [];
+  // Content normalizations. Each entry is `{tool, path}` for a
+  // write_source/write_test call whose `content` was a single fully-wrapping
+  // markdown code fence that `stripCodeFence` unwrapped before validation and
+  // persistence. Always surfaced (possibly empty) so the run is auditable; the
+  // raw fenced argument stays verbatim in the saved `conversation` transcript.
+  const contentNormalizations = [];
   // Multi-agent: orchestrator-collected dispatch entries to surface to the
   // runner. Each entry mirrors the contract documented at runner.js's
   // "Provider contract extension" header: {id, system_prompt, user_message,
@@ -602,7 +739,7 @@ export async function runTrial({
       let response;
       let fetchErr = null;
       try {
-        response = await fetch(url, {
+        response = await fetchImpl(url, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -863,28 +1000,46 @@ export async function runTrial({
       break;
     }
 
-    pushTurn({
-      role: 'assistant',
-      content: message.content ?? '',
-      tool_calls: message.tool_calls,
-      finish_reason: choice.finish_reason,
-    });
+    // Per the OpenAI tool-call contract (and qwen3-coder's strict chat
+    // template, the failure mode that motivated this fix — see
+    // doc/specs/2026-05-23-bench-provider-tool-call-id-pairing.spec.md):
+    //
+    //   - The assistant turn must carry the `tool_calls` array so that the
+    //     model, on a subsequent request, sees its own tool-call history.
+    //   - Each `tool_calls[i]` must be followed by exactly one `role:'tool'`
+    //     message tagged with `tool_call_id: tool_calls[i].id`.
+    //
+    // For the structured path we copy the provider-supplied ids; for the
+    // JSON-fence fallback (see jsoncode-fallback spec) we synthesize a
+    // deterministic id per call (`call_fallback_${turn}_${i}`) and attach the
+    // synthesized `tool_calls` array to the assistant turn so the pairing
+    // survives `toModelMessages`.
+    //
+    // Per-call content rule: rejection line for the call's own rejection if
+    // it had one (path or content), or the call's own `run_tests` output if
+    // it was a `run_tests` call, otherwise the `[tool results applied]`
+    // placeholder for an accepted `write_*` call. The aggregate "one tool
+    // message per turn" shape used by the previous build was a harness
+    // convenience, not a methodology requirement; per-call routing is what
+    // strict templates demand.
 
-    const structuredCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
-    if (structuredCalls.length > 0) {
-      let sawDispatch = false;
-      // Collect run_tests output across calls in this turn so the model sees
-      // all results in one tool message (matches OpenAI's expected pattern of
-      // one tool reply per assistant turn rather than interleaved messages).
-      const runTestsResults = [];
-      // Snapshot rejection counts so we can surface only THIS turn's rejects
-      // to the model (rejections accumulate across turns in the module-scoped
-      // arrays; per-turn slicing is how we tell the model what just got
-      // rejected so it can retry with corrected path/content).
-      const pathRejCountBefore = pathRejections.length;
-      const contentRejCountBefore = contentRejections.length;
-      for (const call of structuredCalls) {
-        const fn = call.function;
+    const structuredCallsRaw = Array.isArray(message.tool_calls)
+      ? message.tool_calls
+      : [];
+    const hasStructuredCalls = structuredCallsRaw.length > 0;
+    const fallbackCalls = hasStructuredCalls
+      ? []
+      : extractJsonCodeBlockToolCalls(message.content ?? '', fallbackAccepted);
+    const hasFallbackCalls = fallbackCalls.length > 0;
+
+    // Build a uniform per-call descriptor list so both the structured and the
+    // fallback paths share the same dispatch / outcome / tool-message code.
+    // Each descriptor carries: { id, name, args }.
+    let perCall = [];
+    if (hasStructuredCalls) {
+      for (let i = 0; i < structuredCallsRaw.length; i += 1) {
+        const call = structuredCallsRaw[i];
+        const fn = call?.function;
         if (!fn?.name) continue;
         let args = {};
         try {
@@ -892,31 +1047,97 @@ export async function runTrial({
         } catch {
           args = {};
         }
-        if (fn.name === 'write_source' && args.path && args.content) {
+        perCall.push({
+          id: typeof call.id === 'string' && call.id.length > 0 ? call.id : `call_${turn}_${i}`,
+          name: fn.name,
+          args,
+        });
+      }
+    } else if (hasFallbackCalls) {
+      for (let i = 0; i < fallbackCalls.length; i += 1) {
+        const { name, arguments: args } = fallbackCalls[i];
+        perCall.push({
+          id: `call_fallback_${turn}_${i}`,
+          name,
+          args,
+        });
+      }
+    }
+
+    // For the fallback path, synthesize the assistant.tool_calls array so the
+    // pairing survives `toModelMessages` (it's what the OpenAI spec ships back
+    // to the model on the next request). For the structured path we keep the
+    // provider's original tool_calls unchanged.
+    const assistantToolCalls = hasFallbackCalls
+      ? perCall.map((c) => ({
+          id: c.id,
+          type: 'function',
+          function: {
+            name: c.name,
+            arguments: JSON.stringify(c.args ?? {}),
+          },
+        }))
+      : structuredCallsRaw;
+
+    pushTurn({
+      role: 'assistant',
+      content: message.content ?? '',
+      tool_calls: assistantToolCalls,
+      finish_reason: choice.finish_reason,
+    });
+
+    if (perCall.length > 0) {
+      let sawDispatch = false;
+      // Per-call outcomes parallel to perCall; each entry is the content
+      // string that becomes the body of THIS call's `role:'tool'` reply.
+      // Filled inline as we dispatch each call so per-call rejection /
+      // run_tests output is routed back to the correct tool_call_id.
+      const outcomes = new Array(perCall.length).fill(null);
+      for (let i = 0; i < perCall.length; i += 1) {
+        const { name, args } = perCall[i];
+        if (name === 'write_source' && args.path && args.content) {
+          // Normalize a single fully-wrapping markdown fence before validating
+          // and persisting; record the strip for auditability. The raw fenced
+          // argument stays in the transcript (assistant.tool_calls, above).
+          const normalized = stripCodeFence(args.content);
+          if (normalized !== args.content) {
+            contentNormalizations.push({ tool: 'write_source', path: args.path });
+          }
           const v = validateArtifactPath(args.path);
           if (!v.ok) {
             pathRejections.push({ tool: 'write_source', path: args.path, reason: v.reason });
+            outcomes[i] = `[rejected] ${v.reason}`;
           } else {
-            const cv = validateArtifactContent(args.content, args.path);
+            const cv = validateArtifactContent(normalized, args.path);
             if (!cv.ok) {
               contentRejections.push({ tool: 'write_source', path: args.path, reason: cv.reason });
+              outcomes[i] = `[rejected] ${cv.reason}`;
             } else {
-              sourceFiles[args.path] = String(args.content);
+              sourceFiles[args.path] = String(normalized);
+              outcomes[i] = '[tool results applied]';
             }
           }
-        } else if (fn.name === 'write_test' && args.path && args.content) {
+        } else if (name === 'write_test' && args.path && args.content) {
+          // Same fence normalization for test artifacts.
+          const normalized = stripCodeFence(args.content);
+          if (normalized !== args.content) {
+            contentNormalizations.push({ tool: 'write_test', path: args.path });
+          }
           const v = validateArtifactPath(args.path);
           if (!v.ok) {
             pathRejections.push({ tool: 'write_test', path: args.path, reason: v.reason });
+            outcomes[i] = `[rejected] ${v.reason}`;
           } else {
-            const cv = validateArtifactContent(args.content, args.path);
+            const cv = validateArtifactContent(normalized, args.path);
             if (!cv.ok) {
               contentRejections.push({ tool: 'write_test', path: args.path, reason: cv.reason });
+              outcomes[i] = `[rejected] ${cv.reason}`;
             } else {
-              testFiles[args.path] = String(args.content);
+              testFiles[args.path] = String(normalized);
+              outcomes[i] = '[tool results applied]';
             }
           }
-        } else if (fn.name === 'run_tests') {
+        } else if (name === 'run_tests') {
           // Execute the agent's tests against the agent's source. This is the
           // model's feedback loop — it runs in a sandbox tempdir, never
           // touches bench/tasks/<task>/hidden_tests/, and returns a structured
@@ -926,9 +1147,15 @@ export async function runTrial({
             testFiles,
             test_path: typeof args.test_path === 'string' ? args.test_path : undefined,
           });
-          runTestsResults.push(result);
+          // Just-in-time nudge: if the suite is all-pass non-empty, append a
+          // salient "stop now" reminder to the tool message the model sees, so
+          // a model that ignores the buried system-prompt "stop when green"
+          // line ends the trial instead of burning the rest of the turn cap.
+          // No hard-stop — the model still chooses to stop by emitting a
+          // zero-tool-call turn.
+          outcomes[i] = appendGreenWrapupReminder(result);
         } else if (
-          fn.name === 'dispatch_subagent' &&
+          name === 'dispatch_subagent' &&
           role === 'orchestrator' &&
           typeof args.subagent_id === 'string' &&
           typeof args.brief === 'string'
@@ -950,6 +1177,12 @@ export async function runTrial({
               : undefined,
           });
           sawDispatch = true;
+          outcomes[i] = '[dispatched]';
+        } else {
+          // Unrecognized / malformed call: still emit a tool reply so the
+          // pairing stays intact (one tool message per tool_call_id is the
+          // OpenAI contract, regardless of whether we actioned the call).
+          outcomes[i] = '[tool results applied]';
         }
       }
       if (sawDispatch) {
@@ -961,107 +1194,17 @@ export async function runTrial({
         stopReason = 'done';
         break;
       }
-      // Synthesize a tool-result user turn so the loop continues. When
-      // run_tests was called this turn, surface the test output so the model
-      // can react to failures next turn; otherwise the generic placeholder.
-      // Per-turn rejection summaries are prepended so the model sees its
-      // write_source/write_test errors and can retry.
-      const turnPathRejects = pathRejections.slice(pathRejCountBefore);
-      const turnContentRejects = contentRejections.slice(contentRejCountBefore);
-      const rejectLines = [
-        ...turnPathRejects.map((r) => `[rejected] ${r.reason}`),
-        ...turnContentRejects.map((r) => `[rejected] ${r.reason}`),
-      ];
-      const baseContent =
-        runTestsResults.length > 0
-          ? runTestsResults.join('\n\n')
-          : '[tool results applied]';
-      const toolContent =
-        rejectLines.length > 0 ? `${rejectLines.join('\n')}\n\n${baseContent}` : baseContent;
-      pushTurn({ role: 'tool', content: toolContent });
-      continue;
-    }
-
-    // Fallback: structured tool_calls is absent or empty. Some models
-    // (e.g. Qwen2.5-Coder when no vLLM tool-parser matches their format)
-    // emit tool calls as fenced ```json blocks inside content. Extract them
-    // here so the trial is still scoreable. See
-    // doc/specs/2026-05-11-bench-provider-jsoncode-fallback.spec.md.
-    const fallbackCalls = extractJsonCodeBlockToolCalls(
-      message.content ?? '',
-      fallbackAccepted,
-    );
-    if (fallbackCalls.length > 0) {
-      let sawDispatch = false;
-      const runTestsResults = [];
-      const pathRejCountBefore = pathRejections.length;
-      const contentRejCountBefore = contentRejections.length;
-      for (const call of fallbackCalls) {
-        const { name, arguments: args } = call;
-        if (name === 'write_source' && args.path && args.content) {
-          const v = validateArtifactPath(args.path);
-          if (!v.ok) {
-            pathRejections.push({ tool: 'write_source', path: args.path, reason: v.reason });
-          } else {
-            const cv = validateArtifactContent(args.content, args.path);
-            if (!cv.ok) {
-              contentRejections.push({ tool: 'write_source', path: args.path, reason: cv.reason });
-            } else {
-              sourceFiles[args.path] = String(args.content);
-            }
-          }
-        } else if (name === 'write_test' && args.path && args.content) {
-          const v = validateArtifactPath(args.path);
-          if (!v.ok) {
-            pathRejections.push({ tool: 'write_test', path: args.path, reason: v.reason });
-          } else {
-            const cv = validateArtifactContent(args.content, args.path);
-            if (!cv.ok) {
-              contentRejections.push({ tool: 'write_test', path: args.path, reason: cv.reason });
-            } else {
-              testFiles[args.path] = String(args.content);
-            }
-          }
-        } else if (name === 'run_tests') {
-          const result = runTestsTool({
-            sourceFiles,
-            testFiles,
-            test_path: typeof args.test_path === 'string' ? args.test_path : undefined,
-          });
-          runTestsResults.push(result);
-        } else if (
-          name === 'dispatch_subagent' &&
-          role === 'orchestrator' &&
-          typeof args.subagent_id === 'string' &&
-          typeof args.brief === 'string'
-        ) {
-          subagentDispatches.push({
-            id: args.subagent_id,
-            user_message: args.brief,
-            artifacts_to_produce: Array.isArray(args.artifacts_to_produce)
-              ? args.artifacts_to_produce.map(String)
-              : undefined,
-          });
-          sawDispatch = true;
-        }
+      // Emit one tool message per call, each tagged with its source
+      // tool_call_id (real or synthesized). This is the change motivated by
+      // the qwen3-coder template failure — strict templates require this
+      // pairing to re-tokenize the conversation on the next request.
+      for (let i = 0; i < perCall.length; i += 1) {
+        pushTurn({
+          role: 'tool',
+          content: outcomes[i] ?? '[tool results applied]',
+          tool_call_id: perCall[i].id,
+        });
       }
-      if (sawDispatch) {
-        stopReason = 'done';
-        break;
-      }
-      const turnPathRejects = pathRejections.slice(pathRejCountBefore);
-      const turnContentRejects = contentRejections.slice(contentRejCountBefore);
-      const rejectLines = [
-        ...turnPathRejects.map((r) => `[rejected] ${r.reason}`),
-        ...turnContentRejects.map((r) => `[rejected] ${r.reason}`),
-      ];
-      const baseContent =
-        runTestsResults.length > 0
-          ? runTestsResults.join('\n\n')
-          : '[tool results applied]';
-      const toolContent =
-        rejectLines.length > 0 ? `${rejectLines.join('\n')}\n\n${baseContent}` : baseContent;
-      pushTurn({ role: 'tool', content: toolContent });
       continue;
     }
 
@@ -1094,6 +1237,10 @@ export async function runTrial({
   // Surface content-validation rejections (CJS-pattern rejects from
   // validateArtifactContent). Same back-compat shape as path_rejections.
   result.content_rejections = contentRejections;
+  // Surface content normalizations (wrapping-fence strips from
+  // stripCodeFence). Always present (possibly empty); same back-compat shape
+  // as path_rejections / content_rejections.
+  result.content_normalizations = contentNormalizations;
   // Multi-agent: surface dispatch entries when this was an orchestrator call
   // and the model invoked dispatch_subagent. Always present (possibly empty)
   // for orchestrator role so the runner can disambiguate "orchestrator chose
