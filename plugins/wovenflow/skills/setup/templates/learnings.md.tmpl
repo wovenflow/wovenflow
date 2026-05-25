@@ -1,0 +1,39 @@
+# Learnings
+
+A running index of significant, non-obvious discoveries from this project — the
+findings worth carrying into a paper, writeup, postmortem, or design doc.
+Captured *as they happen* so they don't evaporate: `wovenflow:researchflow`
+appends here when research resolves an unknown or rules out an approach, and the
+close-out / wrap-up phase appends here when a working session surfaces a
+hard-won insight.
+
+This is **not** a progress log, a changelog, or a session journal. It is the
+distilled, publication-relevant record of what this project *learned*.
+
+## The bar — what belongs here
+
+Capture only what is **non-obvious, surprising, or hard-won**:
+
+- a result that contradicted an assumption going in
+- an approach tried and ruled out, with *why* it failed
+- a resolved unknown — a wall pushed through, and what was on the other side
+- a constraint discovered the hard way (a tool/library/hardware limit, an edge
+  case that broke a design)
+
+Leave out routine progress, anything obvious from reading the code, and
+"implemented X as planned." When in doubt, leave it out — a dense index is far
+more useful for future publication than an exhaustive one.
+
+## Entry format (newest first)
+
+```
+## YYYY-MM-DD — <short topic>
+- **Finding:** the insight, stated first, in 1-2 sentences.
+- **Evidence:** what was tried and the data/result that grounds it — enough that
+  a future reader (or reviewer) can trust and trace the claim, not just take it.
+- **Why it matters:** the publication angle — what claim it supports or refutes,
+  or what it changes about the approach going forward.
+- **Refs:** links — commit SHA, spec, `doc/research/` doc, results dir, issue.
+```
+
+<!-- New entries go directly below this line, newest first. -->

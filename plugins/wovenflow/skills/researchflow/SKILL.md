@@ -143,11 +143,17 @@ Then a short paragraph: what's novel about this work, if anything?
 - Not "we're doing it better" — name the specific novelty (mechanism, scale, domain, integration)
 - If nothing is specifically novel, that's important information: this work may be replication / consolidation / engineering rather than research, which changes the shape of what `designflow` writes
 
-### 8. Save the document
+### 8. Capture findings to LEARNINGS.md
+
+If this research resolved an unknown, ruled out an approach, or surfaced a surprising gap in the prior art — a finding you'd want in a future paper or writeup, not just the reference list — append an entry to `LEARNINGS.md` at the repo root (create it from the project's learnings template, or with the same header, if it doesn't exist yet). Research is exactly where the agent "pushes through walls"; this step exists so *what was discovered* gets captured, not only *what already exists* in the references.
+
+Use the entry format the file documents — **Finding** (the insight first), **Evidence** (what was tried + the result that grounds it), **Why it matters** (the publication angle), **Refs** (link the `doc/research/<feature>.md` doc, plus any commit/issue). Apply a **high bar**: only non-obvious, surprising, or hard-won findings belong (see LEARNINGS.md's header). Skip this step when the research merely confirmed what was expected — a dense index beats an exhaustive one.
+
+### 9. Save the document
 
 `doc/research/<feature>.md` (or wherever the project's research artifacts live). Commit it.
 
-### 9. Hand off to designflow
+### 10. Hand off to designflow
 
 The next phase (`wovenflow:designflow`) reads this document as context when drafting the `.spec.md`. Behaviors in the spec should reflect what the references and profile analyses teach — don't re-derive what's known; address the actual gaps.
 

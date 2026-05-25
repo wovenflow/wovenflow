@@ -206,7 +206,8 @@ For the universal patterns of the cycle, wovenflow ships fill-in templates that 
 | `verify.md.tmpl` | `<repo>/.claude/skills/verify/SKILL.md` | Verification gate (Phase 7) — tests, coverage audit, UI/manual walkthrough, adversarial review |
 | `ship-pr.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship via pull request (Phase 8) — push, `gh pr create`, mark task in-review |
 | `ship-direct.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship without PR (Phase 8) — confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub projects. |
-| `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 10) — dangling-commit audit, status reconciliation, next-task claim |
+| `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 10) — dangling-commit audit, status reconciliation, session-learnings capture, next-task claim |
+| `learnings.md.tmpl` | `<repo>/LEARNINGS.md` | Publication-oriented findings index at the repo root — `researchflow` and the close-out/wrap-up phase append non-obvious discoveries here. Materialized alongside the wrap-up template, only when the file doesn't already exist. |
 | `researcher.md.tmpl` | `<repo>/.claude/skills/researchflow/researchers/<name>.md` | Custom researcher profile (Phase 3) — field-specific steps and integrity gates layered on top of base researchflow. Wizard fills name, field, when-to-apply, mindset, steps, output schema, anti-patterns. |
 
 All templates live at `plugins/wovenflow/skills/setup/templates/`. Variable reference and template syntax (substitution + conditional blocks) are documented in `templates/README.md`.
@@ -371,6 +372,8 @@ If a template matches, follow 3b. Otherwise skip to 3c.
 4. Write to `<repo>/.claude/skills/<name>/SKILL.md`.
 
 5. **Special case for `claim-tasks`:** if `<repo>/<TASKS_FILE>` doesn't exist, also materialize `tasks.md.tmpl` to that path with the same variables. The project starts with a usable task tracker. Always materialize `tasks.py.tmpl` to `<repo>/<TASKS_HELPER>` (default: `scripts/tasks.py`) and `chmod +x` it — `claim-tasks`, `wrap-up`, and `startup` all invoke this helper. Default `TASKS_HELPER=scripts/tasks.py`; ask the user only if they want it elsewhere.
+
+6. **Special case for `wrap-up`:** if `<repo>/LEARNINGS.md` doesn't exist, also materialize `learnings.md.tmpl` to `<repo>/LEARNINGS.md`. This gives the project a publication-oriented findings index that the wrap-up step (step 6) and `wovenflow:researchflow` both append non-obvious discoveries to. **Never overwrite** an existing `LEARNINGS.md` — it accumulates learnings across the project's life. Repo root is the default; ask the user only if they want it elsewhere (e.g. `doc/LEARNINGS.md`).
 
 #### 3c. Fall back to skill-creator (no template available)
 

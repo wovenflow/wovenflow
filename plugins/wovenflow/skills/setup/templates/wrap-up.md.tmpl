@@ -108,7 +108,20 @@ Write a short paragraph (3-5 sentences) covering:
 
 Save it in whichever surface the project uses for session continuity — a comment on the task, a session-state file, or both.
 
-### 6. Notice workflow friction (offer flowtune)
+### 6. Capture session learnings (LEARNINGS.md)
+
+A session often discovers something worth keeping for a future paper, writeup, or postmortem — a hard-won insight, an approach ruled out and *why*, a constraint hit the hard way, a result that contradicted an assumption going in. The checkpoint (step 5) captures *where you left off*; this captures *what the project learned*. They are different, and both matter — the checkpoint is ephemeral, the learning is durable.
+
+Scan the session for findings that clear a **high bar** — non-obvious, surprising, or hard-won. For each, append an entry to `LEARNINGS.md` at the repo root (create it from the project's learnings template, or with the same header, if it doesn't exist yet):
+
+- **Finding:** the insight, stated first, in 1-2 sentences.
+- **Evidence:** what was tried and the result that grounds it — enough to trust and trace the claim later.
+- **Why it matters:** the publication angle — the claim it supports or refutes, or what it changes going forward.
+- **Refs:** commit SHA, spec, results dir, issue.
+
+Skip routine progress and anything obvious from the diff — a dense index is more useful for future publication than an exhaustive one. If the session surfaced no such finding, skip this step silently.
+
+### 7. Notice workflow friction (offer flowtune)
 
 Scan the session for signals that the documented workflow drifted from how you actually worked:
 
@@ -126,7 +139,7 @@ If 1+ signal appears, offer to run `wovenflow:flowtune` via `AskUserQuestion`:
 
 If no signals, skip this step silently — the workflow is working.
 
-### 7. Reserve the next task
+### 8. Reserve the next task
 
 Identify the most natural follow-on, in priority order:
 
