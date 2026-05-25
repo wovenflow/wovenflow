@@ -1,0 +1,23 @@
+{
+  "comment": "Edge-case category labels covered by this task's hidden tests. Each label must have a corresponding predicate file under coverage_predicates/<label>.js. The label_descriptions field is the only context a blind predicate-authoring subagent sees.",
+  "labels": [
+    "exact",
+    "comparator",
+    "caret",
+    "caret-zero",
+    "tilde",
+    "x-range",
+    "or",
+    "and"
+  ],
+  "label_descriptions": {
+    "exact": "An exact-version range (e.g. '1.2.3', or '=1.2.3') matches only that exact version and nothing else. The agent's tests should include at least one assertion exercising an exact-version range, including a non-matching version.",
+    "comparator": "A comparator range using >, >=, <, or <= (e.g. '>1.2.3', '<=2.0.0') matches versions on the correct side of the boundary, compared numerically by major then minor then patch. The agent's tests should include at least one assertion exercising a comparator operator.",
+    "caret": "A caret range with a non-zero major (e.g. '^1.2.3' := >=1.2.3 <2.0.0) allows minor and patch increases but not a major bump. The agent's tests should include at least one assertion exercising a caret range with a non-zero major, including a version at or above the next major being rejected.",
+    "caret-zero": "A caret range with a zero major pins the next significant component: '^0.2.3' := >=0.2.3 <0.3.0, and '^0.0.3' := >=0.0.3 <0.0.4. The agent's tests should include at least one assertion exercising a caret range whose major version is 0.",
+    "tilde": "A tilde range (e.g. '~1.2.3' := >=1.2.3 <1.3.0) allows patch-level changes but pins major and minor. The agent's tests should include at least one assertion exercising a tilde range, including a version at the next minor being rejected.",
+    "x-range": "An x-range / wildcard (e.g. '1.2.x', '1.x', '*') treats x/X/* or omitted trailing components as 'any' within the implied bounds. The agent's tests should include at least one assertion exercising a wildcard range.",
+    "or": "An OR range joins parts with '||' and matches if ANY part matches (e.g. '1.2.3 || >=2.0.0'). The agent's tests should include at least one assertion exercising a '||' range, including a version that matches one part and a version that matches none.",
+    "and": "A space-separated comparator range ANDs its comparators: the version must satisfy ALL of them (e.g. '>=1.2.0 <2.0.0'). The agent's tests should include at least one assertion exercising a space-separated AND range, including a version that fails one comparator."
+  }
+}

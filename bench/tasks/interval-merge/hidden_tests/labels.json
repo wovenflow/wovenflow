@@ -1,0 +1,22 @@
+{
+  "labels": [
+    "empty",
+    "single",
+    "non-overlapping",
+    "overlapping",
+    "adjacent-touch",
+    "unsorted-input",
+    "contained",
+    "point-interval"
+  ],
+  "label_descriptions": {
+    "empty": "An empty input array returns an empty array. The agent's tests should include at least one assertion exercising empty input.",
+    "single": "A single interval is returned unchanged (in a new array). The agent's tests should include at least one assertion exercising the single-interval case.",
+    "non-overlapping": "Disjoint, non-touching intervals remain separate in the output. The agent's tests should include at least one assertion where the input intervals do not overlap and the output keeps them separate.",
+    "overlapping": "Two or more overlapping intervals are merged into one spanning their combined range. The agent's tests should include at least one assertion exercising overlap merging.",
+    "adjacent-touch": "Two intervals that touch exactly (one ends where the next begins, e.g. [1,2] and [2,3]) are merged into [1,3]. The agent's tests should include at least one assertion exercising the adjacency/touching merge rule.",
+    "unsorted-input": "Input intervals may be given out of order; the output is always sorted ascending by start. The agent's tests should include at least one assertion where the input is not pre-sorted.",
+    "contained": "An interval fully contained within another is absorbed (e.g. [1,10] and [3,4] -> [1,10]). The agent's tests should include at least one assertion exercising full containment.",
+    "point-interval": "Zero-length point intervals (e.g. [5,5]) are valid and follow the same merge rules. The agent's tests should include at least one assertion exercising a point/zero-length interval."
+  }
+}

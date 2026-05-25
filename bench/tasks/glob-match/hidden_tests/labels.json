@@ -1,0 +1,22 @@
+{
+  "labels": [
+    "exact-literal",
+    "star-within-segment",
+    "doublestar-across-segments",
+    "question-single-char",
+    "char-class",
+    "char-class-range",
+    "negated-class",
+    "escaped-metachar"
+  ],
+  "label_descriptions": {
+    "exact-literal": "A pattern with no metacharacters matches only an identical path; the match is anchored (no prefix/substring match). The agent's tests should include at least one assertion exercising a literal pattern, ideally including a non-match.",
+    "star-within-segment": "A single * matches zero or more characters within one segment but never matches a /. The agent's tests should include at least one assertion showing * matching within a segment AND at least one showing it does not cross a slash.",
+    "doublestar-across-segments": "A double star ** matches zero or more characters including /, crossing segment boundaries. The agent's tests should include at least one assertion exercising ** spanning multiple segments.",
+    "question-single-char": "A ? matches exactly one character that is not a /. The agent's tests should include at least one assertion exercising ? (including that it requires exactly one char and does not match a slash).",
+    "char-class": "A bracket class [abc] matches exactly one of the listed characters and never a /. The agent's tests should include at least one assertion exercising a character class.",
+    "char-class-range": "A range class like [a-z] matches any single character within the range. The agent's tests should include at least one assertion exercising a range.",
+    "negated-class": "A class beginning with ! ([!abc]) matches any single non-/ character not in the set. The agent's tests should include at least one assertion exercising a negated class.",
+    "escaped-metachar": "A backslash escape removes the special meaning of the next character so it matches literally (e.g. \\* matches a literal *). The agent's tests should include at least one assertion exercising an escaped metacharacter."
+  }
+}

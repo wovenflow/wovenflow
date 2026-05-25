@@ -1,0 +1,23 @@
+{
+  "comment": "Edge-case category labels covered by this task's hidden tests. Each label must have a corresponding predicate file under coverage_predicates/<label>.js. The label_descriptions field is the only context a blind predicate-authoring subagent sees.",
+  "labels": [
+    "simple-rows",
+    "quoted-comma",
+    "quoted-newline",
+    "escaped-quote",
+    "empty-fields",
+    "trailing-newline",
+    "crlf-endings",
+    "whitespace-preserved"
+  ],
+  "label_descriptions": {
+    "simple-rows": "Plain comma-separated rows with no quoting (e.g. 'a,b,c\\nd,e,f') parse into an array of rows, each an array of string fields. The agent's tests should include at least one assertion exercising a simple multi-row, multi-field parse.",
+    "quoted-comma": "A field wrapped in double quotes may contain a comma that is treated as a literal character, not a field separator (e.g. '\"a,b\",c' is two fields). The agent's tests should include at least one assertion exercising a comma inside a quoted field.",
+    "quoted-newline": "A field wrapped in double quotes may contain a line break that is treated as a literal character, not a row separator (e.g. '\"line1\\nline2\",b' is one row of two fields). The agent's tests should include at least one assertion exercising a newline inside a quoted field.",
+    "escaped-quote": "Inside a quoted field, a doubled double-quote ('\"\"') represents a single literal double-quote character (e.g. '\"a\"\"b\"' is the field a\"b). The agent's tests should include at least one assertion exercising an escaped (doubled) quote.",
+    "empty-fields": "Empty fields are preserved as empty strings, including consecutive separators (e.g. 'a,,c' is three fields with the middle one empty). The agent's tests should include at least one assertion exercising empty fields.",
+    "trailing-newline": "A single trailing line break at the end of the input does NOT produce an extra empty final row (e.g. 'a,b\\n' is one row, not two). The agent's tests should include at least one assertion exercising a trailing newline.",
+    "crlf-endings": "CRLF ('\\r\\n') line endings separate rows just like LF, and the carriage return must not leak into the parsed field value. The agent's tests should include at least one assertion exercising CRLF line endings.",
+    "whitespace-preserved": "Whitespace is preserved exactly: leading/trailing spaces inside or outside quotes are NOT trimmed (e.g. ' a , b ' yields fields ' a ' and ' b '). The agent's tests should include at least one assertion exercising preserved whitespace."
+  }
+}

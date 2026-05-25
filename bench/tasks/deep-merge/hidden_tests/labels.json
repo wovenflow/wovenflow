@@ -1,0 +1,21 @@
+{
+  "comment": "Edge-case category labels covered by this task's hidden tests. Each label must have a corresponding predicate file under coverage_predicates/<label>.js. The label_descriptions field is the only context a blind predicate-authoring subagent sees.",
+  "labels": [
+    "shallow-override",
+    "new-keys",
+    "nested-merge",
+    "array-replace",
+    "nullish-override",
+    "type-mismatch",
+    "no-mutation"
+  ],
+  "label_descriptions": {
+    "shallow-override": "When a key exists in both target and source and the values are not both plain objects, the source value wins (e.g. deepMerge({b:2},{b:3}) yields {b:3}). The agent's tests should include at least one assertion exercising a same-key override.",
+    "new-keys": "A key present only in source is added to the result, and a key present only in target is preserved (e.g. deepMerge({a:1},{b:2}) yields {a:1,b:2}). The agent's tests should include at least one assertion exercising keys unique to one side.",
+    "nested-merge": "When a key exists in both inputs with plain-object values, those objects are merged recursively rather than one replacing the other (e.g. deepMerge({c:{x:1}},{c:{y:2}}) yields {c:{x:1,y:2}}). The agent's tests should include at least one assertion exercising recursive merging of nested objects.",
+    "array-replace": "Arrays are treated as scalar values: a source array replaces the target value entirely instead of being concatenated or element-wise merged (e.g. deepMerge({items:[1,2,3]},{items:[4,5]}) yields {items:[4,5]}). The agent's tests should include at least one assertion exercising array replacement.",
+    "nullish-override": "A source value of null or undefined overrides the target value rather than being skipped (e.g. deepMerge({a:1},{a:null}) yields {a:null}). The agent's tests should include at least one assertion exercising a null or undefined source value winning over a non-nullish target value.",
+    "type-mismatch": "When a key holds a plain object on one side and a non-object (primitive, array, null) on the other, source wins in both directions (object-in-target vs primitive-in-source, and primitive-in-target vs object-in-source). The agent's tests should include at least one assertion exercising a type mismatch between target and source on the same key.",
+    "no-mutation": "Neither target nor source is mutated; the function returns a fresh object such that mutating the result at a merged path does not alter either input. The agent's tests should include at least one assertion verifying an input is unchanged after the merge, or that mutating the result does not leak into an input."
+  }
+}
