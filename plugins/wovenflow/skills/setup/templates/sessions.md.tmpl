@@ -22,7 +22,10 @@ Next: <the concrete next step, or "-">
 ```
 
 - **session-id** — the Claude Code session identifier, so a transcript can be
-  found again. Without it an entry is an anecdote.
+  found again. Without it an entry is an anecdote. It is the filename stem of
+  the transcript at `~/.claude/projects/<project-slug>/<session-id>.jsonl`.
+  Write it **in full** — a truncated id reads better and cannot be pasted into
+  a lookup, which is the only thing the field is for.
 - **Commits** — every commit the session produced, linked. If a session produced
   none, say so explicitly; sessions that change nothing are worth knowing about.
 - **Next** — what the following session should pick up. This is the handoff, and

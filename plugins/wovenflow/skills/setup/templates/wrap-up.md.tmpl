@@ -1,6 +1,6 @@
 ---
 name: wrap-up
-description: Close out a work session. Audits dangling commits, reconciles task state, saves a checkpoint, and surfaces the next task.
+description: Close out a work session. Audits dangling commits and dead code, reconciles task state, writes the session log, findings index and architecture doc, and surfaces the next task.
 ---
 
 # Session wrap-up
@@ -113,7 +113,15 @@ Findings: <n> added, <n> withdrawn
 Next: <the concrete next step, or "-">
 ```
 
-Take the session id from the session directory or transcript path — without it the entry cannot be traced back to what actually happened. Link every commit; a bare SHA is not clickable and will not be looked up.
+**The session id is the filename stem of this session's transcript**, which lives at `~/.claude/projects/<project-slug>/<session-id>.jsonl`:
+
+```
+ls -t ~/.claude/projects/*/*.jsonl | head -1     # most recent transcript
+```
+
+Use the **full identifier** (`c37b572c-2dfe-4b11-84ec-841ec1b9b64b`), not a truncation. A short form reads more nicely and is useless for the one job the field has: pasting it somewhere to find the transcript again. Without it the entry cannot be traced back to what actually happened.
+
+Link every commit; a bare SHA is not clickable and will not be looked up.
 
 `Next:` is the handoff — the field most often needed and least often written. Fill it even when the answer is "nothing, this line is closed."
 
@@ -135,7 +143,32 @@ Check for contradictions before finishing: if a new entry disagrees with an exis
 
 If the session surfaced nothing that clears the bar, say so explicitly in the summary rather than skipping silently — "no new findings" is itself information about the session.
 
-### 7. Notice workflow friction (offer flowtune)
+{{IF ARCH_DOC}}
+### 7. Update the architecture doc ({{ARCH_DOC}})
+
+Steps 5 and 6 record what happened and what the project knows. This records **what the project now is** — and it is the only one of the three with no other author. `{{ARCH_DOC}}` is read at every `startup` and by the `claim` skill before any design work; nothing else in the workflow writes it. Left to itself it does not stay merely incomplete, it becomes wrong, and it is wrong in the most expensive place: the document a session trusts before it has looked at any code.
+
+Update it when this session changed the project's **shape**, not merely its contents:
+
+- A new module, service, or boundary that other code will now route through
+- A dependency direction reversed, added, or cut
+- An abstraction replaced, or a second implementation of one that was singular
+- A baseline tech choice made or overturned — a datastore, a transport, a framework
+- A constraint that is now enforced somewhere different, or newly enforced at all
+- An entry point, deployment target, or integration that did not exist before
+
+Leave it alone for work that fits the shape already described: implementing inside an existing boundary, fixing a bug, adding tests, tuning, renaming. **Most sessions should not touch this file.** An architecture doc that absorbs every change stops being a map and becomes a changelog, at which point nobody reads it and the `startup` step that loads it is pure cost.
+
+Two things worth getting right:
+
+1. **Write current state, not history.** "The scheduler talks to the queue over gRPC" — not "we switched the scheduler from HTTP to gRPC". The session log in step 5 is where the change belongs; this file describes the world as it stands, so a reader who has never seen the diff is oriented correctly.
+2. **Check the folder-level docs too.** `{{ARCH_DOC}}` files in subdirectories carry local conventions and are loaded on demand when work touches those folders. A session that changed one folder's conventions and updated only the root doc has left the more specific — and more trusted — file wrong.
+
+If the session changed shape and you cannot describe the new shape in a sentence or two, that is worth surfacing to the user rather than writing something vague: it usually means the change did something the design did not anticipate.
+
+Commit it with the other close-out edits, and say in the wrap-up summary whether you touched it — including "architecture unchanged", which is the common and correct answer.
+{{ENDIF}}
+### 8. Notice workflow friction (offer flowtune)
 
 Scan the session for signals that the documented workflow drifted from how you actually worked:
 
@@ -153,7 +186,7 @@ If 1+ signal appears, offer to run `wovenflow:flowtune` via `AskUserQuestion`:
 
 If no signals, skip this step silently — the workflow is working.
 
-### 8. Reserve the next task
+### 9. Reserve the next task
 
 Identify the most natural follow-on, in priority order:
 
