@@ -34,6 +34,7 @@ function substitute(tmpl, vars) {
 | `verify.md.tmpl` | `.claude/skills/verify/SKILL.md` | Phase 7 verification gate: tests, coverage audit, UI/manual walkthrough, adversarial review |
 | `ship-pr.md.tmpl` | `.claude/skills/ship-pr/SKILL.md` | Phase 8 ship via pull request: push branch, `gh pr create`, mark task in-review |
 | `ship-direct.md.tmpl` | `.claude/skills/ship-direct/SKILL.md` | Phase 8 ship without PR: confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub workflows. |
+| `prior-work.md.tmpl` | `<repo>/PRIOR-WORK.md` | Capped one-line index of external prior work, written by `researchflow` step 10 and read at every startup. Points into `PRIOR_WORK_DIR`, where the reading itself lives. |
 | `researcher.md.tmpl` | `.claude/skills/researchflow/researchers/<NAME>.md` | Phase 3 custom researcher profile: field-specific steps and integrity gates layered on top of the base researchflow. |
 | `web-dashboard/serve.mjs.tmpl` + `index.html.tmpl` + `panels/*.mjs.tmpl` + `README.md` | `<repo>/web/serve.mjs` and `<repo>/web/index.html` | Cross-cutting concern (Step 4.X): tailored project dashboard. Wizard asks which panels to include; only those `{{IF PANEL_*}}` blocks survive substitution. See `web-dashboard/README.md` for the full panel catalog and per-panel variables. |
 
@@ -106,6 +107,9 @@ GitHub-specific:
 | `FINDINGS_FILE` | Capped findings index, read by `startup` every session | `FINDINGS.md` |
 | `SESSIONS_FILE` | Append-only session ledger, never read at startup | `SESSIONS.md` |
 | `FINDINGS_CAP` | Hard line cap on `FINDINGS_FILE`, enforced at wrap-up. Must be a number — an uncapped findings file reliably grows past the point of being loadable, after which nothing reads it | `60` |
+| `PRIOR_WORK_FILE` | Capped index of external prior work; empty to disable the mechanism | `PRIOR-WORK.md` |
+| `PRIOR_WORK_DIR` | Folder the index points into, where research documents live | `doc/research` |
+| `PRIOR_WORK_CAP` | Hard line cap on `PRIOR_WORK_FILE`. Over it, **group** sources into one topic doc rather than deleting — an entry per paper turns the index into a bibliography, and a bibliography does not get loaded | `40` |
 | `FORGE_URL` | Repo web base; commits render as `{{FORGE_URL}}/commit/<sha>`, branches as `{{FORGE_URL}}/src/branch/<name>` | `https://github.com/org/repo` |
 | `INTERVAL_S` | Seconds between data.json writes / browser polls | `5` |
 | `PORT` | Standalone HTTP port (`--serve`) | `8082` |

@@ -69,6 +69,20 @@ If a finding contradicts what you are about to do, raise it with the user before
 
 Do **not** read `{{SESSIONS_FILE}}` at startup. It is an unbounded ledger; opening it defeats the point of the split. Consult it only when you need the history of a specific change.
 
+{{IF PRIOR_WORK_FILE}}
+**Then read `{{PRIOR_WORK_FILE}}`, also in full.**
+
+```
+[ -f {{PRIOR_WORK_FILE}} ] && cat {{PRIOR_WORK_FILE}}
+```
+
+`{{FINDINGS_FILE}}` is what *this project* learned. This is what was already known before it started — one line per source, capped at {{PRIOR_WORK_CAP}}, pointing into `{{PRIOR_WORK_DIR}}/` where the reading lives.
+
+It guards a specific and expensive mistake: **writing a claim from recollection when a source exists.** A plan that asserts what some technique achieves, sourced from nothing but the model's memory of the literature, reads exactly like one grounded in papers actually read — and the difference only surfaces when the number turns out wrong.
+
+Note the provenance markers. `~` means abstract-only, so do not quote a number off that line. `✗` means the literature was searched and does not cover this, or covers it and refutes it — treat a `✗` as a real result, not a gap to fill by guessing.
+{{ENDIF}}
+
 {{IF INFRA_LAUNCH}}
 ### 4. Launch project infrastructure
 

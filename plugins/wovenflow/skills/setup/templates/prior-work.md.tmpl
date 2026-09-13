@@ -1,0 +1,43 @@
+# Prior work — {{PROJECT_NAME}}
+
+**Read at the start of every session, and before every paper search.** Cap:
+{{PRIOR_WORK_CAP}} lines. This is an index, not a bibliography — one line each,
+pointing into `{{PRIOR_WORK_DIR}}/` where the actual reading lives.
+
+`{{FINDINGS_FILE}}` records what *this project* learned. This records what was
+already known before we started, so an approach is not re-derived, a paper is
+not re-read, and a claim is not written from recollection when a source exists.
+
+Links: `F` = {{FORGE_URL}}
+
+---
+
+## Format
+
+```
+- ✓ [short-slug](url) — what it establishes, and what it changes here. → [notes]({{PRIOR_WORK_DIR}}/<topic>.md)
+```
+
+**The marker is the point.** Citation integrity is the one thing a research
+phase can get catastrophically wrong, because a plausible-looking reference that
+does not exist is indistinguishable from a real one at a glance.
+
+- `✓` — retrieved and read. The claim on this line is checked against the source.
+- `~` — abstract or summary only. Do not quote a number from it.
+- `✗` — **searched for and not found**, or found and refuted. Keep these. A
+  recorded absence is what stops the same fruitless search next quarter, and it
+  is the only honest way to say "the literature does not cover this."
+
+**Write what it changes here, not what it is about.** "Establishes kNN over
+hidden states works at 10^8 scale, so our retrieval step is assembly, not
+novelty" earns its line. "A paper about retrieval" does not.
+
+## When it grows past the cap
+
+Do not delete. **Group**: once a topic has several sources, collapse them into
+one `{{PRIOR_WORK_DIR}}/<topic>.md` and leave a single line here pointing at it.
+The individual papers keep living inside that document. The cap is what forces
+this index to stay an index — an entry per paper read would become a
+bibliography nobody loads.
+
+<!-- Newest first, directly below this line. -->

@@ -53,6 +53,8 @@ A markdown document at `doc/research/<feature>.md` with:
 
 This document is input context for `wovenflow:designflow`. The design phase reads it and writes the spec informed by what's already known.
 
+**And one line per load-bearing source in `PRIOR-WORK.md` at the repo root** (step 10). The document above is the reading; `PRIOR-WORK.md` is the capped, one-line-per-entry index that makes it findable — it is read at the start of every session and before every subsequent paper search, which is what stops the same literature being searched twice and stops a claim being written from recollection when a source exists.
+
 ## Steps the orchestrator follows
 
 ### 0. Load profiles
@@ -143,17 +145,37 @@ Then a short paragraph: what's novel about this work, if anything?
 - Not "we're doing it better" — name the specific novelty (mechanism, scale, domain, integration)
 - If nothing is specifically novel, that's important information: this work may be replication / consolidation / engineering rather than research, which changes the shape of what `designflow` writes
 
-### 8. Capture findings to LEARNINGS.md
+### 8. Capture findings to the project's findings index
 
-If this research resolved an unknown, ruled out an approach, or surfaced a surprising gap in the prior art — a finding you'd want in a future paper or writeup, not just the reference list — append an entry to `LEARNINGS.md` at the repo root (create it from the project's learnings template, or with the same header, if it doesn't exist yet). Research is exactly where the agent "pushes through walls"; this step exists so *what was discovered* gets captured, not only *what already exists* in the references.
+If this research resolved an unknown, ruled out an approach, or surfaced a surprising gap in the prior art — a finding you'd want in a future paper or writeup, not just the reference list — add an entry to the project's findings index (`FINDINGS.md` at the repo root by default; older projects may still call it `LEARNINGS.md`). Create it from the project's template, or with the same header, if it does not exist. Research is exactly where the agent "pushes through walls"; this step exists so *what was discovered* gets captured, not only *what already exists* in the references.
 
-Use the entry format the file documents — **Finding** (the insight first), **Evidence** (what was tried + the result that grounds it), **Why it matters** (the publication angle), **Refs** (link the `doc/research/<feature>.md` doc, plus any commit/issue). Apply a **high bar**: only non-obvious, surprising, or hard-won findings belong (see LEARNINGS.md's header). Skip this step when the research merely confirmed what was expected — a dense index beats an exhaustive one.
+Use the entry format that file documents, and respect its **line cap** — if the addition pushes it over, retire or promote something in the same edit. Apply a **high bar**: only non-obvious, surprising, or hard-won findings belong. Skip this step when the research merely confirmed what was expected — a dense index beats an exhaustive one.
+
+**A finding is what the project now knows. What the *literature* already knew goes in step 10 instead** — do not put a paper's conclusion here just because it was new to you.
 
 ### 9. Save the document
 
 `doc/research/<feature>.md` (or wherever the project's research artifacts live). Commit it.
 
-### 10. Hand off to designflow
+### 10. Index it in PRIOR-WORK.md
+
+**Required on every research pass, including one that found nothing.** Step 9 writes the reading; this makes it findable. Without it the research folder becomes a directory of documents nobody opens because nobody knows what is in them, and the next session searches the same literature again.
+
+Prepend one line per load-bearing source to `PRIOR-WORK.md` at the repo root (create it from the project's prior-work template if absent):
+
+```
+- ✓ [short-slug](url) — what it establishes, and what it changes here. → [notes](doc/research/<feature>.md)
+```
+
+Three things this step gets wrong if left to judgment:
+
+1. **Mark every entry's provenance.** `✓` retrieved and read · `~` abstract only, do not quote a number from it · `✗` searched for and not found, or found and refuted. The `✗` entries are not failures to hide — a recorded absence is the only honest way to write "the literature does not cover this," and it is what stops the identical search next quarter.
+2. **Write what it changes here, not what it is about.** "Establishes kNN over hidden states at 10^8 scale, so our retrieval step is assembly not novelty" earns a line; "a paper about retrieval" does not.
+3. **Respect the cap, and respect it by grouping rather than deleting.** Once a topic has several sources, collapse them into one `doc/research/<topic>.md` and leave a single line pointing at it. The papers keep living inside that document. An entry per paper turns the index into a bibliography, and a bibliography is not loaded at startup — which defeats the whole mechanism.
+
+A pass that surfaced nothing usable still writes its `✗` lines and says so in the summary.
+
+### 11. Hand off to designflow
 
 The next phase (`wovenflow:designflow`) reads this document as context when drafting the `.spec.md`. Behaviors in the spec should reflect what the references and profile analyses teach — don't re-derive what's known; address the actual gaps.
 
