@@ -568,6 +568,35 @@ The setup wizard is BY DEFINITION interactive — it always asks the user at eve
 
 This exception is intentional and called out here so future contributors don't try to wire setup into the involvement-gate consultation pattern.
 
+### Step 4.Z — Who writes the code (writes `build.implementer` to `.wovenflow.yml`)
+
+Phase 6 dispatches implementation three different ways, and the right one is per-project. Ask, and write the answer into the same `.wovenflow.yml` the previous step created — `subflow` reads it via `loadBuildConfig()`.
+
+Ask with `AskUserQuestion`:
+
+- Question: `"During the build phase, who writes the code? (writes build.implementer to .wovenflow.yml)"`
+- Options, with the recommendation first:
+
+| Option | What it means |
+|---|---|
+| **`fork` (Recommended)** | A subagent that inherits the orchestrator's full conversation. The dominant failure in practice is context loss at the handoff, not implementation quality — a fresh subagent re-reads the spec but cannot re-read the conversation, so anything settled in dialogue is invisible to it. |
+| **`subagent`** | A subagent with no inherited context. Right when the task is genuinely self-contained and a clean slate is an advantage. |
+| **`inline`** | The orchestrator writes the code itself. Right for small work, work that depends on reasoning still being formed, and diagnostic rather than constructive tasks — anywhere a handoff costs more than the work. |
+
+Append to `.wovenflow.yml`, so the file carries both blocks:
+
+```yaml
+involvement:
+  mode: standard
+
+build:
+  implementer: fork   # or subagent, inline
+```
+
+Omitting the `build` block entirely is valid and means `fork`. Write it anyway when the user picks explicitly — a default that was chosen reads differently from one that was never considered, and the next contributor cannot tell them apart from an absent key.
+
+**One caveat worth stating when `fork` is chosen**, because it is the default and the failure is silent: a fork inherits the orchestrator's context *position*, not just its context. Forking early in a session gives it headroom; forking late gives it almost none, and it may compact or stop before finishing. That is backwards from the intuition, since late is also when a fork has the most useful context to inherit. Tell the user to prefer inline for work started near the end of a long session.
+
 ### Step 5 — Ask about alternative cycles
 
 Ask: *"Does this project have other cycles besides feature work? (bug fix, hotfix, refactor, architectural change, postmortem)"* If yes, walk through each chosen cycle and configure its skills the same way (or note it as a documented variation in CLAUDE.md).
