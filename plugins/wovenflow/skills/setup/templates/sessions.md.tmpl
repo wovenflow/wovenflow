@@ -1,0 +1,35 @@
+# Sessions — {{PROJECT_NAME}}
+
+Append-only ledger, newest first. One entry per session: what happened, and what
+it produced. **Not read at startup** — it grows without limit by design, and
+that is fine because nothing loads it. Startup reads `{{FINDINGS_FILE}}` instead.
+
+Its job is to answer *"what happened, and when?"* months later — who changed
+this, in which session, against which task. `{{FINDINGS_FILE}}` answers the
+different question *"what do we know?"*. Keep them apart: a finding that is only
+interesting as history belongs here, not there.
+
+## Format
+
+```
+## YYYY-MM-DD · <session-id>
+<Two to four sentences: what was attempted, what landed, what was abandoned and
+why. Plain prose. State outcomes, not activity.>
+Commits: [`<sha>`]({{FORGE_URL}}/commit/<sha>), [`<sha>`]({{FORGE_URL}}/commit/<sha>)
+Branch: [`<name>`]({{FORGE_URL}}/src/branch/<name>)
+Findings: <n> added, <n> withdrawn
+Next: <the concrete next step, or "-">
+```
+
+- **session-id** — the Claude Code session identifier, so a transcript can be
+  found again. Without it an entry is an anecdote.
+- **Commits** — every commit the session produced, linked. If a session produced
+  none, say so explicitly; sessions that change nothing are worth knowing about.
+- **Next** — what the following session should pick up. This is the handoff, and
+  it is the field most often needed and least often written.
+
+Write it even when the session went badly. A session that spent four hours ruling
+an approach out is more useful to future-you than one that shipped something
+obvious, and it is the one most likely to go unrecorded.
+
+<!-- Newest first, directly below this line. -->

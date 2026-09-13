@@ -62,6 +62,21 @@ export const KNOWN_GATES = Object.keys(MODE_TABLE.standard);
 export const KNOWN_MODES = ['minimal', 'standard', 'maximal', 'custom'];
 
 /**
+ * Who writes the code during the build phase.
+ *
+ *   fork      — subagent inheriting the orchestrator's conversation context
+ *   subagent  — subagent with no inherited context
+ *   inline    — the orchestrator itself
+ *
+ * `fork` is the default because the dominant failure in practice is context
+ * loss at the handoff, not implementation quality: a fresh subagent re-reads
+ * the spec but cannot re-read the conversation, so anything settled in dialogue
+ * is invisible to it.
+ */
+export const KNOWN_IMPLEMENTERS = ['fork', 'subagent', 'inline'];
+export const DEFAULT_IMPLEMENTER = 'fork';
+
+/**
  * Parse the tiny YAML subset that `.wovenflow.yml` is permitted to use.
  * Hand-written; intentionally not a general YAML parser.
  *
@@ -75,8 +90,9 @@ export const KNOWN_MODES = ['minimal', 'standard', 'maximal', 'custom'];
  */
 export function parseInvolvementYaml(text) {
   const lines = text.split(/\r?\n/);
-  const out = { involvement: {} };
+  const out = { involvement: {}, build: {} };
   let inInvolvement = false;
+  let inBuild = false;
   let inGates = false;
   let gates = null;
 
@@ -91,6 +107,7 @@ export function parseInvolvementYaml(text) {
     if (!/^\s/.test(line)) {
       if (line.startsWith('involvement:')) {
         inInvolvement = true;
+        inBuild = false;
         inGates = false;
         const rest = line.slice('involvement:'.length).trim();
         if (rest !== '') {
@@ -100,15 +117,50 @@ export function parseInvolvementYaml(text) {
         }
         continue;
       }
+      if (line.startsWith('build:')) {
+        inBuild = true;
+        inInvolvement = false;
+        inGates = false;
+        const rest = line.slice('build:'.length).trim();
+        if (rest !== '') {
+          throw new Error(
+            `.wovenflow.yml line ${i + 1}: \`build:\` must be a mapping, not a scalar`,
+          );
+        }
+        continue;
+      }
       // Any other top-level key is unsupported in this schema.
       throw new Error(
-        `.wovenflow.yml line ${i + 1}: unsupported top-level key (only \`involvement\` is allowed)`,
+        `.wovenflow.yml line ${i + 1}: unsupported top-level key (expected \`involvement\` or \`build\`)`,
       );
     }
 
-    if (!inInvolvement) {
+    if (!inInvolvement && !inBuild) {
       throw new Error(
         `.wovenflow.yml line ${i + 1}: indented content outside any known top-level key`,
+      );
+    }
+
+    // 2-space indented entries under `build:`.
+    if (inBuild) {
+      const bTwo = /^  (\S.*)$/.exec(line);
+      if (bTwo && bTwo[1].startsWith('implementer:')) {
+        const val = stripQuotes(bTwo[1].slice('implementer:'.length).trim());
+        if (val === '') {
+          throw new Error(`.wovenflow.yml line ${i + 1}: \`implementer:\` requires a value`);
+        }
+        if (!KNOWN_IMPLEMENTERS.includes(val)) {
+          throw new Error(
+            `.wovenflow.yml line ${i + 1}: unknown build.implementer "${val}" ` +
+              `(expected one of: ${KNOWN_IMPLEMENTERS.join(', ')})`,
+          );
+        }
+        out.build.implementer = val;
+        continue;
+      }
+      throw new Error(
+        `.wovenflow.yml line ${i + 1}: unsupported key under \`build\` ` +
+          `(\`${(bTwo ? bTwo[1] : line.trim()).split(':')[0]}\`)`,
       );
     }
 
@@ -216,6 +268,29 @@ export function loadInvolvementConfig(repoRoot = process.cwd()) {
   }
 
   return { mode, gates, source: 'file' };
+}
+
+/**
+ * Load the build-phase config from `.wovenflow.yml` at `repoRoot`:
+ *
+ *   { implementer: 'fork'|'subagent'|'inline', source: 'file'|'default' }
+ *
+ * Missing file, or a file with no `build` block → `fork`. An unrecognised
+ * implementer value throws, matching how an unknown involvement mode is
+ * treated: a typo that silently falls back to a default is worse than one that
+ * stops the run, because the run then proceeds under a setting nobody chose.
+ */
+export function loadBuildConfig(repoRoot = process.cwd()) {
+  const path = join(repoRoot, '.wovenflow.yml');
+  if (!existsSync(path)) {
+    return { implementer: DEFAULT_IMPLEMENTER, source: 'default' };
+  }
+  const parsed = parseInvolvementYaml(readFileSync(path, 'utf8'));
+  const implementer = (parsed.build || {}).implementer;
+  if (!implementer) {
+    return { implementer: DEFAULT_IMPLEMENTER, source: 'default' };
+  }
+  return { implementer, source: 'file' };
 }
 
 /**

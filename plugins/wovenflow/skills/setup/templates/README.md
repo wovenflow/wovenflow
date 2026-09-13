@@ -103,6 +103,10 @@ GitHub-specific:
 | Variable | Meaning | Example |
 |---|---|---|
 | `PROJECT_NAME` | Used in `<title>`, headings, umbrella URL slug | `wovenflow` |
+| `FINDINGS_FILE` | Capped findings index, read by `startup` every session | `FINDINGS.md` |
+| `SESSIONS_FILE` | Append-only session ledger, never read at startup | `SESSIONS.md` |
+| `FINDINGS_CAP` | Hard line cap on `FINDINGS_FILE`, enforced at wrap-up. Must be a number — an uncapped findings file reliably grows past the point of being loadable, after which nothing reads it | `60` |
+| `FORGE_URL` | Repo web base; commits render as `{{FORGE_URL}}/commit/<sha>`, branches as `{{FORGE_URL}}/src/branch/<name>` | `https://github.com/org/repo` |
 | `INTERVAL_S` | Seconds between data.json writes / browser polls | `5` |
 | `PORT` | Standalone HTTP port (`--serve`) | `8082` |
 | `UMBRELLA_PATH` | Absolute path to umbrella web root; empty for standalone-only | `/home/will/web` |

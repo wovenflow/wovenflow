@@ -97,29 +97,43 @@ git commit -m "chore(tasks): reconcile status"
 ```
 {{ENDIF}}
 
-### 5. Save a session checkpoint
+### 5. Append the session entry ({{SESSIONS_FILE}})
 
-Write a short paragraph (3-5 sentences) covering:
+**Required every session, including ones that produced nothing.**
 
-- What was done this session
-- What's still left on the task
-- What the next concrete step is
-- Any blockers or open questions
+Prepend to `{{SESSIONS_FILE}}` at the repo root (create it from the sessions template if absent):
 
-Save it in whichever surface the project uses for session continuity — a comment on the task, a session-state file, or both.
+```
+## YYYY-MM-DD · <session-id>
+<Two to four sentences: what was attempted, what landed, what was abandoned and why.
+State outcomes, not activity.>
+Commits: [`<sha>`]({{FORGE_URL}}/commit/<sha>), ...
+Branch: [`<name>`]({{FORGE_URL}}/src/branch/<name>)
+Findings: <n> added, <n> withdrawn
+Next: <the concrete next step, or "-">
+```
 
-### 6. Capture session learnings (LEARNINGS.md)
+Take the session id from the session directory or transcript path — without it the entry cannot be traced back to what actually happened. Link every commit; a bare SHA is not clickable and will not be looked up.
 
-A session often discovers something worth keeping for a future paper, writeup, or postmortem — a hard-won insight, an approach ruled out and *why*, a constraint hit the hard way, a result that contradicted an assumption going in. The checkpoint (step 5) captures *where you left off*; this captures *what the project learned*. They are different, and both matter — the checkpoint is ephemeral, the learning is durable.
+`Next:` is the handoff — the field most often needed and least often written. Fill it even when the answer is "nothing, this line is closed."
 
-Scan the session for findings that clear a **high bar** — non-obvious, surprising, or hard-won. For each, append an entry to `LEARNINGS.md` at the repo root (create it from the project's learnings template, or with the same header, if it doesn't exist yet):
+This file is **never read at startup** and grows without limit by design. That is what makes it safe to be complete here.
 
-- **Finding:** the insight, stated first, in 1-2 sentences.
-- **Evidence:** what was tried and the result that grounds it — enough to trust and trace the claim later.
-- **Why it matters:** the publication angle — the claim it supports or refutes, or what it changes going forward.
-- **Refs:** commit SHA, spec, results dir, issue.
+### 6. Update the findings index ({{FINDINGS_FILE}})
 
-Skip routine progress and anything obvious from the diff — a dense index is more useful for future publication than an exhaustive one. If the session surfaced no such finding, skip this step silently.
+Step 5 records *what happened*. This records *what the project now knows* — and unlike step 5 it is loaded into **every future session**, so every line costs context forever. Treat the budget as real.
+
+Scan the session for anything clearing a **high bar**: a result that contradicted an assumption, an approach ruled out and why, a constraint hit the hard way, a number that will be quoted later. Skip routine progress and anything obvious from the diff.
+
+Three distinct actions, and the last two matter as much as the first:
+
+1. **Add** a finding — one entry, at most three lines, with a linked commit and a `→ doc/…` pointer for anything needing more than two sentences. No commit means no entry.
+2. **Withdraw** a finding this session disproved — flip it to `✗`, strike the claim, leave it in place. A wrong entry left visible is the cheapest protection against repeating the wrong turn. Never delete.
+3. **Enforce the cap.** `{{FINDINGS_FILE}}` may not exceed **{{FINDINGS_CAP}} lines**. If the additions push it over, retire or promote something *in the same edit*. Report the line count in the wrap-up summary.
+
+Check for contradictions before finishing: if a new entry disagrees with an existing one, resolve it now rather than leaving both. A findings file that contradicts itself is worse than none, because it is trusted.
+
+If the session surfaced nothing that clears the bar, say so explicitly in the summary rather than skipping silently — "no new findings" is itself information about the session.
 
 ### 7. Notice workflow friction (offer flowtune)
 

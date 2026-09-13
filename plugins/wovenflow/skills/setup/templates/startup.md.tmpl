@@ -53,6 +53,22 @@ Read `{{ARCH_DOC}}` at the repo root. It captures the project's current-state ar
 Folder-level `{{ARCH_DOC}}` files (in subdirectories) are loaded on-demand as you work in those folders. If your instinct conflicts with the architecture, follow the doc or raise the conflict with the user before diverging.
 {{ENDIF}}
 
+### 3b. Load the findings index
+
+**Read `{{FINDINGS_FILE}}` in full. Every session, without exception.**
+
+```
+[ -f {{FINDINGS_FILE}} ] && cat {{FINDINGS_FILE}}
+```
+
+`{{ARCH_DOC}}` says how the project is built. This says **what it has learned** — which assumptions were tested, which approaches were ruled out and why, and which previously-stated claims have since been withdrawn. It is capped at {{FINDINGS_CAP}} lines precisely so it can be loaded every time.
+
+Pay particular attention to `✗` entries. Those are claims this project once believed and has since disproved; re-deriving one costs a session. If a finding's `→` reference looks relevant to today's task, open that doc before starting rather than after.
+
+If a finding contradicts what you are about to do, raise it with the user before proceeding — the same rule as the architecture doc.
+
+Do **not** read `{{SESSIONS_FILE}}` at startup. It is an unbounded ledger; opening it defeats the point of the split. Consult it only when you need the history of a specific change.
+
 {{IF INFRA_LAUNCH}}
 ### 4. Launch project infrastructure
 

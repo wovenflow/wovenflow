@@ -65,15 +65,56 @@ If any pre-condition isn't met, fix that first; do not dispatch implementers aga
 
 **Bug fixes are DTDD-shaped too.** Don't bypass the pipeline for bug-fix bursts. The failing record / repro IS the failing test — extract it as a regression test in `testflow`, spec the corrected behavior in `designflow`, then dispatch via this skill. Hand-rolling parallel dispatch via Claude Code's `Agent` tool with `isolation: "worktree"` looks simpler but has different (and inconsistent) close-time semantics than this skill's `worktree.mjs` — see Red flags below.
 
-## Why subagents
+## Implementer mode — who writes the code
 
-The orchestrator owns the contract; subagents own implementation. Subagents work in isolated context — they're given the spec file path and a behavior identifier, not pasted task text — and they read the canonical source themselves. This:
+**Decide this before anything else.** It is a separate question from how agents
+coordinate (see Dispatch modes below), and getting it wrong is the most common
+way a run goes badly.
+
+| Mode | Who implements | Pick it when |
+|---|---|---|
+| **Forked subagent** `fork` | `Agent({ subagent_type: "fork", ... })` — a subagent that **inherits the orchestrator's full conversation context** | **Default.** The behavior depends on reasoning that happened in this conversation: a decision made three turns ago, a constraint the user stated, a dead end already ruled out. The fork knows all of it without being told, and its tool output stays out of the orchestrator's context. |
+| **Fresh subagent** `subagent` | `Agent` with any other type, or omitted — no inherited context | The behavior is genuinely self-contained and a clean slate helps: the spec says everything needed, or you *want* an implementer unanchored by what the orchestrator currently believes. |
+| **Inline** `inline` | The orchestrator, editing directly | The work is small, exploratory, or diagnostic; the reasoning is still forming; or a handoff would cost more than the edit. Also correct when the user is watching and steering turn by turn. |
+
+**Why fork is the default.** The failure mode that costs the most in practice is
+not a bad implementation — it is **context loss at the handoff**. A fresh
+subagent re-reads the spec but cannot re-read the conversation, so anything
+decided in dialogue is invisible to it and gets silently re-litigated or
+contradicted. A fork starts from everything the orchestrator knows, which
+removes that class of failure while keeping the isolation benefit: its tool
+calls, file reads and false starts never enter the main thread.
+
+**Configure the default per project** in `.wovenflow.yml`:
+
+```yaml
+build:
+  implementer: fork      # fork | subagent | inline
+```
+
+Absent the key, the default is `fork`. The orchestrator may override per behavior
+when one clearly wants a different mode — say so and why in the progress message,
+rather than switching silently.
+
+**Announce the mode in the first progress message**, alongside the dispatch mode.
+A reader must be able to tell who wrote the code without inferring it.
+
+## Why a separate implementer at all
+
+When the implementer is a subagent (forked or fresh), it is given the spec file
+path and a behavior identifier — not pasted task text — and reads the canonical
+source itself. This:
 
 - Keeps the orchestrator's context clean for coordination
-- Gives each implementer a fresh, scoped focus on one behavior
-- Lets subagents see the *full* spec context (other behaviors, user stories, invariants) — pasted text would lose this
-- Eliminates drift risk — if the spec evolves between dispatch and re-try, the subagent re-reads the current truth
+- Gives each implementer a scoped focus on one behavior
+- Lets it see the *full* spec context (other behaviors, user stories, invariants) — pasted text would lose this
+- Eliminates drift risk — if the spec evolves between dispatch and re-try, the implementer re-reads the current truth
 - Makes commits and error references point to the canonical artifact (`B1` from `doc/specs/<feature>.spec.md`)
+
+The first two of those are the ones inline mode gives up, and they are real: an
+inline run mixes implementation detail into the thread that is also holding the
+plan. Take that cost knowingly, for the reasons in the table above — not by
+default and not by drift.
 
 ## The unit of work is a behavior
 
@@ -82,6 +123,9 @@ Each H3 behavior section (`### B1: ...`) in the spec is one task. One subagent i
 If two behaviors share enough implementation that splitting them produces redundant work, dispatch them together (one subagent, two behaviors). Document the coupling in the dispatch prompt. Default is one-per-subagent unless coupling is obvious.
 
 ## Dispatch modes
+
+**Applies when the implementer is a subagent** (`fork` or `subagent`). Under
+`inline` there is nothing to dispatch — skip to Inline mode below.
 
 Subflow supports three dispatch modes. The orchestrator picks the best available at the start of the run.
 
@@ -262,6 +306,48 @@ Switch to sequential single-tree dispatch only when:
 - Debugging one behavior in isolation, where parallel output would be noise.
 
 In sequential mode, dispatch one subagent at a time in the orchestrator's main working directory and skip the worktree helper.
+
+## Inline mode
+
+No dispatch, no worktrees, no `SendMessage`. The orchestrator implements each
+behavior itself, in the main session. **Everything else about DTDD is unchanged**
+— the spec is still the contract, the unit of work is still one behavior, the
+tests still have to go red before green, and both review stages still run.
+
+### The loop, per behavior
+
+1. **Read the behavior** from the `.spec.md`. Re-read it; do not work from memory
+   of having read it earlier in the session. This is the discipline the subagent
+   modes get for free by re-reading the file on every dispatch.
+2. **Confirm the test is red** for this behavior specifically, and that it fails
+   for the stated reason rather than a setup error.
+3. **Implement** the narrowest change that satisfies the behavior. Nothing the
+   behavior does not ask for — the scope rule is *stricter* inline, because
+   there is no reviewer boundary to catch drift and the orchestrator's knowledge
+   of the wider plan makes it easy to build ahead.
+4. **Run the behavior's test** and the full suite.
+5. **Review in two passes, explicitly and in writing.** Do not skip this because
+   you are the author. Use `implementer-prompt.md` as the self-check for pass one
+   (spec compliance) and `code-quality-prompt.md` for pass two. Write the verdict
+   into the thread so it is auditable.
+6. **Commit** referencing the behavior id, as any implementer would.
+
+### What inline gives up, and the compensations
+
+| Lost | Compensation |
+|---|---|
+| Clean orchestrator context — implementation detail now shares the thread with the plan | Keep progress messages short; summarise rather than narrate. If the thread is getting long, that is the signal to switch to `fork`. |
+| An independent reviewer boundary | Both review passes are written out explicitly rather than felt. Self-review that is not written down did not happen. |
+| Worktree isolation | Do one behavior at a time. Never run inline concurrently with dispatched implementers touching the same tree. |
+
+### When inline is the wrong choice
+
+Switch to `fork` when any of these is true:
+
+- More than about three behaviors remain — the context cost compounds
+- Behaviors are independent and could run in parallel
+- The implementation is long or mechanical, and the reasoning is already settled
+- The orchestrator thread is already long enough that you are re-reading it to stay oriented
 
 ## Subagent input pattern (canonical)
 
