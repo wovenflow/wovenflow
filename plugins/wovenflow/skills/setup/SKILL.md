@@ -105,6 +105,7 @@ For options below that don't link to a clean repo URL, the awesome-list discover
 **Job:** Surface 3-5 concrete external references — academic papers, prior systems, established design patterns, library options, RFCs, ecosystem conventions — before designing. Applies to UI work (existing design patterns), architecture decisions (prior systems), library choice (concrete options), API design (RFCs / industry conventions), academic research (papers + prior experimental systems), and competitive / market work (vendor capabilities, segment sizing).
 
 - [**`wovenflow:researchflow`** + researcher profiles](https://github.com/wovenflow/wovenflow) `(Recommended)` — pre-design outside-context surface. Composes one or more researcher profiles per invocation; each profile adds field-specific steps and integrity gates on top of the base flow. Produces `doc/research/<feature>.md`.
+- [**`wovenflow:setup` prior-work template**](https://github.com/wovenflow/wovenflow) `(Recommended alongside researchflow)` — materializes `prior-work.md.tmpl` into `<repo>/{{PRIOR_WORK_FILE}}` (default `PRIOR-WORK.md`) and creates `{{PRIOR_WORK_DIR}}`. A capped one-line-per-source index of external prior work, written by `researchflow` step 10 and read at every `startup`. Without it the research folder becomes documents nobody opens and the next session searches the same literature again. Skip it for projects with no research phase — leaving `{{PRIOR_WORK_FILE}}` empty strips the mechanism out of `startup` entirely.
 - **"Craft custom researcher"** — projects with domain-specific discovery patterns (security research with CVE databases, data-science with benchmark datasets, hardware with datasheet review). Materializes `setup/templates/researcher.md.tmpl` into `<repo>/.claude/skills/researchflow/researchers/<name>.md`.
 
 **Profile sub-selection (multi-select):** when `wovenflow:researchflow` is picked, run a follow-up `AskUserQuestion` (`multiSelect: true`) to choose the project's default profile set. The chosen profiles are written into the `Standard workstream` section's Phase 3 line as `wovenflow:researchflow [profile, profile, ...]`. Surface the long tail using the same tiered + free-text fallback as Step 2:
@@ -348,6 +349,7 @@ Templates live at `plugins/wovenflow/skills/setup/templates/`. The mappings:
 | Session bootstrap (pre-Phase 1) | `startup.md.tmpl` |
 | Phase 1 (Claim) | `claim-github.md.tmpl` (GitHub Issues) or `claim-tasks.md.tmpl` (`tasks.md`) |
 | Phase 3 (Survey outside context, custom researcher) | `researcher.md.tmpl` |
+| Phase 3 (Survey outside context, prior-work index) | `prior-work.md.tmpl` → `<repo>/{{PRIOR_WORK_FILE}}` |
 | Phase 7 (Verify) | `verify.md.tmpl` |
 | Phase 8 (Ship) | `ship-pr.md.tmpl` (PR-based) or `ship-direct.md.tmpl` (solo / no-PR) |
 | Phase 10 (Close out) | `wrap-up.md.tmpl` |
@@ -385,6 +387,14 @@ If a template matches, follow 3b. Otherwise skip to 3c.
    Ask for `{{FINDINGS_CAP}}` and `{{FORGE_URL}}` at this point. The cap has to be a number or it will not bind — a findings file without one reliably grows past the point of being loadable, at which point nothing reads it and it stops being maintained. `{{FORGE_URL}}` is the repo's web base (e.g. `https://github.com/<org>/<repo>` or a self-hosted forge); commit and branch references are rendered as links against it, because a bare SHA does not get looked up.
 
    **If the project already has a `LEARNINGS.md`** in the old multi-field format, do not silently convert it. Report its line count and offer: migrate now (distil to the capped one-line format, which needs judgement about what survives), migrate later, or leave it and apply the new format only to new entries.
+
+7. **Special case for `researchflow` (Phase 3):** if the project will do any literature or paper searching, materialize `prior-work.md.tmpl` → `<repo>/{{PRIOR_WORK_FILE}}` (default `PRIOR-WORK.md`) and create `<repo>/{{PRIOR_WORK_DIR}}` (default `doc/research`, but match the project's existing convention — `docs/` if that is what it uses). **Never overwrite**; it accumulates.
+
+   Ask for `{{PRIOR_WORK_FILE}}`, `{{PRIOR_WORK_DIR}}` and `{{PRIOR_WORK_CAP}}` here. **Leave `{{PRIOR_WORK_FILE}}` empty to disable the mechanism entirely** — the `{{IF PRIOR_WORK_FILE}}` block in `startup.md.tmpl` then strips out, and `startup` never mentions it. Offer that for projects with no research phase; do not materialize a file nobody will write to.
+
+   Say what it is for when materializing it, because it is easily mistaken for a bibliography: it is a **capped, one-line-per-source index** into `{{PRIOR_WORK_DIR}}`, written by `researchflow` step 10 and read at every `startup`. It exists to stop a claim being written from recollection when a source exists — a plan asserting what some technique achieves, sourced only from the model's memory of the literature, is indistinguishable from one grounded in papers actually read until the number turns out wrong. Over the cap, sources are **grouped** into one topic document behind a single line, never deleted; an entry per paper makes a bibliography, and a bibliography does not get loaded.
+
+   `{{FINDINGS_FILE}}` and `{{PRIOR_WORK_FILE}}` are both capped one-line indexes and will be confused if the difference is not stated: findings is what **this project** learned, prior work is what was **already known** before it started. A paper's conclusion is not a project finding.
 
 #### 3c. Fall back to skill-creator (no template available)
 
