@@ -271,3 +271,80 @@ instead of N per-skill toggles.
   });
 }
 ```
+
+### B7: `build.implementer` selects who writes code, defaulting to `fork`
+
+∵ **IF** `.wovenflow.yml` declares `build.implementer` as one of `fork`, `subagent` or `inline`
+↦ **WHEN** `loadBuildConfig` runs against that repo root
+∴ **THEN** it returns that value; and when the key or the file is absent it returns `fork`
+
+```javascript
+{
+  const test = require('node:test');
+  const assert = require('node:assert/strict');
+  const { mkdtempSync, writeFileSync } = require('node:fs');
+  const { tmpdir } = require('node:os');
+  const path = require('node:path');
+
+  test('B7: build.implementer is read, and defaults to fork', async () => {
+    const helperUrl = require('url').pathToFileURL(
+      path.join(__dirname, '..', '..', 'plugins', 'wovenflow', 'skills', '_shared', 'involvement.mjs'),
+    ).href;
+    const mod = await import(helperUrl);
+
+    for (const want of ['fork', 'subagent', 'inline']) {
+      const dir = mkdtempSync(path.join(tmpdir(), `wovenflow-b7-${want}-`));
+      writeFileSync(path.join(dir, '.wovenflow.yml'), `build:\n  implementer: ${want}\n`);
+      assert.equal(mod.loadBuildConfig(dir).implementer, want);
+    }
+
+    // key absent but file present, alongside an involvement block
+    const partial = mkdtempSync(path.join(tmpdir(), 'wovenflow-b7-partial-'));
+    writeFileSync(path.join(partial, '.wovenflow.yml'), 'involvement:\n  mode: standard\n');
+    assert.equal(mod.loadBuildConfig(partial).implementer, 'fork');
+
+    // no file at all
+    const empty = mkdtempSync(path.join(tmpdir(), 'wovenflow-b7-empty-'));
+    assert.equal(mod.loadBuildConfig(empty).implementer, 'fork');
+  });
+}
+```
+
+### B8: a `build` block does not break involvement parsing, and a bad implementer is rejected
+
+∵ **IF** `.wovenflow.yml` carries both a `build` block and an `involvement` block
+↦ **WHEN** the file is parsed
+∴ **THEN** involvement still resolves normally, and an unrecognised `implementer` value raises an error naming the line and the allowed values
+
+```javascript
+{
+  const test = require('node:test');
+  const assert = require('node:assert/strict');
+  const { mkdtempSync, writeFileSync } = require('node:fs');
+  const { tmpdir } = require('node:os');
+  const path = require('node:path');
+
+  test('B8: build block coexists with involvement; bad value rejected', async () => {
+    const helperUrl = require('url').pathToFileURL(
+      path.join(__dirname, '..', '..', 'plugins', 'wovenflow', 'skills', '_shared', 'involvement.mjs'),
+    ).href;
+    const mod = await import(helperUrl);
+
+    // both blocks present, either order
+    for (const body of [
+      'involvement:\n  mode: minimal\nbuild:\n  implementer: inline\n',
+      'build:\n  implementer: inline\ninvolvement:\n  mode: minimal\n',
+    ]) {
+      const dir = mkdtempSync(path.join(tmpdir(), 'wovenflow-b8-'));
+      writeFileSync(path.join(dir, '.wovenflow.yml'), body);
+      assert.equal(mod.loadBuildConfig(dir).implementer, 'inline');
+      assert.equal(mod.shouldAsk('redteam_findings', dir), 'auto');
+    }
+
+    // unrecognised implementer value
+    const bad = mkdtempSync(path.join(tmpdir(), 'wovenflow-b8-bad-'));
+    writeFileSync(path.join(bad, '.wovenflow.yml'), 'build:\n  implementer: swarm\n');
+    assert.throws(() => mod.loadBuildConfig(bad), /implementer/i);
+  });
+}
+```
