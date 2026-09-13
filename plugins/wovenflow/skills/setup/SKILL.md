@@ -165,8 +165,8 @@ Override only if you're explicitly using a different methodology. If you overrid
 
 **Job:** Land the verified work — via PR review or direct push.
 
-- [**`wovenflow:setup` ship-pr template (Recommended for PR-based projects)**](https://github.com/wovenflow/wovenflow) — wizard materializes `ship-pr.md.tmpl` into `<repo>/.claude/skills/ship/SKILL.md`. Pushes the branch, opens a PR with title + body derived from the issue/task, marks the task in-review, hands off to CI and reviewers.
-- [**`wovenflow:setup` ship-direct template (Recommended for solo / non-GitHub projects)**](https://github.com/wovenflow/wovenflow) — wizard materializes `ship-direct.md.tmpl` into `<repo>/.claude/skills/ship/SKILL.md`. Confirms scope with the user (the human-review step PRs would force), pushes to `{{MAIN_BRANCH}}`, marks the task done. For solo work, research projects, internal tooling, anywhere PR ceremony is overhead-not-value.
+- [**`wovenflow:setup` ship-pr template (Recommended for PR-based projects)**](https://github.com/wovenflow/wovenflow) — wizard materializes `ship-pr.md.tmpl` into `<repo>/.claude/skills/ship-pr/SKILL.md`. Pushes the branch, opens a PR with title + body derived from the issue/task, marks the task in-review, hands off to CI and reviewers.
+- [**`wovenflow:setup` ship-direct template (Recommended for solo / non-GitHub projects)**](https://github.com/wovenflow/wovenflow) — wizard materializes `ship-direct.md.tmpl` into `<repo>/.claude/skills/ship-direct/SKILL.md`. Confirms scope with the user (the human-review step PRs would force), pushes to `{{MAIN_BRANCH}}`, marks the task done. For solo work, research projects, internal tooling, anywhere PR ceremony is overhead-not-value.
 - [**`gstack:ship`**](https://github.com/garrytan/gstack) — gstack's canonical ship flow (test, review diff, version bump, commit, push, PR)
 - [**`gstack:land-and-deploy`**](https://github.com/garrytan/gstack) — picks up after `/ship` to merge + verify deploy
 - [**Browse Git & Version Control category**](https://buildwithclaude.com/) — `commit` (smart messages), `create-pr`, and other PR-automation skills
@@ -204,8 +204,8 @@ For the universal patterns of the cycle, wovenflow ships fill-in templates that 
 | `tasks.py.tmpl` | `<repo>/scripts/tasks.py` | Reference Python helper for `tasks.md` projects (only when `claim-tasks` is picked). Skills invoke `tasks.py set <id> --status …` instead of editing markdown directly — atomic, idempotent, no prose-parsing. |
 | `startup.md.tmpl` | `<repo>/.claude/skills/startup/SKILL.md` | Session bootstrap (pre-Phase 1) — sync, instruction diff, architecture refresh, identify task |
 | `verify.md.tmpl` | `<repo>/.claude/skills/verify/SKILL.md` | Verification gate (Phase 7) — tests, coverage audit, UI/manual walkthrough, adversarial review |
-| `ship-pr.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship via pull request (Phase 8) — push, `gh pr create`, mark task in-review |
-| `ship-direct.md.tmpl` | `<repo>/.claude/skills/ship/SKILL.md` | Ship without PR (Phase 8) — confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub projects. |
+| `ship-pr.md.tmpl` | `<repo>/.claude/skills/ship-pr/SKILL.md` | Ship via pull request (Phase 8) — push, `gh pr create`, mark task in-review |
+| `ship-direct.md.tmpl` | `<repo>/.claude/skills/ship-direct/SKILL.md` | Ship without PR (Phase 8) — confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub projects. |
 | `wrap-up.md.tmpl` | `<repo>/.claude/skills/wrap-up/SKILL.md` | Session close-out (Phase 10) — dangling-commit audit, status reconciliation, session-learnings capture, next-task claim |
 | `learnings.md.tmpl` | `<repo>/{{FINDINGS_FILE}}` | **Capped** findings index — `startup` reads it in full every session, `researchflow` and wrap-up write it. One finding per entry, max three lines, each carrying a linked commit; anything longer lives in a doc and is referenced. Hard line cap, enforced at wrap-up. Materialized alongside the wrap-up template, only when absent. |
 | `sessions.md.tmpl` | `<repo>/{{SESSIONS_FILE}}` | Append-only session ledger — one entry per session with session id, linked commits, and the handoff. **Never read at startup**; unbounded by design. Materialized alongside the wrap-up template, only when absent. |
