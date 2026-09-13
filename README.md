@@ -35,10 +35,10 @@ Eight skills cover the cycle:
 | `wovenflow:researchflow` | Phase 3 — Survey outside context | Bridge the agent's training-cutoff gap to current reality. Surface real papers, prior systems, design patterns, current library versions, current API shapes, RFCs, and ecosystem conventions before drafting the spec. Composes one or more researcher profiles (academic, competitive-landscape, custom). |
 | `wovenflow:designflow` | Phase 4 — Design | Write a `.spec.md` with user stories + if/when/then behaviors — prose only, no code. Last step invokes `wovenflow:redteam` against the spec before locking. |
 | `wovenflow:testflow` | Phase 5 — Test | Insert inline test blocks alongside each behavior. Bundled `extract.mjs` produces derived `.test.ts` files at pretest time. Runner-agnostic — works with `node:test`, Mocha, Vitest, Jest. |
-| `wovenflow:subflow` | Phase 6 — Build | Dispatch implementer subagents per behavior, with spec-compliance and code-quality review. Three modes: Team mode (when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set — persistent named teammates, mid-flight messaging, shared task list), Parallel mode (one-shot dispatch into per-behavior worktrees), Sequential mode (rare fallback). Final step invokes `wovenflow:scopecheck` to enforce no over-implementation. |
+| `wovenflow:subflow` | Phase 6 — Build | Implement each behavior, with spec-compliance and code-quality review. **Who writes the code is a per-project choice** (`build.implementer` in `.wovenflow.yml`): `fork` — a subagent inheriting the orchestrator's conversation, the default because context loss at the handoff is the dominant failure; `subagent` — no inherited context, for genuinely self-contained work; `inline` — the orchestrator itself, with no dispatch and no worktrees, for small or still-being-reasoned-out work. When dispatching, three topologies: Team mode (when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set — persistent named teammates, mid-flight messaging, shared task list), Parallel mode (one-shot dispatch into per-behavior worktrees), Sequential mode (rare fallback). Final step invokes `wovenflow:scopecheck` to enforce no over-implementation. |
 | `wovenflow:scopecheck` | Subflow final step + cross-phase audit | Coverage-based over-implementation guardrail. Runs the project's coverage command, intersects with the feature-branch diff; any committed line not exercised by a test is by-construction not required by any behavior. Verdicts: CLEAN / VIOLATIONS / AMBIGUOUS / BLOCKED. On VIOLATIONS, proposes per-region: remove (scope creep) or formalize (draft a new behavior + test). |
 | `wovenflow:redteam` | Cross-phase decision gate | Adversarial-question runner — "list the top three reasons this is not the right call." Invocable before any commit-shaped artifact gets locked: pre-spec save, pre-verify approval, pre-merge, pre-direction-lock. Forces specific, artifact-rooted, steel-manned objections; banned generic vibes (over-engineering, scope creep) without anchoring evidence. |
-| `wovenflow:setup` | Workflow wizard | Interactive walk-through to define a project's full 10-phase development cycle (claim → … → close-out), suggesting existing skills or materializing wovenflow's bundled scaffold templates (`claim`, `startup`, `verify`, `ship-pr`, `ship-direct`, `wrap-up`, `learnings`, `researcher`, `tasks.py`) for the universal patterns. Writes the settled workflow to the project's `CLAUDE.md`. |
+| `wovenflow:setup` | Workflow wizard | Interactive walk-through to define a project's full 10-phase development cycle (claim → … → close-out), suggesting existing skills or materializing wovenflow's bundled scaffold templates (`claim`, `startup`, `verify`, `ship-pr`, `ship-direct`, `wrap-up`, `findings`, `sessions`, `prior-work`, `researcher`, `tasks.py`) for the universal patterns. Writes the settled workflow to the project's `CLAUDE.md`. |
 | `wovenflow:flowtune` | Workflow self-tuning | Reviews the session for friction signals — skipped phases, repeated manual additions, override patterns, missing-skill complaints — and proposes specific updates to `CLAUDE.md`'s Standard workstream so future sessions have the right defaults. Wrap-up offers it when friction was observed. |
 
 ## The full cycle
@@ -53,7 +53,7 @@ Eight skills cover the cycle:
 | 3 | Survey outside context | Surface real references via composable researcher profiles (academic, competitive-landscape, custom) | **`wovenflow:researchflow`** + profiles | Custom researcher profile materialized from `researcher.md.tmpl` (security, clinical, data-science, hardware, etc.); skip when work is mechanical |
 | 4 | Design | Write the prose `.spec.md` with user stories + if/when/then behaviors; red-team check before locking | **`wovenflow:designflow`** + **`wovenflow:redteam`** | None recommended — overriding the DTDD core means you're not using wovenflow |
 | 5 | Test | Insert inline test blocks alongside each behavior; bundled extractor produces derived test files at pretest time | **`wovenflow:testflow`** | None recommended — overriding the DTDD core means you're not using wovenflow |
-| 6 | Build | Dispatch implementer subagents per behavior; spec-compliance + code-quality review (Team / Parallel / Sequential modes) | **`wovenflow:subflow`** | `superpowers:subagent-driven-development` (fallback for non-DTDD work, no `.spec.md`); `compound-engineering:ce-work` (fallback for the Compound Engineering plan-first methodology); `ruvnet/claude-flow` (heavyweight alternative for swarm-shaped work — different methodology, not a drop-in) |
+| 6 | Build | Implement each behavior; spec-compliance + code-quality review. Implementer is a project choice — fork / subagent / inline | **`wovenflow:subflow`** | `superpowers:subagent-driven-development` (fallback for non-DTDD work, no `.spec.md`); `compound-engineering:ce-work` (fallback for the Compound Engineering plan-first methodology); `ruvnet/claude-flow` (heavyweight alternative for swarm-shaped work — different methodology, not a drop-in) |
 | 7 | Verify | Cleanup + review chain (tests, coverage, UI walk-through, adversarial review) | `wovenflow:setup` verify template | `gstack:simplify`; `gstack:codex review`; `gstack:design-review`; `gstack:health`; `gstack:qa`; `gstack:benchmark`; `gstack:cso`; `wovenflow:redteam`; `compound-engineering:ce-code-review`; `compound-engineering:ce-debug`; `test-writer-fixer`; Browse Code Quality category; off-template skill via `skill-creator` |
 | 8 | Ship | Land the verified work via PR or direct push | `wovenflow:setup` ship-pr or ship-direct template | `gstack:ship`; `gstack:land-and-deploy`; Browse Git & Version Control category (`commit`, `create-pr`); off-template skill via `skill-creator` |
 | 9 | Post-ship | Update docs, capture learnings | `gstack:document-release` | `gstack:retro`; `gstack:learn`; `compound-engineering:ce-compound` (structured learnings-for-reuse); `compound-engineering:ce-product-pulse` (post-ship usage / perf report); `claude-md-management:claude-md-improver`; Browse Documentation category |
@@ -82,7 +82,7 @@ In a project that has a test runner (Mocha, Vitest, Jest, or Node's built-in `no
 3. Run `/wovenflow:designflow` to draft a `.spec.md` for your first feature.
 4. Run `/wovenflow:testflow` to insert inline tests.
 5. Wire `pretest` in your `package.json` so `npm test` extracts and runs the spec tests.
-6. Run `/wovenflow:subflow` to dispatch implementer subagents in parallel.
+6. Run `/wovenflow:subflow` to implement each behavior — dispatched in parallel, or inline, per your `build.implementer` setting.
 
 ## User involvement modes
 
@@ -155,6 +155,20 @@ The file is local audit data; add it to `.gitignore`.
 | `subflow_style_decisions` | `subflow`, `testflow` |
 
 `setup` and `flowtune` are exempt — they are by definition interactive (they configure the file). Every other wovenflow skill reads `.wovenflow.yml` before prompting.
+
+## Project records
+
+`setup` materializes three files at the repo root. They look similar and are deliberately not interchangeable — the split exists because one file trying to be all three grows until nothing loads it.
+
+| File | Read | Written | Answers |
+|---|---|---|---|
+| `FINDINGS.md` | every session, in full | `wrap-up`, `researchflow` | *What has this project learned?* Capped. One finding per entry, each with a linked commit. Disproved entries are flipped to `✗` and kept, never deleted — a visible wrong turn is the cheapest protection against retaking it. |
+| `PRIOR-WORK.md` | every session, and before any paper search | `researchflow` | *What was already known before this started?* Capped, one line per source, pointing into a research folder where the reading lives. Provenance-marked: `✓` read, `~` abstract only, `✗` searched and absent. |
+| `SESSIONS.md` | never at startup | `wrap-up` | *What happened, and when?* Unbounded by design. One entry per session with its id, linked commits, and the handoff to the next session. |
+
+`ARCHITECTURE.md` is the fourth, optional and separate: *what the project is now.* `startup` and `claim` read it; `wrap-up` writes it, and most sessions should not — an architecture doc that absorbs every change becomes a changelog nobody reads.
+
+The caps are enforced at wrap-up and are the mechanism, not decoration. Over the cap, `FINDINGS.md` retires or promotes an entry in the same edit; `PRIOR-WORK.md` groups several sources into one topic document behind a single line. An index that grows without bound stops being loaded, and a record nothing loads is a record nobody maintains.
 
 ## Why woven
 
