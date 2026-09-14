@@ -143,8 +143,34 @@ Check for contradictions before finishing: if a new entry disagrees with an exis
 
 If the session surfaced nothing that clears the bar, say so explicitly in the summary rather than skipping silently — "no new findings" is itself information about the session.
 
-{{IF ARCH_DOC}}
-### 7. Update the architecture doc ({{ARCH_DOC}})
+{{IF CLAIMS_FILE}}### 7. Reconcile the claims index ({{CLAIMS_FILE}})
+
+Step 6 records what the project now knows. This asks what that lets it **assert**
+— and it is the step most likely to be skipped, because a claim register only
+ever hurts in the short term.
+
+Walk the session's findings against the table:
+
+1. **Did a measurement move an evidence cell?** `○ asserted` → `●● measured`
+   needs the commit in the cell. Nothing else moves it.
+2. **Did a search move a novelty cell?** Only `researchflow` earns that, and only
+   with a citation to what was searched.
+3. **Did anything move a row DOWN?** A number that came in worse, a paper that
+   turned out to anticipate us, a caveat that narrows the population. **Report
+   these first.** A register that only ratchets upward is not being maintained,
+   it is being decorated.
+4. **Did the session surface evidence AGAINST a claim?** Put it in the claim's
+   own file under *what would sink it*, now, while the reasoning is fresh.
+
+**Never promote on the novelty axis because the evidence axis moved.** Measuring
+something more carefully does not make it newer. If a row outgrew its cell, move
+the reasoning into `{{CLAIMS_DIR}}/` and leave a pointer.
+
+If nothing moved, say so in the summary. "No claim changed" is information — a
+session that measured a lot and moved no claim is worth noticing.
+
+{{ENDIF}}{{IF ARCH_DOC}}
+### 8. Update the architecture doc ({{ARCH_DOC}})
 
 Steps 5 and 6 record what happened and what the project knows. This records **what the project now is** — and it is the only one of the three with no other author. `{{ARCH_DOC}}` is read at every `startup` and by the `claim` skill before any design work; nothing else in the workflow writes it. Left to itself it does not stay merely incomplete, it becomes wrong, and it is wrong in the most expensive place: the document a session trusts before it has looked at any code.
 

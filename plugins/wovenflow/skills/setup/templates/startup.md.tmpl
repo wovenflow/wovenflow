@@ -83,6 +83,20 @@ It guards a specific and expensive mistake: **writing a claim from recollection 
 Note the provenance markers. `~` means abstract-only, so do not quote a number off that line. `✗` means the literature was searched and does not cover this, or covers it and refutes it — treat a `✗` as a real result, not a gap to fill by guessing.
 {{ENDIF}}
 
+{{IF CLAIMS_FILE}}
+**Then read `{{CLAIMS_FILE}}`.**
+
+```
+[ -f {{CLAIMS_FILE}} ] && cat {{CLAIMS_FILE}}
+```
+
+The third of the trio: findings is what the project **learned**, prior work is what was **already known**, this is what the two together let it **assert**. Capped at {{CLAIMS_CAP}}, pointing into `{{CLAIMS_DIR}}/`.
+
+Read the two columns separately, because they answer different questions. **Novelty** is whether a reviewer would call it new; **evidence** is whether we can show it. A row that is `✗ absent` on novelty and `○ asserted` on evidence is wide open *and* unearned — the most tempting square on the board and the weakest.
+
+Two markers to act on. **`?` unsearched is a liability**, not a blank claim of novelty: it means nobody has checked, and searching can only lower it — so a `?` on a row today's work touches is a cheap thing to fix. And **if today's work would move a row, it moves at wrap-up, with the commit in the cell** — never on the strength of the session's own enthusiasm.
+{{ENDIF}}
+
 {{IF INFRA_LAUNCH}}
 ### 4. Launch project infrastructure
 

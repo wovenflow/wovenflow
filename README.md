@@ -158,13 +158,45 @@ The file is local audit data; add it to `.gitignore`.
 
 ## Project records
 
-`setup` materializes three files at the repo root. They look similar and are deliberately not interchangeable — the split exists because one file trying to be all three grows until nothing loads it.
+`setup` materializes these at the repo root. They look similar and are deliberately not interchangeable — the split exists because one file trying to be all of them grows until nothing loads it.
 
 | File | Read | Written | Answers |
 |---|---|---|---|
 | `FINDINGS.md` | every session, in full | `wrap-up`, `researchflow` | *What has this project learned?* Capped. One finding per entry, each with a linked commit. Disproved entries are flipped to `✗` and kept, never deleted — a visible wrong turn is the cheapest protection against retaking it. |
 | `PRIOR-WORK.md` | every session, and before any paper search | `researchflow` | *What was already known before this started?* Capped, one line per source, pointing into a research folder where the reading lives. Provenance-marked: `✓` read, `~` abstract only, `✗` searched and absent. |
+| `claims.md` | every session, in full | any phase that moves a row | *What could we actually assert, and how much of it is earned?* Capped, pointing into a claims folder. Scores **novelty and evidence in separate columns** — see below. Optional: skip it for projects with nothing to claim externally. |
 | `SESSIONS.md` | never at startup | `wrap-up` | *What happened, and when?* Unbounded by design. One entry per session with its id, linked commits, and the handoff to the next session. |
+
+### The index-and-folder shape, three times over
+
+Three of these are the same mechanism, and recognising it is the point:
+
+| Capped index, read every session | Uncapped long form, read on demand |
+|---|---|
+| `FINDINGS.md` — one finding per entry | `SESSIONS.md` — the full narrative of what happened |
+| `PRIOR-WORK.md` — one line per source | `doc/research/<topic>.md` — the actual reading |
+| `claims.md` — one row per claim | `doc/claims/<id>-<slug>.md` — the argument behind it |
+
+**The cap on the left is what makes the right-hand side safe to be long.** An
+index that grows without bound stops being loaded; a record nothing loads is a
+record nobody maintains. So the discipline is always the same — when a row
+outgrows its cell, the reasoning moves right and the row keeps a pointer, and
+the long document **never copies the table back**, because two copies drift and
+the drift is invisible.
+
+### Why `claims.md` splits novelty from evidence
+
+They are different questions and a single "confidence" score hides the worst
+case. A claim that is wide open in the literature and wholly unevidenced by us
+*feels* like a contribution; it is the weakest square on the board. So: an
+evidence cell cites a **commit**, a novelty cell cites **what was searched**, and
+`?` unsearched is recorded as a **liability** rather than a blank claim of
+novelty — searching can only lower it. A headline claim that is a conjunction
+inherits the **minimum** of its links.
+
+The file is also where the **evidence against** the project belongs. A register
+listing only what might be new, while the counter-evidence sits unindexed in a
+long research document, is a machine for self-persuasion.
 
 `ARCHITECTURE.md` is the fourth, optional and separate: *what the project is now.* `startup` and `claim` read it; `wrap-up` writes it, and most sessions should not — an architecture doc that absorbs every change becomes a changelog nobody reads.
 

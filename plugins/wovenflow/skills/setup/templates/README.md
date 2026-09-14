@@ -35,6 +35,8 @@ function substitute(tmpl, vars) {
 | `ship-pr.md.tmpl` | `.claude/skills/ship-pr/SKILL.md` | Phase 8 ship via pull request: push branch, `gh pr create`, mark task in-review |
 | `ship-direct.md.tmpl` | `.claude/skills/ship-direct/SKILL.md` | Phase 8 ship without PR: confirm scope with user, push to `{{MAIN_BRANCH}}`, mark task done. For solo / non-GitHub workflows. |
 | `prior-work.md.tmpl` | `<repo>/PRIOR-WORK.md` | Capped one-line index of external prior work, written by `researchflow` step 10 and read at every startup. Points into `PRIOR_WORK_DIR`, where the reading itself lives. |
+| `claims.md.tmpl` | `<repo>/{{CLAIMS_FILE}}` | Capped claim index — novelty and evidence in separate columns, an evidence cell citing a commit and a novelty cell citing what was searched |
+| `claims-doc.md.tmpl` | `<repo>/{{CLAIMS_DIR}}/<id>-<slug>.md` | The argument behind one claim row, including *what would sink it* |
 | `researcher.md.tmpl` | `.claude/skills/researchflow/researchers/<NAME>.md` | Phase 3 custom researcher profile: field-specific steps and integrity gates layered on top of the base researchflow. |
 | `web-dashboard/serve.mjs.tmpl` + `index.html.tmpl` + `panels/*.mjs.tmpl` + `README.md` | `<repo>/web/serve.mjs` and `<repo>/web/index.html` | Cross-cutting concern (Step 4.X): tailored project dashboard. Wizard asks which panels to include; only those `{{IF PANEL_*}}` blocks survive substitution. See `web-dashboard/README.md` for the full panel catalog and per-panel variables. |
 

@@ -175,6 +175,25 @@ Three things this step gets wrong if left to judgment:
 
 A pass that surfaced nothing usable still writes its `✗` lines and says so in the summary.
 
+### 10b. Move any claim the search changed
+
+If the project keeps a claims index (`claims.md`), a search that found — or
+failed to find — prior art for something the project intends to assert **must
+update that row in the same pass**. Concretely:
+
+- Prior art found → the row's novelty drops to `~ adjacent` or `= anticipated`,
+  and the cell cites the paper.
+- **Searched and absent → the row moves off `? unsearched` to `✗ absent`, and the
+  cell says what was searched.** This is the only way `✗` is ever earned.
+- **Evidence against the claim → record it.** A search that turns up a published
+  result pointing the other way is the most valuable thing this phase produces,
+  and it is the thing most likely to be dropped on the way to the index. If it
+  does not fit a cell, it belongs in the claim's own document under *what would
+  sink it*.
+
+Never move the **evidence** column here — a literature search is not a
+measurement of our own. And never promote novelty because evidence moved.
+
 ### 11. Hand off to designflow
 
 The next phase (`wovenflow:designflow`) reads this document as context when drafting the `.spec.md`. Behaviors in the spec should reflect what the references and profile analyses teach — don't re-derive what's known; address the actual gaps.

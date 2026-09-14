@@ -1,0 +1,63 @@
+# Claims — {{PROJECT_NAME}}
+
+**What this project might be able to claim, and how much of it is earned.** Read
+at the start of every session. Cap: {{CLAIMS_CAP}} lines. An index — the
+reasoning behind each row lives in `{{CLAIMS_DIR}}/`, one file per claim.
+
+`{{FINDINGS_FILE}}` records what this project *learned*; `{{PRIOR_WORK_FILE}}`
+records what was *already known*. This records what the two together would let
+us **assert** — and, more usefully, what they do not.
+
+**Novelty** `✗` searched and absent · `~` adjacent work exists · `=` anticipated
+· `?` **unsearched, a liability**
+**Evidence** `●●` measured here · `●` partial or elsewhere · `○` asserted
+
+Links: `F` = {{FORGE_URL}}
+
+---
+
+## Why the two axes are separate columns
+
+A claim can be wide open in the literature and completely unevidenced by us.
+That combination *feels* like a contribution and is the weakest square on the
+board. Collapsing novelty and evidence into one "confidence" score is how a
+project talks itself into a claim it cannot defend, so they never share a column.
+
+## Format
+
+```
+| # | Claim | Nov | Ev | Detail |
+|---|---|:-:|:-:|---|
+| 1 | <claim, stated so a hostile reader can attack it> | `✗` | `●●` | <number> · [`abc1234`](F/commit/abc1234) · [reading](<research doc>) |
+```
+
+**An evidence cell cites a commit. A novelty cell cites what was searched** — a
+paper, or the section of a prior-work document. A verdict with no citation is a
+recollection, and a recollection is indistinguishable from a measurement once it
+is in a table.
+
+## Rules
+
+- **A row moves only with a commit, and the commit goes in the cell.** An
+  unbacked promotion here is worse than one in `{{FINDINGS_FILE}}`, because this
+  is the file a write-up gets built from.
+- **`?` is a liability, not a blank claim of novelty.** It means nobody has
+  checked. Searching can only lower it.
+- **Never promote on the novelty axis because the evidence axis moved.**
+  Measuring something more carefully does not make it newer.
+- **A conjunction inherits the MINIMUM of its parts.** If the headline claim is a
+  chain, score each link and give the chain the weakest link's marks — never the
+  strongest.
+- **Record the evidence *against*** as deliberately as the evidence for. A
+  register that lists only what might be new, while the counter-evidence sits
+  unindexed in a long document, is a machine for self-persuasion.
+- **A row gets a file in `{{CLAIMS_DIR}}/` when it outgrows its cell** — and that
+  file never copies this table back. Two copies drift, and the drift is
+  invisible.
+
+## When it grows past the cap
+
+Do not delete. Move the reasoning into `{{CLAIMS_DIR}}/<id>-<slug>.md` and leave
+the row pointing at it. The cap is what keeps this a thing that gets read.
+
+<!-- The claim table goes directly below this line. -->
