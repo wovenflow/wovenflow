@@ -380,14 +380,24 @@ If a template matches, follow 3b. Otherwise skip to 3c.
 
 5. **Special case for `claim-tasks`:** if `<repo>/<TASKS_FILE>` doesn't exist, also materialize `tasks.md.tmpl` to that path with the same variables. The project starts with a usable task tracker. Always materialize `tasks.py.tmpl` to `<repo>/<TASKS_HELPER>` (default: `scripts/tasks.py`) and `chmod +x` it — `claim-tasks`, `wrap-up`, and `startup` all invoke this helper. Default `TASKS_HELPER=scripts/tasks.py`; ask the user only if they want it elsewhere.
 
+5b. **Always materialize `records.py.tmpl`** to `<repo>/<RECORDS_HELPER>` (default: `scripts/records.py`) and `chmod +x` it — not only for `claim-tasks`, because it handles the findings, prior-work, claims and session records too. Put it in the same directory as `TASKS_HELPER`, which is now a shim forwarding to it; ask the user only if they want it elsewhere.
+
+   Say what it buys, because it can read as a lint nobody asked for. It is the one interface to every record the project keeps: `add` writes an entry in the file's own format so a skill never hand-edits markdown, and `lint` exits non-zero when an entry is **unsourced** — a finding with no commit link, a commit sha that does not resolve, a `→ doc/…` pointer that has gone dead, a novelty verdict citing no search.
+
+   **Tell the user to wire `{{RECORDS_HELPER}} lint` into `{{TEST_CMD}}`.** A rule nothing is held to is documentation. Run as a test it catches a dead pointer on the day it dies, rather than on the day someone follows it — and the checks are cheap enough that there is no reason to run them any less often.
+
+   Records the user disabled — an empty `{{PRIOR_WORK_FILE}}` or `{{CLAIMS_FILE}}` — drop out of the helper automatically, so no extra question is needed.
+
 6. **Special case for `wrap-up`:** materialize **both** log files if absent — `learnings.md.tmpl` → `<repo>/{{FINDINGS_FILE}}` (default `FINDINGS.md`) and `sessions.md.tmpl` → `<repo>/{{SESSIONS_FILE}}` (default `SESSIONS.md`). **Never overwrite** either; both accumulate across the project's life.
 
    The two are deliberately different animals and the wizard should say so when it materializes them:
 
-   - **Findings** is read into *every* session by `startup`, so every line costs context permanently. It is capped ({{FINDINGS_CAP}}, default 60 lines), one finding per entry, each with a linked commit and a `→ doc/…` pointer for anything needing explanation.
+   - **Findings** is read into *every* session by `startup`, so every line costs context permanently. One finding per entry, each with a linked commit and a `→ doc/…` pointer for anything needing explanation, and optionally capped ({{FINDINGS_CAP}}, default 60 lines).
    - **Sessions** is never read at startup and is unbounded. It answers "what happened and when", not "what do we know".
 
-   Ask for `{{FINDINGS_CAP}}` and `{{FORGE_URL}}` at this point. The cap has to be a number or it will not bind — a findings file without one reliably grows past the point of being loadable, at which point nothing reads it and it stops being maintained. `{{FORGE_URL}}` is the repo's web base (e.g. `https://github.com/<org>/<repo>` or a self-hosted forge); commit and branch references are rendered as links against it, because a bare SHA does not get looked up.
+   Ask for `{{FINDINGS_CAP}}` and `{{FORGE_URL}}` at this point. `{{FORGE_URL}}` is the repo's web base (e.g. `https://github.com/<org>/<repo>` or a self-hosted forge); commit and branch references are rendered as links against it, because a bare SHA does not get looked up.
+
+   **Present the cap as a real choice rather than a default to accept.** Give it a number and `records.py lint` enforces it, so it binds instead of being counted by eye. **Leave it empty and there is no cap** — the `over-cap` rule, the budget column in `records.py status`, and the cap prose in `startup` and `wrap-up` all strip out together. Both sides cost something, and the user should hear both: an uncapped index reliably grows past the point of being loadable, after which nothing reads it; but a hard cap makes a still-true entry compete for space against a newer one, which prunes exactly the records that exist to stop a wrong turn being retaken. Recommend the default `60` for a project with no strong view, and say that either way the sourcing checks — linked commit, live pointer, cited search — run regardless, because those are what catch the defects that actually ship.
 
    **If the project already has a `LEARNINGS.md`** in the old multi-field format, do not silently convert it. Report its line count and offer: migrate now (distil to the capped one-line format, which needs judgement about what survives), migrate later, or leave it and apply the new format only to new entries.
 
@@ -395,9 +405,9 @@ If a template matches, follow 3b. Otherwise skip to 3c.
 
    Ask for `{{PRIOR_WORK_FILE}}`, `{{PRIOR_WORK_DIR}}` and `{{PRIOR_WORK_CAP}}` here. **Leave `{{PRIOR_WORK_FILE}}` empty to disable the mechanism entirely** — the `{{IF PRIOR_WORK_FILE}}` block in `startup.md.tmpl` then strips out, and `startup` never mentions it. Offer that for projects with no research phase; do not materialize a file nobody will write to.
 
-   Say what it is for when materializing it, because it is easily mistaken for a bibliography: it is a **capped, one-line-per-source index** into `{{PRIOR_WORK_DIR}}`, written by `researchflow` step 10 and read at every `startup`. It exists to stop a claim being written from recollection when a source exists — a plan asserting what some technique achieves, sourced only from the model's memory of the literature, is indistinguishable from one grounded in papers actually read until the number turns out wrong. Over the cap, sources are **grouped** into one topic document behind a single line, never deleted; an entry per paper makes a bibliography, and a bibliography does not get loaded.
+   Say what it is for when materializing it, because it is easily mistaken for a bibliography: it is a **one-line-per-source index** into `{{PRIOR_WORK_DIR}}`, written by `researchflow` step 10 and read at every `startup`. It exists to stop a claim being written from recollection when a source exists — a plan asserting what some technique achieves, sourced only from the model's memory of the literature, is indistinguishable from one grounded in papers actually read until the number turns out wrong. As it grows, sources are **grouped** into one topic document behind a single line, never deleted; an entry per paper makes a bibliography, and a bibliography does not get loaded. A cap, if set, is only what forces the grouping to happen.
 
-   `{{FINDINGS_FILE}}` and `{{PRIOR_WORK_FILE}}` are both capped one-line indexes and will be confused if the difference is not stated: findings is what **this project** learned, prior work is what was **already known** before it started. A paper's conclusion is not a project finding.
+   `{{FINDINGS_FILE}}` and `{{PRIOR_WORK_FILE}}` are both one-line indexes and will be confused if the difference is not stated: findings is what **this project** learned, prior work is what was **already known** before it started. A paper's conclusion is not a project finding.
 
 7b. **Special case for projects that intend to CLAIM something** — a paper, a launch announcement, a standards proposal, a grant report. Materialize `claims.md.tmpl` → `<repo>/{{CLAIMS_FILE}}` (default `claims.md`) and create `<repo>/{{CLAIMS_DIR}}` (default alongside `{{PRIOR_WORK_DIR}}`, e.g. `docs/claims`), copying `claims-doc.md.tmpl` in as the per-claim template. **Never overwrite.**
 
@@ -407,7 +417,7 @@ If a template matches, follow 3b. Otherwise skip to 3c.
 
    **It must record the evidence AGAINST as deliberately as the evidence for.** A register that lists only what might be new, while the counter-evidence sits unindexed in a long research document, is a machine for self-persuasion — and that failure has happened in a real wovenflow project: a survey's own verdict that the field's results ran against the project's premise in its exact regime reached no index for a day, while nine "what is novel" rows were carried forward.
 
-   The trio now reads: `{{FINDINGS_FILE}}` = what we learned · `{{PRIOR_WORK_FILE}}` = what was already known · `{{CLAIMS_FILE}}` = what the two together let us assert. Each is capped and each points into a directory that is not.
+   The trio now reads: `{{FINDINGS_FILE}}` = what we learned · `{{PRIOR_WORK_FILE}}` = what was already known · `{{CLAIMS_FILE}}` = what the two together let us assert. Each is an index and each points into a directory that is not — that shape is what keeps them loadable, with or without a line cap on top.
 
 #### 3c. Fall back to skill-creator (no template available)
 

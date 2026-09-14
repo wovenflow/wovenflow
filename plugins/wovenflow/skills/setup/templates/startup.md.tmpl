@@ -61,7 +61,7 @@ Folder-level `{{ARCH_DOC}}` files (in subdirectories) are loaded on-demand as yo
 [ -f {{FINDINGS_FILE}} ] && cat {{FINDINGS_FILE}}
 ```
 
-`{{ARCH_DOC}}` says how the project is built. This says **what it has learned** — which assumptions were tested, which approaches were ruled out and why, and which previously-stated claims have since been withdrawn. It is capped at {{FINDINGS_CAP}} lines precisely so it can be loaded every time.
+`{{ARCH_DOC}}` says how the project is built. This says **what it has learned** — which assumptions were tested, which approaches were ruled out and why, and which previously-stated claims have since been withdrawn. One finding per entry, a pointer rather than prose, is what keeps it cheap enough to load every time{{IF FINDINGS_CAP}} — and the {{FINDINGS_CAP}}-line cap is what holds it there{{ENDIF}}.
 
 Pay particular attention to `✗` entries. Those are claims this project once believed and has since disproved; re-deriving one costs a session. If a finding's `→` reference looks relevant to today's task, open that doc before starting rather than after.
 
@@ -76,7 +76,7 @@ Do **not** read `{{SESSIONS_FILE}}` at startup. It is an unbounded ledger; openi
 [ -f {{PRIOR_WORK_FILE}} ] && cat {{PRIOR_WORK_FILE}}
 ```
 
-`{{FINDINGS_FILE}}` is what *this project* learned. This is what was already known before it started — one line per source, capped at {{PRIOR_WORK_CAP}}, pointing into `{{PRIOR_WORK_DIR}}/` where the reading lives.
+`{{FINDINGS_FILE}}` is what *this project* learned. This is what was already known before it started — one line per source{{IF PRIOR_WORK_CAP}}, capped at {{PRIOR_WORK_CAP}}{{ENDIF}}, pointing into `{{PRIOR_WORK_DIR}}/` where the reading lives.
 
 It guards a specific and expensive mistake: **writing a claim from recollection when a source exists.** A plan that asserts what some technique achieves, sourced from nothing but the model's memory of the literature, reads exactly like one grounded in papers actually read — and the difference only surfaces when the number turns out wrong.
 
@@ -90,7 +90,7 @@ Note the provenance markers. `~` means abstract-only, so do not quote a number o
 [ -f {{CLAIMS_FILE}} ] && cat {{CLAIMS_FILE}}
 ```
 
-The third of the trio: findings is what the project **learned**, prior work is what was **already known**, this is what the two together let it **assert**. Capped at {{CLAIMS_CAP}}, pointing into `{{CLAIMS_DIR}}/`.
+The third of the trio: findings is what the project **learned**, prior work is what was **already known**, this is what the two together let it **assert**. One row per claim{{IF CLAIMS_CAP}}, capped at {{CLAIMS_CAP}}{{ENDIF}}, pointing into `{{CLAIMS_DIR}}/`.
 
 Read the two columns separately, because they answer different questions. **Novelty** is whether a reviewer would call it new; **evidence** is whether we can show it. A row that is `✗ absent` on novelty and `○ asserted` on evidence is wide open *and* unearned — the most tempting square on the board and the weakest.
 

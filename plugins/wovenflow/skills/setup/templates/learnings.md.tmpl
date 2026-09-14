@@ -4,15 +4,20 @@
 what is known, what was tried and failed, and what was believed and then
 withdrawn.
 
-**HARD CAP: {{FINDINGS_CAP}} lines.** Not a guideline. When a new entry would
-push the file over, something must be retired or promoted to a doc *in the same
-edit*. A findings file too expensive to load is one nobody reads, and an unread
-one grows without limit — which is how it becomes unreadable.
+{{IF FINDINGS_CAP}}**HARD CAP: {{FINDINGS_CAP}} lines**, checked by
+`{{RECORDS_HELPER}} lint`. Not a guideline. When a new entry would push the file
+over, something must be retired or promoted to a doc *in the same edit*.
+
+{{ENDIF}}**One finding per entry, a pointer and not prose.** A findings file too
+expensive to load is one nobody reads, and an unread one grows without limit —
+which is how it becomes unreadable. That constraint holds whether or not a line
+cap is enforcing it. `{{RECORDS_HELPER}} lint` checks the part a cap never
+could: that every entry is actually **sourced**.
 
 This is **not** a progress log, a changelog, or a session journal. Sessions go in
 `{{SESSIONS_FILE}}`.
 
-## Format — one finding per entry, never more than three lines
+## Format — one finding per entry, and keep it to a few lines
 
 ```
 <status> YYYY-MM-DD [`<sha>`]({{FORGE_URL}}/commit/<sha>) The finding, stated as a

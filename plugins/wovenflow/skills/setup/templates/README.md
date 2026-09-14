@@ -28,7 +28,8 @@ function substitute(tmpl, vars) {
 | `claim-github.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a GitHub issue (Phase 1 of the workstream) |
 | `claim-tasks.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a task from a `tasks.md` file (Phase 1, alternative source) |
 | `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker file (only when the user picks the `tasks.md` claim variant) |
-| `tasks.py.tmpl` | `<repo>/scripts/tasks.py` | Reference Python helper that parses and updates `tasks.md` programmatically. Skills (`claim-tasks`, `wrap-up`, `startup`) invoke `tasks.py set <id> --status …` instead of editing markdown by hand. Idempotent — re-applying the same value is a no-op. |
+| `records.py.tmpl` | `<repo>/scripts/records.py` | **One interface to every record** — findings, prior work, claims, sessions and `tasks.md`. `status` / `lint` / `show` / `add` / `tasks …`. Skills call `records.py add finding …` instead of hand-editing, and `records.py lint` exits non-zero on an unsourced entry so it can gate the test suite. Records disabled at setup (empty `*_FILE`) drop out of it automatically. |
+| `tasks.py.tmpl` | `<repo>/scripts/tasks.py` | Compatibility shim forwarding to `records.py tasks`, so the existing `tasks.py set <id> --status …` call sites in `claim-tasks`, `wrap-up` and `startup` keep working unchanged. Idempotent — re-applying the same value is a no-op. |
 | `startup.md.tmpl` | `.claude/skills/startup/SKILL.md` | Session bootstrap: sync, instruction-diff, architecture refresh, identify task |
 | `wrap-up.md.tmpl` | `.claude/skills/wrap-up/SKILL.md` | Session close-out: dangling commits, status reconciliation, next-task suggestion |
 | `verify.md.tmpl` | `.claude/skills/verify/SKILL.md` | Phase 7 verification gate: tests, coverage audit, UI/manual walkthrough, adversarial review |
@@ -65,7 +66,8 @@ GitHub-specific:
 | Variable | Meaning | Example |
 |---|---|---|
 | `TASKS_FILE` | Path to the task tracker file | `tasks.md` |
-| `TASKS_HELPER` | Invocation for the `tasks.py` helper | `scripts/tasks.py` |
+| `TASKS_HELPER` | Invocation for the `tasks.py` shim | `scripts/tasks.py` |
+| `RECORDS_HELPER` | Invocation for the `records.py` helper — the one interface to every record. Keep it in the same directory as `TASKS_HELPER`; the shim looks there first | `scripts/records.py` |
 | `STATUS_READY` | Status value: ready | `ready` |
 | `STATUS_IN_PROGRESS` | Status value: in progress | `in-progress` |
 | `STATUS_IN_REVIEW` | Status value: in review | `in-review` |
@@ -108,10 +110,11 @@ GitHub-specific:
 | `PROJECT_NAME` | Used in `<title>`, headings, umbrella URL slug | `wovenflow` |
 | `FINDINGS_FILE` | Capped findings index, read by `startup` every session | `FINDINGS.md` |
 | `SESSIONS_FILE` | Append-only session ledger, never read at startup | `SESSIONS.md` |
-| `FINDINGS_CAP` | Hard line cap on `FINDINGS_FILE`, enforced at wrap-up. Must be a number — an uncapped findings file reliably grows past the point of being loadable, after which nothing reads it | `60` |
+| `FINDINGS_CAP` | Line cap on `FINDINGS_FILE`, enforced by `records.py lint` rather than by eye. A number caps it; **empty disables the cap entirely**, and the `over-cap` rule, the budget column in `records.py status` and the cap prose in `startup`/`wrap-up` all strip out together. Default `60`, and the default is deliberate: an uncapped index reliably grows past the point of being loadable, after which nothing reads it. The counter-argument, from a real project that switched it off: a hard cap makes a still-true entry compete for space against a newer one, which prunes exactly the records that stop a wrong turn being retaken. Neither answer is free | `60` |
 | `PRIOR_WORK_FILE` | Capped index of external prior work; empty to disable the mechanism | `PRIOR-WORK.md` |
 | `PRIOR_WORK_DIR` | Folder the index points into, where research documents live | `doc/research` |
-| `PRIOR_WORK_CAP` | Hard line cap on `PRIOR_WORK_FILE`. Over it, **group** sources into one topic doc rather than deleting — an entry per paper turns the index into a bibliography, and a bibliography does not get loaded | `40` |
+| `PRIOR_WORK_CAP` | Line cap on `PRIOR_WORK_FILE`; **empty disables it**, same as `FINDINGS_CAP`. Over the cap, **group** sources into one topic doc rather than deleting — an entry per paper turns the index into a bibliography, and a bibliography does not get loaded. Grouping is the right move with or without a cap; the cap is only what forces it | `40` |
+| `CLAIMS_CAP` | Line cap on `CLAIMS_FILE`; **empty disables it**. Over the cap, move a row's reasoning into `CLAIMS_DIR` and leave the row pointing at it | `50` |
 | `FORGE_URL` | Repo web base; commits render as `{{FORGE_URL}}/commit/<sha>`, branches as `{{FORGE_URL}}/src/branch/<name>` | `https://github.com/org/repo` |
 | `INTERVAL_S` | Seconds between data.json writes / browser polls | `5` |
 | `PORT` | Standalone HTTP port (`--serve`) | `8082` |

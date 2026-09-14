@@ -1,0 +1,954 @@
+#!/usr/bin/env python3
+"""One interface to the project's records.
+
+`tasks.py` did this for `{{TASKS_FILE}}` alone; this does it for all of them, so
+a skill never hand-edits a record and the sourcing rules are checked by a machine
+rather than by eye.
+
+Usage:
+    {{RECORDS_HELPER}} status
+    {{RECORDS_HELPER}} lint [KIND ...] [--no-git]
+    {{RECORDS_HELPER}} show KIND
+    {{RECORDS_HELPER}} add finding    --status S --commit SHA --text T [--doc PATH]
+    {{RECORDS_HELPER}} add prior-work --marker M --title T --link URL --text T
+                                      [--notes PATH]
+    {{RECORDS_HELPER}} add session    --session-id ID --text T [--commits a,b]
+                                      [--branch B] [--next N]
+    {{RECORDS_HELPER}} tasks list|show|next|set ...
+
+KIND is one of the keys of FILES below — the records this project enabled at
+setup time.
+
+`lint` exits 1 when anything is wrong and 0 when nothing is, so it can gate a
+test run. Almost every check is a SOURCING check — does this entry point at
+something that exists — because that is the class of defect that actually ships:
+a finding with no commit to point at, a pointer to a doc that moved, a novelty
+verdict written from recollection. Wire it into the test suite. A rule nothing is
+held to is documentation.
+"""
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+
+# A record whose filename is empty was disabled at setup time — the same
+# mechanism the skill templates use to strip out a section for a record the
+# project does not keep. Dropping it here means every command skips it, rather
+# than resolving a path that is just the repo root and reporting nonsense.
+_DECLARED = {
+    "findings": "{{FINDINGS_FILE}}",
+    "prior-work": "{{PRIOR_WORK_FILE}}",
+    "claims": "{{CLAIMS_FILE}}",
+    "sessions": "{{SESSIONS_FILE}}",
+    "tasks": "{{TASKS_FILE}}",
+}
+FILES = {k: v for k, v in _DECLARED.items() if v}
+KINDS = tuple(FILES)
+
+# Line caps, and they are OPTIONAL. A project that wants one gets it enforced
+# here instead of counted by eye; a project that leaves the variable empty gets
+# no cap and no cap check. The tradeoff is real in both directions: an uncapped
+# index reliably grows past the point of being loadable, after which nothing
+# reads it — but a hard cap makes a still-true entry compete for space against a
+# newer one, which prunes exactly the records that stop a wrong turn being
+# retaken. Neither answer is free. Pick deliberately.
+CAPS = {
+{{IF FINDINGS_CAP}}    "findings": {{FINDINGS_CAP}},
+{{ENDIF}}{{IF PRIOR_WORK_CAP}}    "prior-work": {{PRIOR_WORK_CAP}},
+{{ENDIF}}{{IF CLAIMS_CAP}}    "claims": {{CLAIMS_CAP}},
+{{ENDIF}}}
+
+FINDING_MARKERS = ("✓", "⚠", "✗")
+PROVENANCE_MARKERS = ("✓", "~", "✗")
+NOVELTY_MARKERS = {"✗", "~", "=", "?"}
+EVIDENCE_MARKERS = {"●●", "●", "○"}
+
+# Extend this set if the project grows a status the starter does not ship (a
+# `parked` or `blocked`, say). Linting a status that is in live use as a typo
+# trains the reader to ignore the check, which is the one failure mode a linter
+# cannot survive.
+TASK_STATUSES = {
+    "backlog",
+    "{{STATUS_READY}}",
+    "{{STATUS_IN_PROGRESS}}",
+    "{{STATUS_IN_REVIEW}}",
+    "{{STATUS_DONE}}",
+}
+
+# A cell that means "nobody". The em dash is the table's own idiom for an empty
+# cell, so an owner of `—` is an UNOWNED row, not an owner named `—`.
+EMPTY_CELLS = {"", "-", "—", "–", "n/a", "tbd"}
+
+DEFAULT_FORGE = "{{FORGE_URL}}"
+PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+
+DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+UUID_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
+# Both halves are captured on purpose: an entry whose displayed sha and link
+# target disagree looks correct and resolves to the wrong commit.
+COMMIT_LINK_RE = re.compile(r"\[`([0-9a-f]{7,40})`\]\((?:[^)]*?/commit/)([0-9a-f]{7,40})\)")
+MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+ARROW_RE = re.compile(r"→\s*(\S+)")
+BACKTICK_RE = re.compile(r"`([^`]+)`")
+FORGE_RE = re.compile(r"`F`\s*=\s*(\S+)")
+
+
+# --------------------------------------------------------------------------
+# markdown table engine (moved here from tasks.py)
+# --------------------------------------------------------------------------
+
+# Column headings vary by project: a table may use lowercase `id`/`task`/`phase`
+# where the shipped starter uses `ID`/`Title`/`Priority`. Resolving by alias
+# rather than by literal name keeps the helper working against either. Without
+# this the table parses cleanly and every lookup returns None — the failure is
+# silent, printing blank rows rather than erroring.
+ALIASES = {
+    "ID": ("id", "task id", "#", "link"),
+    "Title": ("title", "task", "description", "summary", "claim", "asserts"),
+    "Status": ("status", "state"),
+    "Owner": ("owner", "assignee"),
+    "Priority": ("priority", "phase", "prio"),
+    "Notes": ("notes", "note", "comment", "detail"),
+    "Novelty": ("nov", "novelty"),
+    "Evidence": ("ev", "evidence"),
+    "Searched": ("searched as", "searched"),
+}
+
+SEP_RE = re.compile(r"^\|[\s\-:|]+\|\s*$")
+
+
+def resolve(columns):
+    """Map canonical names to this file's actual headings, case-insensitively."""
+    lower = {c.lower(): c for c in columns}
+    out = {}
+    for canon, names in ALIASES.items():
+        for n in names:
+            if n in lower:
+                out[canon] = lower[n]
+                break
+    return out
+
+
+def get(row, cols, canon, default=""):
+    return row.get(cols.get(canon, canon), default)
+
+
+def find_tables(lines):
+    """Every markdown table in the file, as (columns, [row line indexes]).
+
+    A claims index holds more than one table, with different columns, so a
+    parser that stops at the first one silently skips half the rows it was
+    written to check.
+
+    Fenced blocks are skipped: a record file that documents its own row format
+    shows an example row, and reading that as data reports the placeholder sha
+    and `<research doc>` in it as a broken commit and a dead pointer.
+    """
+    tables = []
+    header_idx = sep_idx = None
+    rows = []
+    fenced = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            fenced = not fenced
+            if header_idx is not None and sep_idx is not None:
+                tables.append((_columns(lines[header_idx]), rows))
+            header_idx = sep_idx = None
+            rows = []
+            continue
+        if fenced:
+            continue
+        if not stripped.startswith("|"):
+            if header_idx is not None and sep_idx is not None:
+                tables.append((_columns(lines[header_idx]), rows))
+            header_idx = sep_idx = None
+            rows = []
+            continue
+        if header_idx is None:
+            header_idx = i
+        elif sep_idx is None and SEP_RE.match(stripped):
+            sep_idx = i
+        elif sep_idx is not None:
+            rows.append(i)
+        else:
+            # A `|` line that is neither header nor separator: not a table.
+            header_idx, sep_idx, rows = i, None, []
+    if header_idx is not None and sep_idx is not None:
+        tables.append((_columns(lines[header_idx]), rows))
+    return tables
+
+
+def _columns(header_line):
+    return [c.strip() for c in header_line.strip().strip("|").split("|")]
+
+
+def parse_table(lines):
+    """The first table in the file — what the `tasks` subcommand operates on."""
+    tables = find_tables(lines)
+    if not tables:
+        sys.exit("No task table found")
+    return tables[0]
+
+
+def parse_row(line, columns):
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    while len(cells) < len(columns):
+        cells.append("")
+    return dict(zip(columns, cells[: len(columns)]))
+
+
+def format_row(values, columns):
+    return "| " + " | ".join(values.get(c, "") for c in columns) + " |\n"
+
+
+def find_row(lines, columns, row_idxs, task_id):
+    cols = resolve(columns)
+    for i in row_idxs:
+        row = parse_row(lines[i], columns)
+        if get(row, cols, "ID") == task_id:
+            return i, row
+    return None, None
+
+
+# --------------------------------------------------------------------------
+# file helpers
+# --------------------------------------------------------------------------
+
+
+def load(path):
+    with open(path) as f:
+        return f.readlines()
+
+
+def save(path, lines):
+    with open(path, "w") as f:
+        f.writelines(lines)
+
+
+def record_path(root, kind):
+    return Path(root) / FILES[kind]
+
+
+def forge_url(lines):
+    """The forge base the file's own header declares as `F`.
+
+    Reading it from the file rather than trusting the baked-in default keeps
+    this helper correct after a repo moves host.
+    """
+    for line in lines[:20]:
+        m = FORGE_RE.search(line)
+        if m:
+            return m.group(1).rstrip(".,")
+    return DEFAULT_FORGE
+
+
+def anchor(lines):
+    """Line index just after the header, or None if the file declares no anchor.
+
+    Two anchor styles are in the wild: the shipped templates end their header
+    with an HTML comment saying entries go *directly below this line*, while
+    hand-grown files tend to use a `---` rule. Some declare neither, which is why
+    this reports its absence instead of guessing — a guess at the wrong end of
+    the file reads as "no entries found" rather than as an error.
+
+    Matching the whole "directly below this line" phrase rather than the literal
+    "Newest first" matters: the claims template words its anchor differently, and
+    missing it there means the header's own prose and worked examples get counted
+    and checked as if they were entries.
+    """
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("<!--") and "directly below this line" in stripped:
+            return i + 1
+    for i, line in enumerate(lines):
+        if line.strip() == "---":
+            return i + 1
+    return None
+
+
+def body_start(lines):
+    """Where to start PARSING. With no anchor, the whole file is fair game:
+    no header line in any of these files looks like an entry head."""
+    found = anchor(lines)
+    return 0 if found is None else found
+
+
+def strip_emphasis(text):
+    return text.replace("**", "").replace("*", "").strip()
+
+
+def cell_marker(cell):
+    """The backtick-quoted marker in a table cell.
+
+    Cells carry commentary beside the marker (`` `●●` **failing** ``), so an
+    exact match against the whole cell reports a valid marker as invalid.
+    """
+    m = BACKTICK_RE.search(cell)
+    return m.group(1).strip() if m else strip_emphasis(cell)
+
+
+# --------------------------------------------------------------------------
+# entry parsers
+# --------------------------------------------------------------------------
+
+
+def _block_entries(lines, start, is_head):
+    """Group lines into entries: a head line plus its indented continuations."""
+    entries = []
+    cur = None
+    for i in range(start, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            cur = None
+            continue
+        if is_head(line):
+            cur = {"line": i + 1, "text": line.strip(), "lines": [line]}
+            entries.append(cur)
+        elif cur is not None and line[:1].isspace():
+            cur["text"] += " " + line.strip()
+            cur["lines"].append(line)
+        else:
+            cur = None
+    return entries
+
+
+HEADS = {
+    "findings": lambda ln: ln[:1] in FINDING_MARKERS,
+    "prior-work": lambda ln: ln.startswith("- "),
+    "sessions": lambda ln: ln.startswith("## "),
+}
+
+
+def parse_findings(lines):
+    return _block_entries(lines, body_start(lines), HEADS["findings"])
+
+
+def parse_prior_work(lines):
+    return _block_entries(lines, body_start(lines), HEADS["prior-work"])
+
+
+def parse_sessions(lines):
+    """`## ` headings below the anchor, skipping fenced blocks.
+
+    Both guards are load-bearing and a freshly materialized file proves it: this
+    template's own `## Format` heading, and the `## YYYY-MM-DD · <session-id>`
+    line inside its example fence, are not session entries. Scanning the whole
+    file reported four violations in a project that had not yet been worked in —
+    and a checker that is wrong on an empty project is one nobody switches on.
+    """
+    entries = []
+    fenced = False
+    for i in range(body_start(lines), len(lines)):
+        line = lines[i]
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced and line.startswith("## "):
+            entries.append({"line": i + 1, "text": line.strip()[3:]})
+    return entries
+
+
+def parse_claims(lines):
+    """Every row of every table, tagged with the columns it was read under."""
+    rows = []
+    for columns, row_idxs in find_tables(lines):
+        cols = resolve(columns)
+        if "Novelty" not in cols or "Evidence" not in cols:
+            continue
+        for i in row_idxs:
+            row = parse_row(lines[i], columns)
+            rows.append({"line": i + 1, "row": row, "columns": columns, "cols": cols})
+    return rows
+
+
+def parse_tasks(lines):
+    columns, row_idxs = parse_table(lines)
+    cols = resolve(columns)
+    return [{"line": i + 1, "row": parse_row(lines[i], columns), "cols": cols} for i in row_idxs]
+
+
+PARSERS = {
+    "findings": parse_findings,
+    "prior-work": parse_prior_work,
+    "claims": parse_claims,
+    "sessions": parse_sessions,
+    "tasks": parse_tasks,
+}
+
+
+# --------------------------------------------------------------------------
+# lint
+# --------------------------------------------------------------------------
+
+
+class Checker:
+    """Collects violations and memoises the git lookups behind them."""
+
+    def __init__(self, root, use_git=True):
+        self.root = Path(root)
+        self.use_git = use_git
+        self.problems = []
+        self._shas = {}
+
+    def report(self, kind, line, rule, message):
+        self.problems.append((FILES[kind], line, rule, message))
+
+    def sha_exists(self, sha):
+        if not self.use_git:
+            return True
+        if sha not in self._shas:
+            # Built by concatenation rather than as an f-string: `^{commit}`
+            # written inside one needs doubled braces, and `{{commit}}` is
+            # exactly what this file's own template substitution eats.
+            ref = sha + "^{commit}"
+            done = subprocess.run(
+                ["git", "-C", str(self.root), "cat-file", "-e", ref],
+                capture_output=True,
+            )
+            self._shas[sha] = done.returncode == 0
+        return self._shas[sha]
+
+    def check_shas(self, kind, line, text):
+        for shown, linked in COMMIT_LINK_RE.findall(text):
+            if not (shown.startswith(linked) or linked.startswith(shown)):
+                self.report(
+                    kind,
+                    line,
+                    "commit-sha-mismatch",
+                    f"shows `{shown}` but links to {linked}",
+                )
+            elif not self.sha_exists(linked):
+                self.report(kind, line, "commit-unknown", f"{linked} is not a commit in this repo")
+
+    def check_pointers(self, kind, line, text):
+        for target in ARROW_RE.findall(text):
+            target = target.rstrip(".,;:)")
+            if target.startswith("["):
+                continue  # `→ [notes](path)` — the markdown-link pass has it
+            if "/" not in target and not target.endswith(".md"):
+                continue  # `→ T-042` points at a task id, not a path
+            self._check_path(kind, line, target)
+        for target in MD_LINK_RE.findall(text):
+            target = target.split("#", 1)[0].strip()
+            if not target or "://" in target or target.startswith("mailto:"):
+                continue
+            if "/commit/" in target or "/src/branch/" in target or target.startswith("F/"):
+                continue  # forge shorthand, not a path on disk
+            self._check_path(kind, line, target)
+
+    def _check_path(self, kind, line, target):
+        if not (self.root / target).exists():
+            self.report(kind, line, "dead-pointer", f"{target} does not exist")
+
+
+def lint_cap(kind, lines, ck):
+    """Only when the project configured a cap for this record.
+
+    Counts the ENTRIES, not the file. The header a record ships with is fixed
+    overhead nobody wrote and nobody can retire — charging it against the cap
+    puts a freshly scaffolded project over its limit on day one, which teaches
+    the reader that the number is noise.
+    """
+    cap = CAPS.get(kind)
+    if not cap:
+        return
+    written = len(lines) - body_start(lines)
+    if written > cap:
+        ck.report(
+            kind,
+            len(lines),
+            "over-cap",
+            f"{written} lines of entries against a cap of {cap} — retire or promote something "
+            "in the same edit; over the cap, GROUP entries behind one pointer rather than "
+            "deleting",
+        )
+
+
+def lint_findings(lines, ck):
+    for e in parse_findings(lines):
+        text, line = e["text"], e["line"]
+        if text[:1] not in FINDING_MARKERS:
+            ck.report("findings", line, "status-marker", "entry does not start with ✓, ⚠ or ✗")
+        if not DATE_RE.search(text):
+            ck.report("findings", line, "date", "no YYYY-MM-DD date")
+        if not COMMIT_LINK_RE.search(text):
+            ck.report(
+                "findings",
+                line,
+                "commit-link",
+                "no linked commit — a finding with nothing to point at is an opinion",
+            )
+        ck.check_shas("findings", line, text)
+        ck.check_pointers("findings", line, text)
+
+
+def lint_prior_work(lines, ck):
+    for e in parse_prior_work(lines):
+        text, line = e["text"], e["line"]
+        marker = strip_emphasis(text[2:].lstrip())[:1]
+        if marker not in PROVENANCE_MARKERS:
+            ck.report(
+                "prior-work",
+                line,
+                "provenance-marker",
+                "entry does not start with ✓ (read), ~ (abstract only) or ✗ (searched, absent)",
+            )
+        if not MD_LINK_RE.search(text):
+            ck.report("prior-work", line, "no-link", "entry cites no source")
+        ck.check_shas("prior-work", line, text)
+        ck.check_pointers("prior-work", line, text)
+
+
+def _cites_search(cell, research_dir, claims_dir):
+    """A novelty citation is a link to a paper, a search doc or a claim doc."""
+    for target in MD_LINK_RE.findall(cell):
+        if "://" in target:
+            return True
+        if research_dir and research_dir in target:
+            return True
+        if claims_dir and claims_dir in target:
+            return True
+    return False
+
+
+def lint_claims(lines, ck):
+    research_dir = "{{PRIOR_WORK_DIR}}"
+    claims_dir = "{{CLAIMS_DIR}}"
+    for entry in parse_claims(lines):
+        row, cols, line = entry["row"], entry["cols"], entry["line"]
+        nov = cell_marker(get(row, cols, "Novelty"))
+        ev = cell_marker(get(row, cols, "Evidence"))
+        detail = get(row, cols, "Notes")
+        # A claim table may put the search citation in its own column, or fold
+        # it into the detail cell. Accept either.
+        searched = get(row, cols, "Searched") + " " + detail
+        if nov not in NOVELTY_MARKERS:
+            ck.report("claims", line, "novelty-marker", f"novelty cell is `{nov}`, not ✗ ~ = or ?")
+        if ev not in EVIDENCE_MARKERS:
+            ck.report("claims", line, "evidence-marker", f"evidence cell is `{ev}`, not ●● ● or ○")
+        if ev == "●●" and not COMMIT_LINK_RE.search(detail):
+            ck.report(
+                "claims",
+                line,
+                "evidence-uncited",
+                "`●●` claims a measurement here but cites no commit",
+            )
+        if ev == "●" and not (COMMIT_LINK_RE.search(detail) or MD_LINK_RE.search(detail)):
+            ck.report(
+                "claims",
+                line,
+                "evidence-uncited",
+                "`●` claims partial or elsewhere evidence but cites neither commit nor source",
+            )
+        if (
+            nov in NOVELTY_MARKERS
+            and nov != "?"
+            and not _cites_search(searched, research_dir, claims_dir)
+        ):
+            ck.report(
+                "claims",
+                line,
+                "novelty-uncited",
+                f"`{nov}` states a novelty verdict but cites no search — a verdict with no "
+                "citation is a recollection",
+            )
+        ck.check_shas("claims", line, " | ".join(row.values()))
+        ck.check_pointers("claims", line, " | ".join(row.values()))
+
+
+def lint_sessions(lines, ck):
+    for e in parse_sessions(lines):
+        heading, line = e["text"], e["line"]
+        if not DATE_RE.search(heading):
+            ck.report("sessions", line, "date", f"heading has no YYYY-MM-DD date: {heading}")
+        if not UUID_RE.search(heading) and "(" not in heading:
+            ck.report(
+                "sessions",
+                line,
+                "session-id",
+                "no full session id and no explicit parenthetical saying why — a truncated id "
+                "cannot be pasted into a transcript lookup, which is the field's only job",
+            )
+    for i, raw in enumerate(lines):
+        ck.check_shas("sessions", i + 1, raw)
+
+
+def lint_tasks(lines, ck):
+    seen = {}
+    for entry in parse_tasks(lines):
+        row, cols, line = entry["row"], entry["cols"], entry["line"]
+        task_id = get(row, cols, "ID")
+        status = strip_emphasis(get(row, cols, "Status")).lower()
+        owner = strip_emphasis(get(row, cols, "Owner")).lower()
+        if task_id in seen:
+            ck.report("tasks", line, "duplicate-id", f"{task_id} also on line {seen[task_id]}")
+        else:
+            seen[task_id] = line
+        if status not in TASK_STATUSES:
+            ck.report(
+                "tasks",
+                line,
+                "status-vocabulary",
+                f"{task_id}: status `{status}` is not one of {', '.join(sorted(TASK_STATUSES))}",
+            )
+        if status == "{{STATUS_IN_PROGRESS}}" and owner in EMPTY_CELLS:
+            ck.report(
+                "tasks",
+                line,
+                "unowned-in-progress",
+                f"{task_id} is in-progress with no owner — nobody can tell if it is live",
+            )
+
+
+LINTERS = {
+    "findings": lint_findings,
+    "prior-work": lint_prior_work,
+    "claims": lint_claims,
+    "sessions": lint_sessions,
+    "tasks": lint_tasks,
+}
+
+
+def run_lint(root, kinds, use_git=True):
+    ck = Checker(root, use_git=use_git)
+    for kind in kinds:
+        path = record_path(root, kind)
+        if not path.exists():
+            continue
+        lines = load(path)
+        LINTERS[kind](lines, ck)
+        lint_cap(kind, lines, ck)
+    return ck.problems
+
+
+# --------------------------------------------------------------------------
+# writers
+# --------------------------------------------------------------------------
+
+
+def _wrap(text, width=96, indent="  "):
+    return textwrap.fill(text, width=width, subsequent_indent=indent) + "\n"
+
+
+def _insert(path, kind, block):
+    """Insert newest-first, at the anchor if the file declares one.
+
+    With no anchor, go in just above the current newest entry — never at index
+    0, which would put the entry above the file's own title.
+    """
+    lines = load(path)
+    at = anchor(lines)
+    if at is None:
+        is_head = HEADS[kind]
+        at = next((i for i, ln in enumerate(lines) if is_head(ln)), len(lines))
+    else:
+        while at < len(lines) and not lines[at].strip():
+            at += 1
+    lines[at:at] = block + ["\n"]
+    save(path, lines)
+    return at + 1
+
+
+def _commit_ref(lines, sha):
+    """Match the shorthand the file already uses, rather than imposing one."""
+    body = "".join(lines)
+    if "](F/commit/" in body:
+        return f"[`{sha}`](F/commit/{sha})"
+    return f"[`{sha}`]({forge_url(lines)}/commit/{sha})"
+
+
+def add_finding(root, status, sha, text, doc=None, date=None):
+    path = record_path(root, "findings")
+    lines = load(path)
+    date = date or _today()
+    body = f"{status} {date} {_commit_ref(lines, sha)} {text}"
+    if doc:
+        body += f" → {doc}"
+    at = _insert(path, "findings", [_wrap(body)])
+    return path, at
+
+
+def add_prior_work(root, marker, title, link, text, notes=None):
+    path = record_path(root, "prior-work")
+    body = f"- {marker} [{title}]({link}) · {text}"
+    if notes:
+        body += f" → [notes]({notes})"
+    at = _insert(path, "prior-work", [_wrap(body)])
+    return path, at
+
+
+def add_session(root, session_id, text, commits=None, branch=None, next_step=None, date=None):
+    path = record_path(root, "sessions")
+    lines = load(path)
+    forge = forge_url(lines)
+    date = date or _today()
+    block = [f"## {date} · {session_id}\n", "\n", _wrap(text, indent="")]
+    if commits:
+        refs = ", ".join(f"[`{c}`]({forge}/commit/{c})" for c in commits)
+        block.append(_wrap(f"Commits: {refs}", indent=""))
+    else:
+        block.append("Commits: none\n")
+    if branch:
+        block.append(f"Branch: [`{branch}`]({forge}/src/branch/{branch})\n")
+    block.append(f"Next: {next_step or '—'}\n")
+    at = _insert(path, "sessions", block)
+    return path, at
+
+
+def _today():
+    from datetime import date
+
+    return date.today().isoformat()
+
+
+# --------------------------------------------------------------------------
+# commands
+# --------------------------------------------------------------------------
+
+
+def _newest_date(kind, lines):
+    dates = []
+    for e in PARSERS[kind](lines):
+        text = e.get("text") if isinstance(e, dict) and "text" in e else ""
+        m = DATE_RE.search(text or "")
+        if m:
+            dates.append(m.group(0))
+    return max(dates) if dates else "—"
+
+
+def cmd_status(args):
+    problems = run_lint(args.repo, KINDS, use_git=not args.no_git)
+    by_file = {}
+    for fname, *_ in problems:
+        by_file[fname] = by_file.get(fname, 0) + 1
+    for kind in KINDS:
+        path = record_path(args.repo, kind)
+        if not path.exists():
+            print(f"{FILES[kind]:<16} (missing)")
+            continue
+        lines = load(path)
+        count = len(PARSERS[kind](lines))
+        n = by_file.get(FILES[kind], 0)
+        verdict = "clean" if n == 0 else f"{n} problem{'s' if n != 1 else ''}"
+        newest = _newest_date(kind, lines)
+        cap = CAPS.get(kind)
+        # Entry lines, matching what `lint_cap` measures. Printing the whole
+        # file's length beside the cap reads as over-budget while lint says
+        # clean, and the reader believes the number they can see.
+        budget = f"{len(lines) - body_start(lines):>4}/{cap} lines  " if cap else ""
+        print(f"{FILES[kind]:<16} {count:>3} entries   {budget}newest {newest:<12} {verdict}")
+    if problems:
+        print(f"\n{len(problems)} problem(s). Run `{{RECORDS_HELPER}} lint` for detail.")
+
+
+def cmd_lint(args):
+    kinds = args.kinds or list(KINDS)
+    for kind in kinds:
+        if kind not in FILES:
+            sys.exit(f"Unknown record kind: {kind} (expected one of {', '.join(KINDS)})")
+    problems = run_lint(args.repo, kinds, use_git=not args.no_git)
+    for fname, line, rule, message in problems:
+        print(f"{fname}:{line}: {rule}: {message}")
+    if problems:
+        sys.stdout.flush()
+        print(f"\n{len(problems)} problem(s)", file=sys.stderr)
+        sys.exit(1)
+    print("clean")
+
+
+def cmd_show(args):
+    path = record_path(args.repo, args.kind)
+    entries = PARSERS[args.kind](load(path))
+    for e in entries:
+        if "text" in e:
+            summary = e["text"]
+        else:
+            row, cols = e["row"], e["cols"]
+            summary = f"{get(row, cols, 'ID')} — {get(row, cols, 'Title')}"
+        print(f"{e['line']:>5}  {summary[:140]}")
+    print(f"\n{len(entries)} entries in {FILES[args.kind]}")
+
+
+def cmd_add(args):
+    if args.what == "finding":
+        path, line = add_finding(args.repo, args.status, args.commit, args.text, args.doc)
+    elif args.what == "prior-work":
+        path, line = add_prior_work(
+            args.repo, args.marker, args.title, args.link, args.text, args.notes
+        )
+    else:
+        commits = [c.strip() for c in args.commits.split(",")] if args.commits else None
+        path, line = add_session(
+            args.repo, args.session_id, args.text, commits, args.branch, args.next
+        )
+    print(f"{path.name}:{line}: added")
+
+
+# --- tasks (the whole of the old tasks.py surface) ------------------------
+
+
+def cmd_tasks_list(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    cols = resolve(columns)
+    for i in row_idxs:
+        row = parse_row(lines[i], columns)
+        if args.status and get(row, cols, "Status") != args.status:
+            continue
+        if args.owner and get(row, cols, "Owner") != args.owner:
+            continue
+        title = get(row, cols, "Title")
+        print(
+            f"{get(row, cols, 'ID'):<8} {get(row, cols, 'Status'):<14} "
+            f"{get(row, cols, 'Priority'):<6} {title[:72]}"
+        )
+
+
+def cmd_tasks_show(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    _, row = find_row(lines, columns, row_idxs, args.id)
+    if row is None:
+        sys.exit(f"Task {args.id} not found")
+    for c in columns:
+        print(f"{c}: {row.get(c, '')}")
+
+
+def cmd_tasks_next(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    cols = resolve(columns)
+    target = args.status or "{{STATUS_READY}}"
+    candidates = [parse_row(lines[i], columns) for i in row_idxs]
+    candidates = [r for r in candidates if get(r, cols, "Status") == target]
+    if not candidates:
+        sys.exit(f"No tasks with status '{target}'")
+    # Unknown priority values sort last but stay ordered among themselves, so a
+    # numeric `phase` column orders sensibly without being in PRIORITY_ORDER.
+    candidates.sort(
+        key=lambda r: (
+            PRIORITY_ORDER.get(get(r, cols, "Priority"), 9),
+            get(r, cols, "Priority"),
+            get(r, cols, "ID"),
+        )
+    )
+    print(get(candidates[0], cols, "ID"))
+
+
+def cmd_tasks_set(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    idx, row = find_row(lines, columns, row_idxs, args.id)
+    if row is None or idx is None:
+        sys.exit(f"Task {args.id} not found")
+    cols = resolve(columns)
+    updates = {}
+    for canon, value in (("Status", args.status), ("Owner", args.owner), ("Notes", args.notes)):
+        if value is None:
+            continue
+        actual = cols.get(canon)
+        if actual is None:
+            sys.exit(f"This tasks file has no {canon} column (headings: {', '.join(columns)})")
+        if row.get(actual, "") == value:
+            continue
+        updates[actual] = value
+    if not updates:
+        print(f"{args.id}: no change")
+        return
+    row.update(updates)
+    lines[idx] = format_row(row, columns)
+    save(args.file, lines)
+    summary = ", ".join(f"{k}={v}" for k, v in updates.items())
+    print(f"{args.id}: {summary}")
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="one interface to the project's records")
+    parser.add_argument("--repo", default=str(REPO), help="repo root holding the records")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("status", help="entry counts and lint verdict for every record")
+    p.add_argument("--no-git", action="store_true")
+    p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("lint", help="check sourcing; exit 1 if anything is wrong")
+    p.add_argument("kinds", nargs="*", metavar="KIND")
+    p.add_argument("--no-git", action="store_true", help="skip checks needing a git repo")
+    p.set_defaults(func=cmd_lint)
+
+    p = sub.add_parser("show", help="dump parsed entries, so a parse bug is visible")
+    p.add_argument("kind", choices=KINDS)
+    p.set_defaults(func=cmd_show)
+
+    p = sub.add_parser("add", help="append an entry in the file's own format")
+    what = p.add_subparsers(dest="what", required=True)
+
+    q = what.add_parser("finding")
+    q.add_argument("--status", required=True, choices=FINDING_MARKERS)
+    q.add_argument("--commit", required=True)
+    q.add_argument("--text", required=True)
+    q.add_argument("--doc")
+    q.set_defaults(func=cmd_add)
+
+    q = what.add_parser("prior-work")
+    q.add_argument("--marker", required=True, choices=PROVENANCE_MARKERS)
+    q.add_argument("--title", required=True)
+    q.add_argument("--link", required=True)
+    q.add_argument("--text", required=True)
+    q.add_argument("--notes")
+    q.set_defaults(func=cmd_add)
+
+    q = what.add_parser("session")
+    q.add_argument("--session-id", required=True)
+    q.add_argument("--text", required=True)
+    q.add_argument("--commits")
+    q.add_argument("--branch")
+    q.add_argument("--next")
+    q.set_defaults(func=cmd_add)
+
+    p = sub.add_parser("tasks", help="the tasks.md helper, unchanged")
+    p.add_argument("--file", default=None)
+    tsub = p.add_subparsers(dest="tcmd", required=True)
+
+    q = tsub.add_parser("list")
+    q.add_argument("--status")
+    q.add_argument("--owner")
+    q.set_defaults(func=cmd_tasks_list)
+
+    q = tsub.add_parser("show")
+    q.add_argument("id")
+    q.set_defaults(func=cmd_tasks_show)
+
+    q = tsub.add_parser("next")
+    q.add_argument("--status")
+    q.set_defaults(func=cmd_tasks_next)
+
+    q = tsub.add_parser("set")
+    q.add_argument("id")
+    q.add_argument("--status")
+    q.add_argument("--owner")
+    q.add_argument("--notes")
+    q.set_defaults(func=cmd_tasks_set)
+
+    return parser
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    if args.cmd == "tasks":
+        if args.file is None:
+            args.file = str(record_path(args.repo, "tasks"))
+        if not os.path.exists(args.file):
+            sys.exit(f"Task file not found: {args.file}")
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,8 +1,9 @@
 # Claims — {{PROJECT_NAME}}
 
 **What this project might be able to claim, and how much of it is earned.** Read
-at the start of every session. Cap: {{CLAIMS_CAP}} lines. An index — the
-reasoning behind each row lives in `{{CLAIMS_DIR}}/`, one file per claim.
+at the start of every session.{{IF CLAIMS_CAP}} Cap: {{CLAIMS_CAP}} lines,
+checked by `{{RECORDS_HELPER}} lint`.{{ENDIF}} An index — the reasoning behind
+each row lives in `{{CLAIMS_DIR}}/`, one file per claim.
 
 `{{FINDINGS_FILE}}` records what this project *learned*; `{{PRIOR_WORK_FILE}}`
 records what was *already known*. This records what the two together would let
@@ -54,10 +55,15 @@ is in a table.
 - **A row gets a file in `{{CLAIMS_DIR}}/` when it outgrows its cell** — and that
   file never copies this table back. Two copies drift, and the drift is
   invisible.
+- **`{{RECORDS_HELPER}} lint` checks these**, so wire it into the test suite:
+  markers valid, a `●●` cell citing a commit that resolves, and a novelty cell
+  that is not `?` citing what was searched. Rows are hand-edited — this file has
+  more than one table, so `add` deliberately does not cover it.
 
-## When it grows past the cap
+## When it grows
 
 Do not delete. Move the reasoning into `{{CLAIMS_DIR}}/<id>-<slug>.md` and leave
-the row pointing at it. The cap is what keeps this a thing that gets read.
+the row pointing at it. Staying an index is what keeps this a thing that gets
+read{{IF CLAIMS_CAP}}, and the cap is what forces the move to happen{{ENDIF}}.
 
 <!-- The claim table goes directly below this line. -->

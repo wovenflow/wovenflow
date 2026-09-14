@@ -101,7 +101,13 @@ git commit -m "chore(tasks): reconcile status"
 
 **Required every session, including ones that produced nothing.**
 
-Prepend to `{{SESSIONS_FILE}}` at the repo root (create it from the sessions template if absent):
+Write it with the helper rather than by hand — it prepends newest-first and renders the commit and branch links against `{{FORGE_URL}}` for you:
+
+```
+{{RECORDS_HELPER}} add session --session-id <id> --text "…" --commits <sha>,<sha> --branch <name> --next "…"
+```
+
+The entry it produces, and the shape to match if you ever do write one by hand:
 
 ```
 ## YYYY-MM-DD · <session-id>
@@ -135,9 +141,9 @@ Scan the session for anything clearing a **high bar**: a result that contradicte
 
 Three distinct actions, and the last two matter as much as the first:
 
-1. **Add** a finding — one entry, at most three lines, with a linked commit and a `→ doc/…` pointer for anything needing more than two sentences. No commit means no entry.
+1. **Add** a finding with `{{RECORDS_HELPER}} add finding --status ✓ --commit <sha> --text "…" [--doc <path>]`, not a hand-edit — it renders the entry in the file's own format and inserts it newest-first. One finding per entry, with a linked commit and a `→ doc/…` pointer for anything needing more than two sentences. No commit means no entry.
 2. **Withdraw** a finding this session disproved — flip it to `✗`, strike the claim, leave it in place. A wrong entry left visible is the cheapest protection against repeating the wrong turn. Never delete.
-3. **Enforce the cap.** `{{FINDINGS_FILE}}` may not exceed **{{FINDINGS_CAP}} lines**. If the additions push it over, retire or promote something *in the same edit*. Report the line count in the wrap-up summary.
+3. **Run `{{RECORDS_HELPER}} lint` and leave it green.** It checks what re-reading cannot: that every commit link resolves to a real commit, that no `→` pointer has gone dead, that provenance markers are valid, and that a claims row cites what was searched.{{IF FINDINGS_CAP}} It also enforces the **{{FINDINGS_CAP}}-line cap** on `{{FINDINGS_FILE}}`; if the additions push it over, retire or promote something *in the same edit*, and report the line count in the wrap-up summary.{{ENDIF}} Do not talk yourself past a failure — each rule exists because that defect shipped once already.
 
 Check for contradictions before finishing: if a new entry disagrees with an existing one, resolve it now rather than leaving both. A findings file that contradicts itself is worse than none, because it is trusted.
 

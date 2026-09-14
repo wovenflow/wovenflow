@@ -1,8 +1,9 @@
 # Prior work — {{PROJECT_NAME}}
 
-**Read at the start of every session, and before every paper search.** Cap:
-{{PRIOR_WORK_CAP}} lines. This is an index, not a bibliography — one line each,
-pointing into `{{PRIOR_WORK_DIR}}/` where the actual reading lives.
+**Read at the start of every session, and before every paper search.**{{IF PRIOR_WORK_CAP}}
+Cap: {{PRIOR_WORK_CAP}} lines, checked by `{{RECORDS_HELPER}} lint`.{{ENDIF}}
+This is an index, not a bibliography — one line each, pointing into
+`{{PRIOR_WORK_DIR}}/` where the actual reading lives.
 
 `{{FINDINGS_FILE}}` records what *this project* learned. This records what was
 already known before we started, so an approach is not re-derived, a paper is
@@ -32,12 +33,13 @@ does not exist is indistinguishable from a real one at a glance.
 hidden states works at 10^8 scale, so our retrieval step is assembly, not
 novelty" earns its line. "A paper about retrieval" does not.
 
-## When it grows past the cap
+## When it grows
 
 Do not delete. **Group**: once a topic has several sources, collapse them into
 one `{{PRIOR_WORK_DIR}}/<topic>.md` and leave a single line here pointing at it.
-The individual papers keep living inside that document. The cap is what forces
-this index to stay an index — an entry per paper read would become a
-bibliography nobody loads.
+The individual papers keep living inside that document. Grouping is what keeps
+this index an index — an entry per paper read would become a bibliography nobody
+loads{{IF PRIOR_WORK_CAP}}, and the cap is what forces the grouping to actually
+happen{{ENDIF}}.
 
 <!-- Newest first, directly below this line. -->
