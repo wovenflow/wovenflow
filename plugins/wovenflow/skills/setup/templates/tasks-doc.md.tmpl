@@ -1,0 +1,40 @@
+# {{TASK_ID}} — {{TASK_TITLE}}
+
+> Part of **[`{{TASKS_FILE}}`]({{TASKS_REL}})**, the task index — which is the
+> authority on this task's **status**, **owner** and **priority**. This file
+> carries the description and everything written while doing it. Grow it; never
+> copy the row back here.
+
+## What and why
+
+State it so someone who was not in the conversation can act. Not the title again
+— what the task is for, what "done" looks like, and what would make it not worth
+doing.
+
+## Constraints
+
+What blocks it and what it blocks. What it must not break. Whose decision
+settled a fork, in their words where you have them — a direction recorded as
+"we decided X" loses the reasoning that makes X revisable.
+
+## Log
+
+<!-- `{{RECORDS_HELPER}} tasks note {{TASK_ID}} --text '…'` appends here. -->
+
+Oldest first: this is a working record and reads chronologically, unlike
+`{{FINDINGS_FILE}}`, where the newest entry is the one you came for. What was
+tried, what it cost, what was ruled out **and why it was ruled out** — that last
+clause is the one that stops the same dead end being retried in three sessions.
+
+## Produced
+
+Links to what the work made: specs, design docs, research notes, the commits.
+One hop from the row to the artifacts, rather than a grep.
+
+---
+
+**What does not belong here.** Status, owner and priority live once, in
+`{{TASKS_FILE}}` — two copies drift and the drift is invisible, which is the
+whole reason for the split. And a *finding* — something that changes what the
+project believes — goes in `{{FINDINGS_FILE}}` with its commit. This file says
+what was done; that one says what is now known.

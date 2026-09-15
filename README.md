@@ -167,22 +167,38 @@ The file is local audit data; add it to `.gitignore`.
 | `claims.md` | every session, in full | any phase that moves a row | *What could we actually assert, and how much of it is earned?* Capped, pointing into a claims folder. Scores **novelty and evidence in separate columns** — see below. Optional: skip it for projects with nothing to claim externally. |
 | `SESSIONS.md` | never at startup | `wrap-up` | *What happened, and when?* Unbounded by design. One entry per session with its id, linked commits, and the handoff to the next session. |
 
-### The index-and-folder shape, three times over
+### The index-and-folder shape, four times over
 
-Three of these are the same mechanism, and recognising it is the point:
+Four of these are the same mechanism, and recognising it is the point:
 
-| Capped index, read every session | Uncapped long form, read on demand |
+| Index, read every session | Long form, read on demand |
 |---|---|
 | `FINDINGS.md` — one finding per entry | `SESSIONS.md` — the full narrative of what happened |
-| `PRIOR-WORK.md` — one line per source | `doc/research/<topic>.md` — the actual reading |
-| `claims.md` — one row per claim | `doc/claims/<id>-<slug>.md` — the argument behind it |
+| `PRIOR-WORK.md` — one line per source | `docs/research/<topic>.md` — the actual reading |
+| `claims.md` — one row per claim | `docs/claims/<id>-<slug>.md` — the argument behind it |
+| `tasks.md` — one row per task | `docs/tasks/<id>-<slug>.md` — the work itself |
 
-**The cap on the left is what makes the right-hand side safe to be long.** An
-index that grows without bound stops being loaded; a record nothing loads is a
-record nobody maintains. So the discipline is always the same — when a row
-outgrows its cell, the reasoning moves right and the row keeps a pointer, and
-the long document **never copies the table back**, because two copies drift and
-the drift is invisible.
+**Keeping the left side short is what makes the right-hand side safe to be
+long.** An index that grows without bound stops being loaded; a record nothing
+loads is a record nobody maintains. So the discipline is always the same — when
+a row outgrows its cell, the reasoning moves right and the row keeps a pointer,
+and the long document **never copies the table back**, because two copies drift
+and the drift is invisible.
+
+**`tasks.md` is the case that shows what the shape is worth**, and it was the
+last of the four to get it. A task row has exactly one writable cell, so every
+design note, amendment and quoted decision ends up crammed into Notes: in the
+project this was worked out in, one cell reached 3,134 characters on a single
+line and the file was 39 KB of table. Split, the index is 15 KB and every row is
+a hook plus a pointer.
+
+Two rules differ from the other three, both deliberate. **Every task gets a
+file, including the short ones** — a stub under `docs/claims/` is a claim to
+have thought about something, but a task is where work happens and needs
+somewhere to write *before* there is anything to write, so `records.py tasks
+add` creates the row and the doc together. And a task doc reads **oldest
+first**: it is a working record, where `FINDINGS.md` is a lookup and the newest
+entry is the one you came for.
 
 ### Why `claims.md` splits novelty from evidence
 

@@ -27,7 +27,8 @@ function substitute(tmpl, vars) {
 |---|---|---|
 | `claim-github.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a GitHub issue (Phase 1 of the workstream) |
 | `claim-tasks.md.tmpl` | `.claude/skills/claim/SKILL.md` | Pick up a task from a `tasks.md` file (Phase 1, alternative source) |
-| `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker file (only when the user picks the `tasks.md` claim variant) |
+| `tasks.md.tmpl` | `<repo>/tasks.md` | Starter task tracker — **an index**: one row per task with status, owner, priority and a one-line hook pointing into `{{TASKS_DIR}}` (only when the user picks the `tasks.md` claim variant) |
+| `tasks-doc.md.tmpl` | `<repo>/{{TASKS_DIR}}/<id>-<slug>.md` | The long form behind one task row — what it is and why, what constrains it, a working log appended oldest-first with `tasks note`, and links to what it produced. Created for **every** task by `tasks add`, because a task needs somewhere to write before there is anything to write |
 | `records.py.tmpl` | `<repo>/scripts/records.py` | **One interface to every record** — findings, prior work, claims, sessions and `tasks.md`. `status` / `lint` / `show` / `add` / `tasks …`. Skills call `records.py add finding …` instead of hand-editing, and `records.py lint` exits non-zero on an unsourced entry so it can gate the test suite. Records disabled at setup (empty `*_FILE`) drop out of it automatically. |
 | `tasks.py.tmpl` | `<repo>/scripts/tasks.py` | Compatibility shim forwarding to `records.py tasks`, so the existing `tasks.py set <id> --status …` call sites in `claim-tasks`, `wrap-up` and `startup` keep working unchanged. Idempotent — re-applying the same value is a no-op. |
 | `startup.md.tmpl` | `.claude/skills/startup/SKILL.md` | Session bootstrap: sync, instruction-diff, architecture refresh, identify task |
@@ -67,6 +68,7 @@ GitHub-specific:
 |---|---|---|
 | `TASKS_FILE` | Path to the task tracker file | `tasks.md` |
 | `TASKS_HELPER` | Invocation for the `tasks.py` shim | `scripts/tasks.py` |
+| `TASKS_DIR` | Directory holding one doc per task — the long form behind each row | `docs/tasks` |
 | `RECORDS_HELPER` | Invocation for the `records.py` helper — the one interface to every record. Keep it in the same directory as `TASKS_HELPER`; the shim looks there first | `scripts/records.py` |
 | `STATUS_READY` | Status value: ready | `ready` |
 | `STATUS_IN_PROGRESS` | Status value: in progress | `in-progress` |

@@ -86,10 +86,17 @@ gh issue comment <id> --body "Pausing here. Next: ..."
 {{ENDIF}}{{IF TASK_SOURCE_TASKS}}
 For every row in `{{TASKS_FILE}}` you own:
 
-- PR open: `{{TASKS_HELPER}} set <id> --status {{STATUS_IN_REVIEW}}`
+- PR open: `{{RECORDS_HELPER}} tasks set <id> --status {{STATUS_IN_REVIEW}}`
 - Still working: leave Status at `{{STATUS_IN_PROGRESS}}` (no helper call needed)
-- PR merged: `{{TASKS_HELPER}} set <id> --status {{STATUS_DONE}}`
-- Stepping away mid-work: `{{TASKS_HELPER}} set <id> --notes "<where you left off>"`
+- PR merged: `{{RECORDS_HELPER}} tasks set <id> --status {{STATUS_DONE}}`
+
+**Then write the session's work into each owned task's doc** — this is the step that stops reasoning dying in the transcript:
+
+```
+{{RECORDS_HELPER}} tasks note <id> --text "<what was tried, what it cost, what was ruled out and why>"
+```
+
+Where you left off goes here too, not in the row. The Notes cell is a one-line hook and a pointer; `{{RECORDS_HELPER}} lint` fails it if prose grows back into it.
 
 ```
 git add {{TASKS_FILE}}
@@ -234,7 +241,7 @@ gh issue edit <id> {{IF AGENT_LABEL}}--add-label {{AGENT_LABEL}} {{ENDIF}}--add-
 ```
 {{ENDIF}}{{IF TASK_SOURCE_TASKS}}
 ```
-{{TASKS_HELPER}} set <id> --status {{STATUS_IN_PROGRESS}} --owner @me
+{{RECORDS_HELPER}} tasks set <id> --status {{STATUS_IN_PROGRESS}} --owner @me
 ```
 
 If the helper reports a change, commit it:

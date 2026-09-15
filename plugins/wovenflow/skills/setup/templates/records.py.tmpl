@@ -15,9 +15,21 @@ Usage:
     {{RECORDS_HELPER}} add session    --session-id ID --text T [--commits a,b]
                                       [--branch B] [--next N]
     {{RECORDS_HELPER}} tasks list|show|next|set ...
+    {{RECORDS_HELPER}} tasks add  --id ID --title T [--phase P] [--status S]
+                                  [--hook H]
+    {{RECORDS_HELPER}} tasks note ID --text T
+    {{RECORDS_HELPER}} tasks doc  ID [--print]
 
 KIND is one of the keys of FILES below — the records this project enabled at
 setup time.
+
+`{{TASKS_FILE}}` is an INDEX, the same shape as the other records: one row per
+task, carrying status, owner and a one-line hook. Everything written *about* a
+task — the description, what blocks it, the design, the amendments, the links to
+specs it produced — lives in `{{TASKS_DIR}}/<id>-<slug>.md` and is appended with
+`tasks note`. `tasks add` creates both halves at once so they cannot be created
+apart, and unlike the claim docs EVERY task gets a file: a task is where work
+happens, so it needs somewhere to write before there is anything to write.
 
 `lint` exits 1 when anything is wrong and 0 when nothing is, so it can gate a
 test run. Almost every check is a SOURCING check — does this entry point at
@@ -87,6 +99,19 @@ EMPTY_CELLS = {"", "-", "—", "–", "n/a", "tbd"}
 
 DEFAULT_FORGE = "{{FORGE_URL}}"
 PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+
+# Where a task's long form lives — the same relationship the claims directory has
+# to the claims index.
+TASKS_DIR = "{{TASKS_DIR}}"
+
+# How much prose a row may carry beside its pointer. This IS a length check, and
+# it is deliberately not the same thing as the optional CAPS above. A cap makes a
+# still-true entry compete for space against a newer one, so something true gets
+# DELETED. This moves prose into the task's own doc, which has no budget at all —
+# nothing competes with anything and nothing is lost. Generous on purpose: the
+# target is the cell that has quietly become a 2,000-character essay, not a
+# careful two-sentence hook.
+TASK_HOOK_BUDGET = 240
 
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 UUID_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
@@ -234,6 +259,89 @@ def save(path, lines):
 
 def record_path(root, kind):
     return Path(root) / FILES[kind]
+
+
+# --------------------------------------------------------------------------
+# task docs — the long form behind a task row
+# --------------------------------------------------------------------------
+
+_SLUG_STRIP_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_SLUG_KILL_RE = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(title, words=6):
+    """A filename stem from a row's title. Link text survives, the target does not."""
+    text = _SLUG_STRIP_RE.sub(r"\1", title)
+    text = strip_emphasis(text).replace("`", "").lower()
+    parts = [p for p in _SLUG_KILL_RE.sub("-", text).split("-") if p]
+    return "-".join(parts[:words]) or "task"
+
+
+def task_doc_path(root, task_id, title=None, slug=None):
+    """The task's doc: an existing `<dir>/<id>-*.md`, else where it would go.
+
+    Globbing rather than recomputing the slug matters — a title gets reworded and
+    the row keeps pointing at the file it already has, instead of silently
+    orphaning it and starting a second one beside it.
+    """
+    directory = Path(root) / TASKS_DIR
+    hits = sorted(directory.glob(f"{task_id}-*.md"))
+    if hits:
+        return hits[0]
+    return directory / f"{task_id}-{slug or slugify(title or task_id)}.md"
+
+
+def task_doc_link(root, path):
+    return str(Path(path).resolve().relative_to(Path(root).resolve()))
+
+
+TASK_DOC_HEADER = """# {task_id} — {title}
+
+> Part of **[`{tasks_file}`]({up}{tasks_file})**, the task index — which is the authority on
+> this task's **status**, **owner** and **priority**. This file carries the description and
+> everything written while doing it. Grow it; never copy the row back here.
+
+## What and why
+
+{body}
+
+## Log
+
+<!-- `{helper} tasks note {task_id} --text '…'` appends here, oldest first. -->
+"""
+
+
+def write_task_doc(root, task_id, title, body="_Not written yet._", slug=None):
+    path = task_doc_path(root, task_id, title, slug)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    up = "../" * len(Path(TASKS_DIR).parts)
+    path.write_text(
+        TASK_DOC_HEADER.format(
+            task_id=task_id,
+            title=title.strip(),
+            up=up,
+            body=body.strip(),
+            tasks_file=FILES["tasks"],
+            helper="{{RECORDS_HELPER}}",
+        )
+    )
+    return path
+
+
+def append_task_note(root, task_id, text, date=None):
+    path = task_doc_path(root, task_id)
+    if not path.exists():
+        sys.exit(f"No task doc for {task_id} — run `tasks add`, or create it first")
+    lines = load(path)
+    block = ["\n", _wrap(f"**{date or _today()}** — {text}", indent="")]
+    # Append at the END: a task doc is a working record and reads
+    # chronologically, unlike a findings index, where the newest entry is the
+    # one you came for.
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines.extend(block)
+    save(path, lines)
+    return path, len(lines)
 
 
 def forge_url(lines):
@@ -430,8 +538,13 @@ class Checker:
     def check_pointers(self, kind, line, text):
         for target in ARROW_RE.findall(text):
             target = target.rstrip(".,;:)")
-            if target.startswith("["):
-                continue  # `→ [notes](path)` — the markdown-link pass has it
+            if target.startswith("[") or "](" in target:
+                # `→ [notes](path)` and `[→ doc](path)` are both links, and the
+                # markdown pass reads them correctly. Grabbing the arrow's next
+                # whitespace-delimited token here instead yields `doc](docs/...`,
+                # which reports a file that exists as a dead pointer — which is
+                # exactly what happened the first time a task table was migrated.
+                continue
             if "/" not in target and not target.endswith(".md"):
                 continue  # `→ T-042` points at a task id, not a path
             self._check_path(kind, line, target)
@@ -580,6 +693,13 @@ def lint_sessions(lines, ck):
         ck.check_shas("sessions", i + 1, raw)
 
 
+def _task_doc_target(notes):
+    for target in MD_LINK_RE.findall(notes):
+        if target.split("#", 1)[0].startswith(TASKS_DIR + "/"):
+            return target
+    return None
+
+
 def lint_tasks(lines, ck):
     seen = {}
     for entry in parse_tasks(lines):
@@ -587,6 +707,28 @@ def lint_tasks(lines, ck):
         task_id = get(row, cols, "ID")
         status = strip_emphasis(get(row, cols, "Status")).lower()
         owner = strip_emphasis(get(row, cols, "Owner")).lower()
+        notes = get(row, cols, "Notes")
+        doc = _task_doc_target(notes)
+        if doc is None:
+            ck.report(
+                "tasks",
+                line,
+                "task-doc-missing",
+                f"{task_id} cites no {TASKS_DIR}/ doc — a row is a pointer, and a task with "
+                "nowhere to write is a task whose reasoning ends up in this cell",
+            )
+        else:
+            hook = MD_LINK_RE.sub("", notes).strip(" ·—-→")
+            if len(hook) > TASK_HOOK_BUDGET:
+                ck.report(
+                    "tasks",
+                    line,
+                    "task-notes-prose",
+                    f"{task_id}: {len(hook)} characters of prose beside the pointer "
+                    f"(budget {TASK_HOOK_BUDGET}) — move it into {doc}, which has no "
+                    "budget. Nothing is deleted; it moves.",
+                )
+        ck.check_pointers("tasks", line, notes)
         if task_id in seen:
             ck.report("tasks", line, "duplicate-id", f"{task_id} also on line {seen[task_id]}")
         else:
@@ -869,6 +1011,46 @@ def cmd_tasks_set(args):
     print(f"{args.id}: {summary}")
 
 
+def cmd_tasks_add(args):
+    lines = load(args.file)
+    columns, row_idxs = parse_table(lines)
+    cols = resolve(columns)
+    idx = find_row(lines, columns, row_idxs, args.id)[0]
+    if idx is not None:
+        sys.exit(f"Task {args.id} already exists on line {idx + 1}")
+    path = write_task_doc(args.repo, args.id, args.title, args.body or "_Not written yet._")
+    link = task_doc_link(args.repo, path)
+    hook = f"{args.hook.strip()} " if args.hook else ""
+    values = {
+        cols.get("ID", "ID"): args.id,
+        cols.get("Title", "Title"): args.title,
+        cols.get("Priority", "Priority"): args.phase or "",
+        cols.get("Status", "Status"): args.status,
+        cols.get("Owner", "Owner"): args.owner or "",
+        cols.get("Notes", "Notes"): f"{hook}[→ doc]({link})",
+    }
+    at = (row_idxs[-1] + 1) if row_idxs else len(lines)
+    lines[at:at] = [format_row(values, columns)]
+    save(args.file, lines)
+    print(f"{Path(args.file).name}:{at + 1}: added {args.id}")
+    print(f"{link}: created")
+
+
+def cmd_tasks_note(args):
+    path, count = append_task_note(args.repo, args.id, args.text)
+    print(f"{task_doc_link(args.repo, path)}:{count}: noted")
+
+
+def cmd_tasks_doc(args):
+    path = task_doc_path(args.repo, args.id)
+    if not path.exists():
+        sys.exit(f"No task doc for {args.id} at {task_doc_link(args.repo, path)}")
+    if args.print:
+        sys.stdout.write(path.read_text())
+    else:
+        print(task_doc_link(args.repo, path))
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="one interface to the project's records")
     parser.add_argument("--repo", default=str(REPO), help="repo root holding the records")
@@ -936,6 +1118,28 @@ def build_parser():
     q.add_argument("--owner")
     q.add_argument("--notes")
     q.set_defaults(func=cmd_tasks_set)
+
+    q = tsub.add_parser("add", help="a new row AND its task doc, together")
+    q.add_argument("--id", required=True)
+    q.add_argument("--title", required=True)
+    # Both spellings land in the same cell: the starter table's column is
+    # `Priority`, while a project that renamed it to `phase` still works.
+    q.add_argument("--priority", "--phase", dest="phase")
+    q.add_argument("--status", default="{{STATUS_READY}}")
+    q.add_argument("--owner")
+    q.add_argument("--hook", help="the one line that goes in the row beside the pointer")
+    q.add_argument("--body", help="opening text of the doc")
+    q.set_defaults(func=cmd_tasks_add)
+
+    q = tsub.add_parser("note", help="append a dated note to the task's doc, not to the row")
+    q.add_argument("id")
+    q.add_argument("--text", required=True)
+    q.set_defaults(func=cmd_tasks_note)
+
+    q = tsub.add_parser("doc", help="path to a task's doc")
+    q.add_argument("id")
+    q.add_argument("--print", action="store_true")
+    q.set_defaults(func=cmd_tasks_doc)
 
     return parser
 
